@@ -261,4 +261,65 @@ func TestMasterDataEdgeCases(t *testing.T) {
 	if err != nil || len(tree) != 1 {
 		t.Fatalf("expected fallback to root for missing parent in batch, got tree=%v, err=%v", tree, err)
 	}
+
+	// Test FiscalPeriod.Contains for normal vs adjustment periods
+	normalPeriod := FiscalPeriod{
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 1, 31, 23, 59, 59, 999999999, time.UTC),
+		Type:      FiscalPeriodTypeNormal,
+	}
+	if !normalPeriod.Contains(time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("normal period should contain date within range")
+	}
+	if normalPeriod.Contains(time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("normal period should not contain date outside range")
+	}
+
+	adjPeriod13 := FiscalPeriod{
+		StartDate: time.Date(2026, 12, 31, 23, 59, 59, 999999999, time.UTC),
+		EndDate:   time.Date(2026, 12, 31, 23, 59, 59, 999999999, time.UTC),
+		Type:      FiscalPeriodTypeYearEndAdjustment,
+	}
+	if adjPeriod13.Contains(time.Date(2026, 12, 31, 23, 59, 59, 999999999, time.UTC)) {
+		t.Fatalf("adjustment period 13 must never contain date in search")
+	}
+
+	// Test ValidatePeriodForPosting rejecting closed fiscal year
+	fyID := types.NewFiscalYearID()
+	closedYear := FiscalYear{ID: fyID, CompanyID: compID, State: FiscalYearHardClosed}
+	reader.fiscalYears[fyID] = closedYear
+	openPeriodInClosedYear := FiscalPeriod{
+		ID:           types.NewFiscalPeriodID(),
+		CompanyID:    compID,
+		FiscalYearID: fyID,
+		State:        PeriodOpen,
+		StartDate:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:      time.Date(2026, 1, 31, 23, 59, 59, 0, time.UTC),
+	}
+	reader.periods[compID] = []FiscalPeriod{openPeriodInClosedYear}
+
+	_, err = ValidatePeriodForPosting(ctx, reader, compID, time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC))
+	if !errors.Is(err, ErrClosedFiscalYear) {
+		t.Fatalf("expected ErrClosedFiscalYear when fiscal year is closed, got %v", err)
+	}
+
+	// Test transitions and approvals
+	if err := ValidateFiscalYearTransition(FiscalYearOpen, FiscalYearSoftClosed); err != nil {
+		t.Fatalf("valid FY transition failed: %v", err)
+	}
+	if err := ValidateFiscalYearTransition(FiscalYearOpen, FiscalYearOpen); err == nil {
+		t.Fatalf("invalid FY transition should fail")
+	}
+	if err := ValidateFiscalYearReopen(FiscalYearHardClosed, FiscalYearOpen, "admin", "audit reason"); err != nil {
+		t.Fatalf("valid FY reopen failed: %v", err)
+	}
+	if err := ValidateFiscalYearReopen(FiscalYearHardClosed, FiscalYearOpen, "", ""); err == nil {
+		t.Fatalf("FY reopen without actor should fail")
+	}
+	if err := ValidatePeriodReopenWithApproval(PeriodHardClosed, PeriodOpen, "admin", "reason", "APPR-123"); err != nil {
+		t.Fatalf("valid period reopen with approval failed: %v", err)
+	}
+	if err := ValidatePeriodReopenWithApproval(PeriodHardClosed, PeriodOpen, "admin", "reason", ""); err == nil {
+		t.Fatalf("reopen without approval ID should fail")
+	}
 }

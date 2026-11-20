@@ -3,6 +3,7 @@ package posting
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -265,6 +266,53 @@ func TestPostingPipelineEndToEnd(t *testing.T) {
 	}
 	if posted.SequenceNumber != 1 {
 		t.Fatalf("expected sequence 1, got %d", posted.SequenceNumber)
+	}
+
+	// 1. Rejection on non-draft status
+	postedEntry := entry
+	postedEntry.Status = journal.EntryPosted
+	_, err = pipeline.PostEntry(ctx, postedEntry, PostOptions{ActorID: "poster-1"})
+	if !errors.Is(err, ErrInvalidEntryState) {
+		t.Fatalf("expected ErrInvalidEntryState for non-draft, got %v", err)
+	}
+
+	// 2. Rejection on empty ActorID
+	_, err = pipeline.PostEntry(ctx, entry, PostOptions{ActorID: ""})
+	if !errors.Is(err, ErrPosterIDRequired) {
+		t.Fatalf("expected ErrPosterIDRequired, got %v", err)
+	}
+
+	// 3. Rejection on functional currency mismatch with company
+	eurCompID := types.NewCompanyID()
+	eurReader := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
+	eurPipeline := NewPostingPipeline(eurReader, func(ctx context.Context, entry journal.JournalEntry, opts PostOptions) (journal.JournalEntry, error) {
+		return entry, nil
+	})
+	eurEntry := entry
+	eurEntry.CompanyID = eurCompID
+	// The mock reader returns USD as company functional currency, but entry has EUR
+	eurEntry.Lines[0].FunctionalDebit = makeMoney(t, "100.00", "EUR")
+	eurEntry.Lines[0].FunctionalCredit = makeMoney(t, "0.00", "EUR")
+	eurEntry.Lines[1].FunctionalDebit = makeMoney(t, "0.00", "EUR")
+	eurEntry.Lines[1].FunctionalCredit = makeMoney(t, "100.00", "EUR")
+	_, err = eurPipeline.PostEntry(ctx, eurEntry, PostOptions{ActorID: "poster-1"})
+	if !errors.Is(err, ErrFunctionalCurrencyMismatch) {
+		t.Fatalf("expected ErrFunctionalCurrencyMismatch, got %v", err)
+	}
+
+	// 4. Maker-Checker threshold violation (Creator == Poster)
+	mcPipeline := NewPostingPipeline(reader, func(ctx context.Context, entry journal.JournalEntry, opts PostOptions) (journal.JournalEntry, error) {
+		return entry, nil
+	}, WithMakerCheckerThreshold(decimal.NewFromInt(50)))
+	_, err = mcPipeline.PostEntry(ctx, entry, PostOptions{ActorID: "maker-1"})
+	if err == nil || !strings.Contains(err.Error(), "segregation of duties") {
+		t.Fatalf("expected segregation of duties error when creator posts entry above threshold, got %v", err)
+	}
+
+	// 5. Content hash calculation and verification
+	hash, err := EntryContentHash(entry)
+	if err != nil || len(hash) != 64 {
+		t.Fatalf("expected valid 64-char sha256 hash, got %s, err: %v", hash, err)
 	}
 }
 

@@ -31,7 +31,7 @@ technical_terms: "en"
 | **`P0`** | **التهيئة والتأسيس (Bootstrap & Setup):** إعداد المشروع المستهدف، ملف `go.mod` الرشيق، وهيكل المجلدات وأدوات السلامة. | `P0-01`, `P0-02`, `P0-03` | لا شيء | [01_PHASE_0_BOOTSTRAP_AND_SETUP.md](01_PHASE_0_BOOTSTRAP_AND_SETUP.md) |
 | **`P1`** | **العقود العامة والموانئ المجردة (Public Contracts & SPI):** تأسيس النماذج العامة ومنافذ التخزين المجردة وسياق الأمان. | `P1-01`, `P1-02`, `P1-03` | `P0` (اكتمال واعتماد المرحلة) | [02_PHASE_1_PUBLIC_CONTRACTS_AND_SPI.md](02_PHASE_1_PUBLIC_CONTRACTS_AND_SPI.md) |
 | **`P2`** | **بناء النواة المحاسبية الصرفة (Kernal Kernel Construction):** بناء حزم القلب المحاسبي (Types, MasterData, Posting, Valuation, Policy, Governance). | `P2-01`, `P2-02`, `P2-03`, `P2-04`, `P2-05`, `P2-06`, `P2-07` | `P1` (اكتمال واعتماد المرحلة) | [03_PHASE_2_CORE_KERNEL_CONSTRUCTION.md](03_PHASE_2_CORE_KERNEL_CONSTRUCTION.md) |
-| **`P3`** | **محولات التخزين ووحدة العمل (Storage Adapters & UoW):** بناء محول الذاكرة المؤقتة (`storage/memory` للتطوير والاختبارات فقط)، ومحول PostgreSQL الإنتاجي الحصري (`storage/postgres`) مع سياسات RLS وقواعد الحرمة WORM. | `P3-01`, `P3-02`, `P3-03`, `P3-04` | `P2` (اكتمال واعتماد المرحلة) | [04_PHASE_3_STORAGE_ADAPTERS.md](04_PHASE_3_STORAGE_ADAPTERS.md) |
+| **`P3`** | **محولات التخزين ووحدة العمل (Storage Adapters & UoW):** بناء محول الذاكرة المؤقتة (`storage/memory` للتطوير والاختبارات فقط ويُحظر إنتاجياً)، وإعادة هيكلة ترحيلات PostgreSQL الـ 32 وفق شجرة الاعتماديات، وبناء محول PostgreSQL الإنتاجي الحصري (`storage/postgres`) مع سياسات RLS وقواعد الحرمة WORM. | `P3-01`, `P3-02`, `P3-03`, `P3-04` | `P2` (اكتمال واعتماد المرحلة) | [04_PHASE_3_STORAGE_ADAPTERS.md](04_PHASE_3_STORAGE_ADAPTERS.md) |
 | **`P4`** | **السطح البرمجي العام للمكتبة (SDK Public Surface):** بناء `sdk.Engine` والمنشئ الموحد واستيعاب الأحداث وإثبات التضمين الخارجي. | `P4-01`, `P4-02`, `P4-03`, `P4-04` | `P3` (اكتمال واعتماد المرحلة) | [05_PHASE_4_SDK_PUBLIC_SURFACE.md](05_PHASE_4_SDK_PUBLIC_SURFACE.md) |
 | **`P5`** | **المكونات المدارية الاختيارية (Orbital Components):** بناء الدفاتر المساعدة، محرك التقارير المالية، التسويات، وتوحيد القوائم. | `P5-01`, `P5-02`, `P5-03`, `P5-04` | `P4` (اكتمال واعتماد المرحلة) | [06_PHASE_5_ORBITAL_COMPONENTS.md](06_PHASE_5_ORBITAL_COMPONENTS.md) |
 | **`P6`** | **وحدات المعايير الدولية المتخصصة (IFRS/IAS Standards):** بناء وحدات IFRS 15, IFRS 16, IFRS 9, و IAS 12 المفصولة كإضافات SPI. | `P6-01`, `P6-02`, `P6-03`, `P6-04` | `P5` (اكتمال واعتماد المرحلة) | [07_PHASE_6_STANDARDS_MODULES.md](07_PHASE_6_STANDARDS_MODULES.md) |
@@ -133,7 +133,7 @@ flowchart TD
 | `P0-01`..`03` | `go.mod`, `go.sum`, `scripts/*`, شجرة المجلدات | لا يوجد |
 | `P1-01`..`03` | `pkg/api/v1/*`, `pkg/spi/*` | `go.mod` |
 | `P2-01`..`07` | `internal/kernal/*` | `pkg/api/v1/*`, `pkg/spi/*` |
-| `P3-01`..`04` | `storage/postgres/*`, `storage/memory/*` | `pkg/spi/storage/*` |
+| `P3-01`..`04` | `storage/postgres/*`, `storage/memory/*`, `storage/masterdatacontract/*`, `test/contract_parity/*` | `pkg/spi/storage/*` |
 | `P4-01`..`04` | `pkg/sdk/*`, `test/external_consumer/*` | `internal/kernal/*`, `storage/*` |
 | `P5-01`..`04` | `internal/orbitals/*` | `pkg/sdk/*`, `internal/kernal/*` |
 | `P6-01`..`04` | `modules/*` | `pkg/spi/standards/*` |
@@ -148,7 +148,7 @@ flowchart TD
 - **بوابة `P0`:** نجاح `go mod tidy` و `go vet ./...` على بيئة نظيفة.
 - **بوابة `P1`:** نجاح فحص استقلالية عقود `pkg/api` و `pkg/spi` وعدم استيراد أي `internal`.
 - **بوابة `P2`:** اجتياز 100% من اختبارات القيد المزدوج والتحقق الرياضي والذرية بالذاكرة.
-- **بوابة `P3`:** اجتياز اختبارات التكافؤ التام (Contract Parity) بنسبة 22/22 بين الذاكرة و Postgres.
+- **بوابة `P3`:** اجتياز اختبارات تكافؤ التخزين (Storage SPI Contract Parity) واختبارات `masterdatacontract` بنسبة 100% بين الذاكرة و Postgres، وتطبيق وتراجع ترحيلات PostgreSQL وفق شجرة الاعتماديات، واجتياز فحوصات RLS لـ 42 جدولاً وفحوصات الحرمة WORM، مع التأكيد الصارم على حصر `storage/memory` في بيئات التطوير والاختبار.
 - **بوابة `P4`:** نجاح بناء وتشغيل مستهلك خارجي مستقل يستورد `pkg/sdk` فقط وينفذ قيوداً متوازنة.
 - **بوابة `P5`:** مطابقة دفاتر الأستاذ المساعدة مع حسابات الرقابة واجتياز اختبارات القوائم المالية.
 - **بوابة `P6`:** اجتياز اختبارات وحدات IFRS دون أي تسريب لداخليات النواة.
