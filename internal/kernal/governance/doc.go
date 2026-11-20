@@ -1,4 +1,4 @@
-// Package governance: Append-only audit chain and tamper-evident approval fingerprints.
+// Package governance: Append-only audit chain and tamper-evident audit verification.
 //
 // Import charter: May import only sibling internal/kernal/* modules, uuid and decimal.
 //

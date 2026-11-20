@@ -43,12 +43,9 @@ func SummarizeAdjustingEntriesForPreClose(entries []journal.JournalEntry) Adjust
 
 		if !validAdjustingEntryType(entry.AdjustingEntryType) ||
 			strings.TrimSpace(entry.AdjustmentReason) == "" ||
-			strings.TrimSpace(entry.AdjustmentApprovalReference) == "" ||
-			!entry.AdjustmentAuthorized ||
-			strings.TrimSpace(entry.CreatedBy) == "" || entry.CreatedAt.IsZero() ||
-			strings.TrimSpace(entry.ApprovedBy) == "" || entry.ApprovedAt == nil || entry.ApprovedAt.IsZero() {
+			strings.TrimSpace(entry.CreatedBy) == "" || entry.CreatedAt.IsZero() {
 			summary.MissingAuditMetadata++
-			summary.Evidence = append(summary.Evidence, fmt.Sprintf("adjusting entry %s lacks approval or audit metadata", reference))
+			summary.Evidence = append(summary.Evidence, fmt.Sprintf("adjusting entry %s lacks required accounting or audit metadata", reference))
 		}
 	}
 	return summary

@@ -1,7 +1,16 @@
-// Package memory: Volatile in-memory adapter for development and tests ONLY; forbidden in production.
+// Package memory provides a volatile in-memory storage adapter for development,
+// local testing, and CI pipelines ONLY.
 //
-// Import charter: May import pkg/api/v1/* and pkg/spi/* only; never internal/kernal/*.
+// STRICT ARCHITECTURAL & OPERATIONAL PROHIBITION:
+// This memory adapter is NOT durable, provides no cross-process concurrency locks,
+// and enforces NO row-level security (RLS) or database-level WORM immutability triggers.
+// IT IS STRICTLY FORBIDDEN TO USE THIS ADAPTER IN PRODUCTION ENVIRONMENTS.
+// The sole production-certified adapter for the accountant engine is storage/postgres.
 //
-// Baseline: AE-PLAN-STEP-P0 / P0-02, NEW_PROJECT_STRUCTURE.md,
-// ARCHITECTURAL_PRINCIPLES_CHARTER.md.
+// Capabilities:
+//   - GuaranteesDurability: false
+//   - Atomic snapshot rollback for UnitOfWork / TxRunner.
+//   - Thread-safe in-memory operations protected by RWMutex.
+//
+// Baseline: AE-PLAN-STEP-P3 / P3-01.
 package memory

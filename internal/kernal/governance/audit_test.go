@@ -15,6 +15,19 @@ type inMemoryAuditRepo struct {
 	logs map[apiTypes.CompanyID][]AuditLog
 }
 
+type nonAtomicAuditRepo struct {
+	AuditLogRepository
+}
+
+type fixedAuditCheckpointProvider struct {
+	checkpoint AuditCheckpoint
+	err        error
+}
+
+func (p fixedAuditCheckpointProvider) GetAuditCheckpoint(context.Context, apiTypes.CompanyID) (AuditCheckpoint, error) {
+	return p.checkpoint, p.err
+}
+
 func newInMemoryAuditRepo() *inMemoryAuditRepo {
 	return &inMemoryAuditRepo{
 		logs: make(map[apiTypes.CompanyID][]AuditLog),
@@ -28,6 +41,25 @@ func (r *inMemoryAuditRepo) AppendAuditLog(ctx context.Context, log AuditLog) er
 	log.ID = int64(len(list) + 1)
 	r.logs[log.CompanyID] = append(list, log)
 	return nil
+}
+
+func (r *inMemoryAuditRepo) AppendAuditLogAtomic(ctx context.Context, log AuditLog) (AuditLog, error) {
+	if err := ctx.Err(); err != nil {
+		return AuditLog{}, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	list := r.logs[log.CompanyID]
+	log.ID = int64(len(list) + 1)
+	log.SequenceNumber = uint64(len(list) + 1)
+	log.PreviousLogHash = GenesisHash
+	if len(list) > 0 {
+		last := list[len(list)-1]
+		log.PreviousLogHash = last.CurrentLogHash
+	}
+	log.CurrentLogHash = CalculateHash(log)
+	r.logs[log.CompanyID] = append(list, log)
+	return log, nil
 }
 
 func (r *inMemoryAuditRepo) GetLastAuditLogForCompany(ctx context.Context, companyID apiTypes.CompanyID) (*AuditLog, error) {
@@ -129,46 +161,120 @@ func TestCryptographicHashChaining(t *testing.T) {
 	}
 }
 
-func TestMakerCheckerAndSoDApprovals(t *testing.T) {
-	threshold, _ := types.NewMoneyFromString("1000.00", "USD")
-	amountAbove, _ := types.NewMoneyFromString("1500.00", "USD")
-	amountBelow, _ := types.NewMoneyFromString("500.00", "USD")
-
-	// 1. Self-approval above threshold prohibited
-	err := ValidatePostingApproval("user-1", "user-1", amountAbove, threshold)
-	if !errors.Is(err, ErrSelfApprovalProhibited) {
-		t.Fatalf("expected ErrSelfApprovalProhibited, got %v", err)
+func TestAuditChainHashIncludesReason(t *testing.T) {
+	ctx := context.Background()
+	repo := newInMemoryAuditRepo()
+	chain := NewAuditChain(repo)
+	companyID := types.NewCompanyID()
+	if _, err := chain.Append(ctx, AuditLog{
+		CompanyID: companyID, EntityType: "journal_entry", EntityID: "entry-1",
+		Action: "POST", ActorID: "actor-1", Reason: "approved reason",
+	}); err != nil {
+		t.Fatal(err)
 	}
 
-	// 2. Self-approval below threshold allowed
-	err = ValidatePostingApproval("user-1", "user-1", amountBelow, threshold)
+	repo.mu.Lock()
+	repo.logs[companyID][0].Reason = "tampered reason"
+	repo.mu.Unlock()
+
+	if valid, err := chain.VerifyAuditIntegrity(ctx, companyID); valid || !errors.Is(err, ErrAuditChainBroken) {
+		t.Fatalf("verification after changing reason = (%v, %v), want audit chain failure", valid, err)
+	}
+}
+
+func TestAuditChainRejectsNonAtomicRepository(t *testing.T) {
+	repo := nonAtomicAuditRepo{AuditLogRepository: newInMemoryAuditRepo()}
+	chain := NewAuditChain(repo)
+	_, err := chain.Append(context.Background(), AuditLog{CompanyID: types.NewCompanyID()})
+	if !errors.Is(err, ErrAtomicAuditRepositoryRequired) {
+		t.Fatalf("append without atomic repository error = %v, want atomic-repository-required", err)
+	}
+}
+
+func TestAuditChainAppendIsAtomicAcrossInstances(t *testing.T) {
+	ctx := context.Background()
+	repo := newInMemoryAuditRepo()
+	chains := []*AuditChain{NewAuditChain(repo), NewAuditChain(repo)}
+	companyID := types.NewCompanyID()
+	const entriesPerChain = 20
+	errs := make(chan error, len(chains)*entriesPerChain)
+	var wait sync.WaitGroup
+
+	for _, chain := range chains {
+		wait.Add(1)
+		go func(chain *AuditChain) {
+			defer wait.Done()
+			for i := 0; i < entriesPerChain; i++ {
+				_, err := chain.Append(ctx, AuditLog{
+					CompanyID: companyID, EntityType: "journal_entry",
+					EntityID: types.NewJournalEntryID().String(), Action: "POST",
+				})
+				if err != nil {
+					errs <- err
+					return
+				}
+
+			}
+		}(chain)
+	}
+	wait.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+
+	if valid, err := chains[0].VerifyAuditIntegrity(ctx, companyID); !valid || err != nil {
+		t.Fatalf("concurrent append verification = (%v, %v), want valid chain", valid, err)
+	}
+}
+
+func TestAuditCheckpointDetectsDeletedTail(t *testing.T) {
+	ctx := context.Background()
+	repo := newInMemoryAuditRepo()
+	chain := NewAuditChain(repo)
+	companyID := types.NewCompanyID()
+	var last AuditLog
+	for range 2 {
+		var err error
+		last, err = chain.Append(ctx, AuditLog{
+			CompanyID: companyID, EntityType: "journal_entry",
+			EntityID: types.NewJournalEntryID().String(), Action: "POST",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	provider := fixedAuditCheckpointProvider{checkpoint: AuditCheckpoint{
+		CompanyID: companyID, SequenceNumber: last.SequenceNumber, LogHash: last.CurrentLogHash,
+	}}
+	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID, provider); !valid || err != nil {
+		t.Fatalf("audit chain with matching checkpoint = (%v, %v), want valid", valid, err)
+	}
+
+	newest, err := chain.Append(ctx, AuditLog{
+		CompanyID: companyID, EntityType: "journal_entry",
+		EntityID: types.NewJournalEntryID().String(), Action: "POST",
+	})
 	if err != nil {
-		t.Fatalf("expected approval below threshold to succeed, got %v", err)
+		t.Fatal(err)
+	}
+	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID, provider); valid || !errors.Is(err, ErrAuditCheckpointMismatch) {
+		t.Fatalf("stale external checkpoint = (%v, %v), want checkpoint mismatch", valid, err)
+	}
+	provider.checkpoint = AuditCheckpoint{
+		CompanyID: companyID, SequenceNumber: newest.SequenceNumber, LogHash: newest.CurrentLogHash,
+	}
+	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID, provider); !valid || err != nil {
+		t.Fatalf("updated external checkpoint = (%v, %v), want valid", valid, err)
 	}
 
-	// 3. Different approver above threshold allowed
-	err = ValidatePostingApproval("user-1", "manager-2", amountAbove, threshold)
-	if err != nil {
-		t.Fatalf("expected different approver to succeed, got %v", err)
+	repo.mu.Lock()
+	repo.logs[companyID] = repo.logs[companyID][:1]
+	repo.mu.Unlock()
+	if valid, err := chain.VerifyAuditIntegrity(ctx, companyID); !valid || err != nil {
+		t.Fatalf("truncated hash chain alone = (%v, %v), want valid without an anchor", valid, err)
 	}
-
-	// 4. Segregation of duties (reconciliation vs disbursement)
-	err = ValidateBankDutySegregation("user-1", "user-1")
-	if !errors.Is(err, ErrBankDutySegregationViolation) {
-		t.Fatalf("expected ErrBankDutySegregationViolation, got %v", err)
-	}
-	err = ValidateBankDutySegregation("user-1", "user-2")
-	if err != nil {
-		t.Fatalf("expected segregated duties to succeed, got %v", err)
-	}
-
-	// 5. Annual closing requires Controller
-	err = ValidateAnnualClose(true, []Permission{PermissionPost, PermissionClose})
-	if !errors.Is(err, ErrFinancialControllerRequired) {
-		t.Fatalf("expected ErrFinancialControllerRequired, got %v", err)
-	}
-	err = ValidateAnnualClose(true, []Permission{PermissionPost, PermissionController})
-	if err != nil {
-		t.Fatalf("expected controller annual close to pass, got %v", err)
+	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID, provider); valid || !errors.Is(err, ErrAuditCheckpointMismatch) {
+		t.Fatalf("truncated chain with external checkpoint = (%v, %v), want checkpoint mismatch", valid, err)
 	}
 }

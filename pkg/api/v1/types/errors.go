@@ -23,6 +23,6 @@ var (
 	ErrDuplicateAccountCode      = kernalTypes.ErrDuplicateAccountCode
 	ErrMoveAlreadyPosted         = kernalTypes.ErrMoveAlreadyPosted
 	ErrCannotModifyPostedMove    = kernalTypes.ErrCannotModifyPostedMove
-	ErrMakerCheckerViolation     = kernalTypes.ErrMakerCheckerViolation
+	ErrMakerCheckerViolation     = errors.New("maker-checker violation")
 	ErrCapabilityNotImplemented  = errors.New("capability not implemented")
 )

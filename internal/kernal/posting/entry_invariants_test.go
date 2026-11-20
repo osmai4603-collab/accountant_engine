@@ -3,7 +3,6 @@ package posting
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -30,11 +29,13 @@ func TestDoubleEntryMathematicalValidation(t *testing.T) {
 
 	// 1. Unbalanced entry
 	unbalanced := journal.JournalEntry{
+		ID:            types.NewJournalEntryID(),
 		CompanyID:     compID,
 		JournalID:     journalID,
 		EffectiveDate: time.Now().UTC(),
 		Lines: []journal.EntryLine{
 			{
+				ID:                  types.NewJournalEntryLineID(),
 				AccountID:           acc1,
 				TransactionCurrency: "USD",
 				TransactionAmount:   makeMoney(t, "100.00", "USD"),
@@ -43,6 +44,7 @@ func TestDoubleEntryMathematicalValidation(t *testing.T) {
 				FunctionalCredit:    makeMoney(t, "0.00", "USD"),
 			},
 			{
+				ID:                  types.NewJournalEntryLineID(),
 				AccountID:           acc2,
 				TransactionCurrency: "USD",
 				TransactionAmount:   makeMoney(t, "90.00", "USD"),
@@ -77,11 +79,13 @@ func TestDoubleEntryMathematicalValidation(t *testing.T) {
 
 	// 4. Line with both debit and credit
 	bothSides := journal.JournalEntry{
+		ID:            types.NewJournalEntryID(),
 		CompanyID:     compID,
 		JournalID:     journalID,
 		EffectiveDate: time.Now().UTC(),
 		Lines: []journal.EntryLine{
 			{
+				ID:                  types.NewJournalEntryLineID(),
 				AccountID:           acc1,
 				TransactionCurrency: "USD",
 				TransactionAmount:   makeMoney(t, "100.00", "USD"),
@@ -90,6 +94,7 @@ func TestDoubleEntryMathematicalValidation(t *testing.T) {
 				FunctionalCredit:    makeMoney(t, "50.00", "USD"),
 			},
 			{
+				ID:                  types.NewJournalEntryLineID(),
 				AccountID:           acc2,
 				TransactionCurrency: "USD",
 				TransactionAmount:   makeMoney(t, "50.00", "USD"),
@@ -109,6 +114,75 @@ func TestDoubleEntryMathematicalValidation(t *testing.T) {
 	negEntry.Lines[0].FunctionalDebit = negMoney
 	if err := ValidateEntryDoubleEntry(&negEntry, nil); !errors.Is(err, types.ErrNegativeAmountProhibited) {
 		t.Fatalf("expected ErrNegativeAmountProhibited, got %v", err)
+	}
+}
+
+func TestEntryIdentityValidationRequiresUniqueLineIDs(t *testing.T) {
+	entry := newPostingTestEntry(t, "creator")
+	missingEntryID := entry
+	missingEntryID.ID = types.JournalEntryID{}
+	if err := ValidateEntryIdentity(missingEntryID); !errors.Is(err, ErrMissingEntryID) {
+		t.Fatalf("missing entry id error = %v, want missing entry id", err)
+	}
+
+	missingLineID := entry
+	missingLineID.Lines = append([]journal.EntryLine(nil), entry.Lines...)
+	missingLineID.Lines[0].ID = types.JournalEntryLineID{}
+	if err := ValidateEntryIdentity(missingLineID); !errors.Is(err, ErrMissingLineID) {
+		t.Fatalf("missing line id error = %v, want missing line id", err)
+	}
+
+	duplicateLineID := entry
+	duplicateLineID.Lines = append([]journal.EntryLine(nil), entry.Lines...)
+	duplicateLineID.Lines[1].ID = duplicateLineID.Lines[0].ID
+	if err := ValidateEntryIdentity(duplicateLineID); !errors.Is(err, ErrDuplicateLineID) {
+		t.Fatalf("duplicate line id error = %v, want duplicate line id", err)
+	}
+}
+
+func TestAdjustingEntriesRequireMetadataAtValidation(t *testing.T) {
+	entry := newPostingTestEntry(t, "creator")
+	entry.Classification = journal.EntryClassAdjusting
+	if err := ValidateEntryDoubleEntry(&entry, nil); !errors.Is(err, ErrAdjustingEntryMetadataRequired) {
+		t.Fatalf("adjusting entry without metadata error = %v, want required metadata", err)
+	}
+
+	entry.AdjustingEntryType = journal.AdjustingEntryAccrual
+	entry.AdjustmentReason = "Month-end accrual"
+	if err := ValidateEntryDoubleEntry(&entry, nil); err != nil {
+		t.Fatalf("adjusting entry with metadata: %v", err)
+	}
+
+	entry.Classification = journal.EntryClassClosing
+	entry.AdjustingEntryType = ""
+	entry.AdjustmentReason = ""
+	if err := ValidateEntryDoubleEntry(&entry, nil); err != nil {
+		t.Fatalf("closing entry without adjusting metadata: %v", err)
+	}
+}
+
+func TestReversalClassificationAndReferenceMustMatch(t *testing.T) {
+	entry := newPostingTestEntry(t, "creator")
+	originalID := types.NewJournalEntryID()
+	entry.ReversalOfID = &originalID
+	if err := ValidateEntryDoubleEntry(&entry, nil); !errors.Is(err, ErrInvalidReversal) {
+		t.Fatalf("regular entry with reversal reference error = %v, want invalid reversal", err)
+	}
+
+	entry.Classification = journal.EntryClassReversing
+	entry.ReversalOfID = nil
+	if err := ValidateEntryDoubleEntry(&entry, nil); !errors.Is(err, ErrInvalidReversal) {
+		t.Fatalf("reversing entry without reference error = %v, want invalid reversal", err)
+	}
+
+	entry.ReversalOfID = &originalID
+	if err := ValidateEntryDoubleEntry(&entry, nil); err != nil {
+		t.Fatalf("reversing entry with valid reference: %v", err)
+	}
+
+	entry.ReversalOfID = &entry.ID
+	if err := ValidateEntryDoubleEntry(&entry, nil); !errors.Is(err, ErrInvalidReversal) {
+		t.Fatalf("self-reversal reference error = %v, want invalid reversal", err)
 	}
 }
 
@@ -148,13 +222,16 @@ func TestReversalLifecycle(t *testing.T) {
 
 	// 1. Reversal on later date
 	revDate := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
-	reversal, err := BuildReversalEntry(entry, revDate, "maker-1", "Correction")
+	reversal, err := BuildReversalEntry(entry, revDate, "creator-1", "Correction")
 	if err != nil {
 		t.Fatalf("BuildReversalEntry failed: %v", err)
 	}
 
 	if reversal.Classification != journal.EntryClassReversing {
 		t.Fatalf("expected classification reversing, got %s", reversal.Classification)
+	}
+	if reversal.Status != journal.EntryDraft || reversal.FiscalPeriodID != (types.FiscalPeriodID{}) {
+		t.Fatalf("reversal must be a draft with no inherited fiscal period")
 	}
 	if *reversal.ReversalOfID != entry.ID {
 		t.Fatalf("reversal not pointing to original")
@@ -166,7 +243,7 @@ func TestReversalLifecycle(t *testing.T) {
 
 	// 2. Reversal date before original date
 	earlierDate := time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)
-	_, err = BuildReversalEntry(entry, earlierDate, "maker-1", "Correction")
+	_, err = BuildReversalEntry(entry, earlierDate, "creator-1", "Correction")
 	if !errors.Is(err, ErrReversalDateBeforeOriginal) {
 		t.Fatalf("expected ErrReversalDateBeforeOriginal, got %v", err)
 	}
@@ -174,7 +251,7 @@ func TestReversalLifecycle(t *testing.T) {
 	// 3. Reversing non-posted draft entry
 	draftEntry := entry
 	draftEntry.Status = journal.EntryDraft
-	_, err = BuildReversalEntry(draftEntry, revDate, "maker-1", "Correction")
+	_, err = BuildReversalEntry(draftEntry, revDate, "creator-1", "Correction")
 	if !errors.Is(err, ErrEntryNotPosted) {
 		t.Fatalf("expected ErrEntryNotPosted, got %v", err)
 	}
@@ -183,23 +260,30 @@ func TestReversalLifecycle(t *testing.T) {
 	revID := types.NewJournalEntryID()
 	alreadyRev := entry
 	alreadyRev.ReversedByID = &revID
-	_, err = BuildReversalEntry(alreadyRev, revDate, "maker-1", "Correction")
+	_, err = BuildReversalEntry(alreadyRev, revDate, "creator-1", "Correction")
 	if !errors.Is(err, ErrEntryAlreadyReversed) {
 		t.Fatalf("expected ErrEntryAlreadyReversed, got %v", err)
 	}
 }
 
 type mockMasterReaderForPosting struct {
-	compActive bool
-	periodOpen bool
-	isHeader   bool
+	compActive         bool
+	periodOpen         bool
+	periodState        masterdata.PeriodState
+	isHeader           bool
+	functionalCurrency string
+	journal            masterdata.Journal
 }
 
 func (m *mockMasterReaderForPosting) GetCompany(ctx context.Context, id types.CompanyID) (masterdata.Company, error) {
-	return masterdata.Company{ID: id, Active: m.compActive}, nil
+	fc := m.functionalCurrency
+	if fc == "" {
+		fc = "USD"
+	}
+	return masterdata.Company{ID: id, Active: m.compActive, FunctionalCurrency: fc}, nil
 }
 func (m *mockMasterReaderForPosting) GetAccount(ctx context.Context, cid types.CompanyID, aid types.AccountID) (masterdata.Account, error) {
-	return masterdata.Account{ID: aid, CompanyID: cid, IsActive: true}, nil
+	return masterdata.Account{ID: aid, CompanyID: cid, IsActive: true, Type: masterdata.AccountTypeAsset}, nil
 }
 func (m *mockMasterReaderForPosting) GetAccountByCode(ctx context.Context, cid types.CompanyID, code string) (masterdata.Account, error) {
 	return masterdata.Account{}, nil
@@ -207,34 +291,50 @@ func (m *mockMasterReaderForPosting) GetAccountByCode(ctx context.Context, cid t
 func (m *mockMasterReaderForPosting) GetJournalByCode(ctx context.Context, cid types.CompanyID, code string) (masterdata.Journal, error) {
 	return masterdata.Journal{}, nil
 }
+func (m *mockMasterReaderForPosting) GetJournalByID(_ context.Context, cid types.CompanyID, journalID types.JournalID) (masterdata.Journal, error) {
+	if m.journal.ID != (types.JournalID{}) {
+		return m.journal, nil
+	}
+	return masterdata.Journal{ID: journalID, CompanyID: cid, Code: "GEN", Name: "General"}, nil
+}
 func (m *mockMasterReaderForPosting) HasAccountChildren(ctx context.Context, cid types.CompanyID, aid types.AccountID) (bool, error) {
 	return m.isHeader, nil
 }
 func (m *mockMasterReaderForPosting) GetFiscalYear(ctx context.Context, cid types.CompanyID, fyid types.FiscalYearID) (masterdata.FiscalYear, error) {
-	return masterdata.FiscalYear{}, nil
+	return masterdata.FiscalYear{
+		ID: fyid, CompanyID: cid, State: masterdata.FiscalYearOpen,
+		StartDate: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2999, time.December, 31, 23, 59, 59, 999999999, time.UTC),
+	}, nil
 }
 func (m *mockMasterReaderForPosting) GetPeriodForDate(ctx context.Context, cid types.CompanyID, date time.Time) (masterdata.FiscalPeriod, error) {
-	st := masterdata.PeriodOpen
-	if !m.periodOpen {
-		st = masterdata.PeriodHardClosed
+	st := m.periodState
+	if st == "" {
+		st = masterdata.PeriodOpen
+		if !m.periodOpen {
+			st = masterdata.PeriodHardClosed
+		}
 	}
-	return masterdata.FiscalPeriod{ID: types.NewFiscalPeriodID(), CompanyID: cid, State: st}, nil
+	date = date.UTC()
+	start := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 1, 0).Add(-time.Nanosecond)
+	return masterdata.FiscalPeriod{
+		ID: types.NewFiscalPeriodID(), CompanyID: cid, FiscalYearID: types.NewFiscalYearID(),
+		Number: int(date.Month()), State: st, Type: masterdata.FiscalPeriodTypeNormal,
+		StartDate: start, EndDate: end,
+	}, nil
 }
 
 func TestPostingPipelineEndToEnd(t *testing.T) {
 	ctx := context.Background()
 	reader := &mockMasterReaderForPosting{compActive: true, periodOpen: true, isHeader: false}
-	pipeline := NewPostingPipeline(reader, func(ctx context.Context, entry journal.JournalEntry, opts PostOptions) (journal.JournalEntry, error) {
-		entry.SequenceNumber = 1
-		return entry, nil
-	})
 
 	compID := types.NewCompanyID()
 	journalID := types.NewJournalID()
 	acc1 := types.NewAccountID()
 	acc2 := types.NewAccountID()
 
-	entry, err := NewJournalEntry(compID, journalID, time.Now().UTC(), "maker-1", []journal.EntryLine{
+	entry, err := NewJournalEntry(compID, journalID, time.Now().UTC(), "creator-1", []journal.EntryLine{
 		{
 			AccountID:           acc1,
 			TransactionCurrency: "USD",
@@ -255,6 +355,10 @@ func TestPostingPipelineEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewJournalEntry failed: %v", err)
 	}
+	pipeline := NewPostingPipeline(reader, func(ctx context.Context, entry journal.JournalEntry, opts PostOptions) (journal.JournalEntry, error) {
+		entry.SequenceNumber = 1
+		return entry, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, compID, "USD")))
 
 	posted, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster-1", Reason: "Regular Posting"})
 	if err != nil {
@@ -287,10 +391,11 @@ func TestPostingPipelineEndToEnd(t *testing.T) {
 	eurReader := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
 	eurPipeline := NewPostingPipeline(eurReader, func(ctx context.Context, entry journal.JournalEntry, opts PostOptions) (journal.JournalEntry, error) {
 		return entry, nil
-	})
+	}, WithPolicyEngine(testPostingPolicyEngine(t, eurCompID, "USD")))
 	eurEntry := entry
 	eurEntry.CompanyID = eurCompID
-	// The mock reader returns USD as company functional currency, but entry has EUR
+	eurEntry.Lines = make([]journal.EntryLine, len(entry.Lines))
+	copy(eurEntry.Lines, entry.Lines)
 	eurEntry.Lines[0].FunctionalDebit = makeMoney(t, "100.00", "EUR")
 	eurEntry.Lines[0].FunctionalCredit = makeMoney(t, "0.00", "EUR")
 	eurEntry.Lines[1].FunctionalDebit = makeMoney(t, "0.00", "EUR")
@@ -300,20 +405,6 @@ func TestPostingPipelineEndToEnd(t *testing.T) {
 		t.Fatalf("expected ErrFunctionalCurrencyMismatch, got %v", err)
 	}
 
-	// 4. Maker-Checker threshold violation (Creator == Poster)
-	mcPipeline := NewPostingPipeline(reader, func(ctx context.Context, entry journal.JournalEntry, opts PostOptions) (journal.JournalEntry, error) {
-		return entry, nil
-	}, WithMakerCheckerThreshold(decimal.NewFromInt(50)))
-	_, err = mcPipeline.PostEntry(ctx, entry, PostOptions{ActorID: "maker-1"})
-	if err == nil || !strings.Contains(err.Error(), "segregation of duties") {
-		t.Fatalf("expected segregation of duties error when creator posts entry above threshold, got %v", err)
-	}
-
-	// 5. Content hash calculation and verification
-	hash, err := EntryContentHash(entry)
-	if err != nil || len(hash) != 64 {
-		t.Fatalf("expected valid 64-char sha256 hash, got %s, err: %v", hash, err)
-	}
 }
 
 func TestAdjustingEntriesAndImmutabilityCoverage(t *testing.T) {
@@ -332,18 +423,14 @@ func TestAdjustingEntriesAndImmutabilityCoverage(t *testing.T) {
 	now := time.Now().UTC()
 	entries := []journal.JournalEntry{
 		{
-			ID:                          types.NewJournalEntryID(),
-			EntryNumber:                 "JE-001",
-			Classification:              journal.EntryClassAdjusting,
-			AdjustingEntryType:          journal.AdjustingEntryAccrual,
-			AdjustmentReason:            "Month end accrual",
-			AdjustmentApprovalReference: "APP-01",
-			AdjustmentAuthorized:        true,
-			CreatedBy:                   "user1",
-			CreatedAt:                   now,
-			ApprovedBy:                  "manager1",
-			ApprovedAt:                  &now,
-			Status:                      journal.EntryPosted,
+			ID:                 types.NewJournalEntryID(),
+			EntryNumber:        "JE-001",
+			Classification:     journal.EntryClassAdjusting,
+			AdjustingEntryType: journal.AdjustingEntryAccrual,
+			AdjustmentReason:   "Month end accrual",
+			CreatedBy:          "user1",
+			CreatedAt:          now,
+			Status:             journal.EntryPosted,
 		},
 		{
 			ID:             types.NewJournalEntryID(),
@@ -372,6 +459,6 @@ func TestAdjustingEntriesAndImmutabilityCoverage(t *testing.T) {
 
 	readySummary := SummarizeAdjustingEntriesForPreClose([]journal.JournalEntry{entries[0]})
 	if !readySummary.Ready() {
-		t.Fatalf("single approved adjusting entry should be ready")
+		t.Fatalf("single adjusting entry with valid audit metadata should be ready")
 	}
 }

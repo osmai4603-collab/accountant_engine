@@ -233,9 +233,11 @@ storage/
     - ربط محول الذاكرة بمنظومة سياق التطبيق `pkg/spi/application.Context`.
   - **ما يجب بناؤه من جديد (Build New):**
     - دالة منشئ المحول العامة الصريحة:
+
       ```go
       func New() *Adapter
       ```
+
       والتي توفر دالة `Ports() storage.Ports` جاهزة للحقن في النواة.
     - وثيقة الحزمة `doc.go` متضمنة تحذيراً بارزاً (Deprecation/Testing Alert) يوضح أن المحول غير مخصص للإنتاج.
     - منظومة أقفال الحسابات المتزامنة `locks.go` لمنع التسابق الحسابي أثناء الترحيل المتزامن في الذاكرة.
@@ -280,11 +282,14 @@ storage/
     - ضبط معرف القفل الاستشاري للترحيلات: `migrationLockID = 0x414343544D494752`.
   - **ما يجب بناؤه من جديد (Build New):**
     - ملف `rls_policies.sql` تجميعي يطبق سياسة:
+
       ```sql
       company_id = NULLIF(current_setting('app.current_company_id', true), '')::uuid
       ```
+
       مع تفعيل `ALTER TABLE <table> FORCE ROW LEVEL SECURITY;` على الجداول الـ 42.
     - ملف `triggers_worm.sql` يطبق دوال المنع:
+
       ```sql
       CREATE OR REPLACE FUNCTION prevent_posted_entry_modification() ...
       CREATE OR REPLACE FUNCTION prevent_audit_log_modification() ...
@@ -320,17 +325,21 @@ storage/
     - استبدال أي تعامل مع `internal/portbridge` بالربط المباشر مع واجهات `pkg/spi/storage.Ports`.
     - استخراج سياق الشركة والفاعل من `pkg/spi/storage` و `pkg/spi/application`.
     - حقن إعدادات الجلسة مع كل معاملة:
+
       ```go
       tx.Exec(ctx, "SELECT set_config('app.current_company_id', $1, true)", companyID)
       tx.Exec(ctx, "SELECT set_config('app.current_actor_id', $1, true)", actorID)
       ```
+
     - تطهير المحول من أي اعتماد على `serviceauth` أو `legacyengine`.
   - **ما يجب بناؤه من جديد (Build New):**
     - دوال الإنشاء العامة الرسمية:
+
       ```go
       func New(ctx context.Context, connectionString string) (*Adapter, error)
       func NewWithPool(pool *pgxpool.Pool) (*Adapter, error)
       ```
+
     - منظومة زراعة العملات ISO 4217 التلقائية عند الإقلاع (`seedCurrencyRegistry`).
     - ترجمة الأخطاء الصارمة (`translateTransactionError`):
       - كود `40001` -> `storage.ErrSerializationFailure`

@@ -195,6 +195,30 @@ func TestMoneyJSON(t *testing.T) {
 	}
 }
 
+func TestMoneyJSONPreservesInternalPrecision(t *testing.T) {
+	money := mustMoney(t, "1.1234567890123", "SAR")
+	data, err := json.Marshal(money)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), `{"amount":"1.1234567890123","currency":"SAR"}`; got != want {
+		t.Fatalf("JSON amount = %s, want %s", got, want)
+	}
+	var decoded Money
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !decoded.Equal(money) {
+		t.Fatalf("JSON round trip changed internal precision: got %s, want %s", decoded.Amount(), money.Amount())
+	}
+}
+
+func TestMoneyRejectsNoCurrencyCode(t *testing.T) {
+	if _, err := NewMoneyFromString("1", "XXX"); !errors.Is(err, ErrInvalidCurrency) {
+		t.Fatalf("XXX money error = %v, want invalid currency", err)
+	}
+}
+
 func TestComparisonsAndNegative(t *testing.T) {
 	negative := mustMoney(t, "-1", "SAR")
 	if !negative.IsNegative() {

@@ -19,5 +19,4 @@ var (
 	ErrDuplicateAccountCode      = errors.New("duplicate account code")
 	ErrMoveAlreadyPosted         = errors.New("accounting move already posted")
 	ErrCannotModifyPostedMove    = errors.New("cannot modify posted move")
-	ErrMakerCheckerViolation     = errors.New("maker-checker violation")
 )

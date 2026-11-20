@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 )
@@ -14,6 +15,8 @@ var (
 	ErrAccountNotFound           = types.ErrAccountNotFound
 	ErrAccountCycle              = errors.New("account hierarchy contains a cycle")
 	ErrInvalidParent             = errors.New("invalid parent account")
+	ErrAccountNotCurrent         = errors.New("account is not valid on the posting date")
+	ErrAccountIdentityMismatch   = errors.New("account repository returned a different account or company")
 	ErrCannotPostToParentAccount = types.ErrCannotPostToParentAccount
 )
 
@@ -52,12 +55,28 @@ func DetectCyclicHierarchy(accounts []Account) error {
 // ValidateCanPostToAccount verifies that the target account is active, not a header account,
 // and has no child accounts.
 func ValidateCanPostToAccount(ctx context.Context, reader Reader, companyID types.CompanyID, accountID types.AccountID) error {
+	return ValidateCanPostToAccountAsOf(ctx, reader, companyID, accountID, time.Now().UTC())
+}
+
+func ValidateCanPostToAccountAsOf(
+	ctx context.Context,
+	reader Reader,
+	companyID types.CompanyID,
+	accountID types.AccountID,
+	asOf time.Time,
+) error {
 	acc, err := reader.GetAccount(ctx, companyID, accountID)
 	if err != nil {
 		return err
 	}
+	if err := ValidateAccountScope(acc, companyID, accountID); err != nil {
+		return err
+	}
 	if !acc.IsActive {
 		return fmt.Errorf("account %s is inactive", acc.Code)
+	}
+	if asOf.IsZero() || !acc.IsCurrent(asOf) {
+		return fmt.Errorf("%w: %s", ErrAccountNotCurrent, acc.Code)
 	}
 	hasChildren, err := reader.HasAccountChildren(ctx, companyID, accountID)
 	if err != nil {
@@ -65,6 +84,16 @@ func ValidateCanPostToAccount(ctx context.Context, reader Reader, companyID type
 	}
 	if hasChildren {
 		return ErrHeaderAccountPosting
+	}
+	return nil
+}
+
+// ValidateAccountScope ensures a repository returned the requested account
+// within the requested company, not a row with inconsistent ownership.
+func ValidateAccountScope(acc Account, companyID types.CompanyID, accountID types.AccountID) error {
+	if companyID == (types.CompanyID{}) || accountID == (types.AccountID{}) ||
+		acc.ID != accountID || acc.CompanyID != companyID {
+		return ErrAccountIdentityMismatch
 	}
 	return nil
 }

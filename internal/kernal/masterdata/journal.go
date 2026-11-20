@@ -3,6 +3,7 @@ package masterdata
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 )
@@ -28,11 +29,79 @@ func (j Journal) ValidateWithPolicy(allowedCurrencies []string, allowedAccounts 
 		strings.TrimSpace(j.Code) == "" || strings.TrimSpace(j.Name) == "" {
 		return ErrInvalidJournal
 	}
+	seenCurrencies := make(map[string]struct{}, len(allowedCurrencies))
+	for _, currency := range allowedCurrencies {
+		normalized := strings.ToUpper(strings.TrimSpace(currency))
+		if currencyInfo, ok := types.LookupCurrency(normalized); !ok || currencyInfo.Code == types.XXX {
+			return ErrJournalCurrency
+		}
+		if _, exists := seenCurrencies[normalized]; exists {
+			return ErrJournalCurrency
+		}
+		seenCurrencies[normalized] = struct{}{}
+	}
+	seenAccounts := make(map[types.AccountID]struct{}, len(allowedAccounts))
+	for _, accountID := range allowedAccounts {
+		if accountID == (types.AccountID{}) {
+			return ErrJournalAccount
+		}
+		if _, exists := seenAccounts[accountID]; exists {
+			return ErrJournalAccount
+		}
+		seenAccounts[accountID] = struct{}{}
+	}
 	return nil
 }
 
+func (j Journal) Validate() error {
+	if !j.EffectiveFrom.IsZero() && j.EffectiveTo != nil &&
+		j.EffectiveTo.UTC().Before(j.EffectiveFrom.UTC()) {
+		return ErrInvalidJournal
+	}
+	return j.ValidateWithPolicy(j.AllowedCurrencies, j.AllowedAccountIDs)
+}
+
+func (j Journal) IsCurrent(asOf time.Time) bool {
+	if asOf.IsZero() {
+		return false
+	}
+	asOf = asOf.UTC()
+	if !j.EffectiveFrom.IsZero() && asOf.Before(j.EffectiveFrom.UTC()) {
+		return false
+	}
+	return j.EffectiveTo == nil || !asOf.After(j.EffectiveTo.UTC())
+}
+
 func (j Journal) AllowsCurrency(currency string) bool {
-	return currency == "" // Journals without policy do not restrict currency
+	return j.AllowsCurrencyWithPolicy(currency, j.AllowedCurrencies)
+}
+
+func (j Journal) AllowsAccount(accountID types.AccountID) bool {
+	return j.AllowsAccountWithPolicy(accountID, j.AllowedAccountIDs)
+}
+
+func (j Journal) AllowsCurrencyWithPolicy(currency string, allowedCurrencies []string) bool {
+	if len(allowedCurrencies) == 0 {
+		return true
+	}
+	for _, allowed := range allowedCurrencies {
+		if strings.EqualFold(strings.TrimSpace(allowed), strings.TrimSpace(currency)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (j Journal) AllowsAccountWithPolicy(accountID types.AccountID, allowedAccounts []types.AccountID) bool {
+	if len(allowedAccounts) == 0 {
+		return true
+	}
+	for _, allowed := range allowedAccounts {
+		if allowed == accountID {
+			return true
+		}
+	}
+	return false
 }
 
 func (j JournalType) Validate() error {

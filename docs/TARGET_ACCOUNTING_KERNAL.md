@@ -15,6 +15,7 @@ technical_terms: "en"
 
 > **بيان الرؤية والمعمارية:**  
 > تُحدد هذه الوثيقة الهيكل المفاهيمي والحزمي الدقيق لـ **النواة المحاسبية الصرفة (Kernal Accounting Kernel)** في الرؤية المستهدفة لمشروع `accounting_engine`، مع حصر مكوناتها وحزمها الجوهرية وفصلها فصلاً تاماً عن المكونات المدارية، ومحولات التخزين، وطبقات النقل والمصادقة، لتعمل بوصفها **نواة محاسبية موثوقة وعالية الأداء وقابلة للتضمين (Embeddable Kernal Engine)** فقط.
+> قواعد الترحيل المحاسبية الملزمة موثقة في [قواعد العمل المحاسبية](./ACCOUNTING_BUSINESS_RULES.md)؛ وتصف هذه الوثيقة الحد المعماري بين مسؤوليات النواة والمضيف.
 
 ---
 
@@ -71,8 +72,8 @@ flowchart TB
         MASTER["internal/kernal/masterdata<br/>• COA & Account Trees<br/>• Fiscal Calendar & Periods 13/14<br/>• Company Scope & Tenants"]
         TYPES["internal/kernal/types<br/>• Int64 / Decimal Precision<br/>• Currencies (ISO 4217)<br/>• Banker's Rounding & Immutable Value Objects"]
         VALUATION["internal/kernal/valuation<br/>• Exchange Rates & Historical Feeds<br/>• Conversion Engine<br/>• IAS 21 Revaluation"]
-        POLICY["internal/kernal/policy<br/>• Currency & Posting Policies<br/>• Maker-Checker Thresholds<br/>• Auto-Settle Rounding Rules"]
-        GOVERNANCE["internal/kernal/governance<br/>• Delimited Hash Chain<br/>• Nanosecond & Monotonic Sequences<br/>• Forensic Verifier Engine"]
+        POLICY["internal/kernal/policy<br/>• Currency & Posting Policies<br/>• Account & Dimension Eligibility<br/>• Auto-Settle Rounding Rules"]
+        GOVERNANCE["internal/kernal/governance<br/>• Append-Only Hash Chain<br/>• Atomic Sequences<br/>• External Checkpoint Verification"]
         APPERRORS["internal/kernal/apperrors<br/>• Unified Financial Error Taxonomy<br/>• Coded Sentinel Errors"]
     end
 
@@ -125,11 +126,14 @@ flowchart TB
 
 * **قلب النواة الحسابي:**
   * التحقق الرياضي الصارم من توازن القيد المزدوج ومطابقة العملة الوظيفية للشركة وعملات الأسطر.
-  * خط أنابيب الترحيل الذري الثماني (`Atomic 8-Step Pipeline`) تحت مظلة `UnitOfWork`.
+  * جعل `PostingPipeline.PostEntry` نقطة التحقق الإلزامية: لا يفوض الحفظ إلا بعد التحقق من هوية القيد، والشركة واليومية، والسياسات والعملات والفترة والحسابات والأبعاد.
   * حجز أقفال الصفوف المرتبة تصاعدياً (`SELECT FOR UPDATE by AccountID ASC`) لمنع الـ Deadlocks.
-  * المعالجة الصريحة لفروق التقريب المصرفي والتسوية بحساب مخصص عبر `RoundEntryWithRoundingPolicy` وفرض `ErrRoundingAccountRequired`.
-  * إدارة القيود العكسية (Reversals) والربط التوثيقي الدلالي بالقيد الأصلي.
+  * تطبيع مبالغ المعاملة والعملة الوظيفية إلى الوحدات النقدية الصغرى قبل ترحيل القيد، وفق سياسة العملة النافذة؛ ولا تُسوّى الفروق إلا عند تفعيل `AutoSettleRoundingDifferences` وضبط حسابها، وإلا يُرفض القيد.
+  * فرض سعر صرف يساوي `1` عندما تتطابق عملة المعاملة والعملة الوظيفية، والتحقق من هوية القيد ومعرفات الأسطر وعدم تكرارها.
+  * إنشاء القيود العكسية كمسودات، وإعادة تحديد الفترة من تاريخ العكس، ثم تسليمها إلى منفذ عكس ذري مستقل يربطها بالقيد الأصلي ويمنع العكس المكرر.
   * فرض الحرمة المطلقة للقيود المرحلة ومنع التعديل أو الحذف (`Immutability`).
+
+> **حدود المسؤولية:** ضمان الذرية عند الحفظ مسؤولية منفذ الترحيل/العكس الذي يوفره المضيف؛ ويتطلب العكس `WithReversalExecutor` ولا يجوز تمريره إلى منفذ الترحيل الاعتيادي. لا تحتوي النواة على RBAC أو أدوار أو صلاحيات أو تفويض أو موافقات معاملاتية؛ تقع المصادقة والتفويض وإجراءات الموافقة خارجها. تحتفظ النواة بهوية المنشئ والمرحل وسبب العملية كبيانات نسبة وتدقيق فقط، ولا تستخدمها لمنح الإذن.
 
 ### 3.2 البيانات المالية الرئيسية (`internal/kernal/masterdata`)
 
@@ -137,8 +141,10 @@ flowchart TB
   * إدارة شجرة الحسابات المتدرجة (COA)، والتصنيفات الفرعية، والتاريخ الفعلي (`Effective-Dating`).
   * فحص أهلية الحساب للترحيل وحظر الترحيل على الحسابات التجميعية (Header Accounts).
   * تقويم الفترات المالية (Fiscal Calendar) والفصل الإجرائي الصارم لفترات التسوية 13 و 14 واستبعادها من البحث بالتواريخ (`Contains == false`).
-  * التحقق الثنائي المتزامن من انفتاح الفترة والسنة المالية معاً (`ValidatePeriodForPosting`).
-  * إدارة اليوميات المعتمدة وقيود العملات والحسابات المصرح بها.
+  * التحقق الدفاعي من حدود الفترة والسنة المالية وحالاتهما واتساقهما، والتحقق من أن فترة التسوية تقع على نهاية السنة المالية.
+  * فحص أهلية الحساب بحسب تاريخ الترحيل ومتطلبات مركز التكلفة الخاصة بالحساب.
+  * إدارة اليوميات وقيود العملات والحسابات المسموحة بها وصلاحيتها الزمنية؛ ويرفض الترحيل اليوميات غير الموجودة أو غير التابعة للشركة أو غير النافذة.
+  * لا يتطلب الترحيل في فترة أو سنة `Soft Closed` موافقة؛ لا يقبل إلا إذا أجازت سياسة الترحيل النافذة ذلك.
 
 ### 3.3 الأنواع والقيم المالية الدقيقة (`internal/kernal/types`)
 
@@ -151,24 +157,26 @@ flowchart TB
 ### 3.4 التقييم وأسعار الصرف (`internal/kernal/valuation`)
 
 * **التعامل مع العملات المتعددة:**
-  * إدارة أسعار الصرف التاريخية المعتمدة ومزودات الأسعار (`RateProviderSPI`).
+  * إدارة أسعار الصرف التاريخية الموجبة، مع منع تكرار الزوج/النوع/التاريخ وتحديد نوع السعر صراحة في طلب التحويل.
+  * تسجيل تاريخ نفاذ السعر المرجعي المستخدم بصورة مستقلة عن تاريخ التقييم في نتائج إعادة التقييم.
   * محرك التحويل المالي الصريح (`ConversionEngine`) بين عملات المعاملات والعملة الوظيفية.
   * سياسات إعادة التقييم الدوري واحتساب فروق أسعار الصرف المحققة وغير المحققة (IAS 21).
 
-### 3.5 السياسات وضوابط الاعتماد (`internal/kernal/policy`)
+### 3.5 سياسات الترحيل والأهلية المحاسبية (`internal/kernal/policy`)
 
-* **حوكمة قواعد الترحيل والرقابة:**
-  * التحقق من استيفاء القيد للسياسات المالية قبل السماح بترحيله.
-  * سياسات العملات (`CurrencyPolicy`) بما فيها التسوية التلقائية للتقريب (`AutoSettleRoundingDifferences`).
-  * فحص قواعد الرقابة المزدوجة (`Maker-Checker`) والتحقق من بصمة المحتوى الثابتة (`ContentHash`).
+* **سياسات الترحيل والأهلية المحاسبية:**
+  * اختيار سياسة الترحيل وسياسة العملة المسجلتين للشركة والنافذتين بتاريخ القيد؛ عدم وجود سياسة نافذة يمنع الترحيل.
+  * فحص التأريخ السابق والعملات المسموحة ومتطلبات الأبعاد وحالة الإقفال الناعم قبل التنفيذ.
+  * سياسات العملات (`CurrencyPolicy`) بما فيها طريقة التقريب والتسوية الصريحة (`AutoSettleRoundingDifferences`).
+  * تُعاد شرائح العملات المسموحة بنسخ مستقلة حتى لا يستطيع المستدعي تعديل السياسة المخزنة عبر مرجع مشترك.
+  * لا تنفذ هذه الحزمة موافقات أو أدواراً أو صلاحيات؛ النظام المضيف مسؤول عن المصادقة والتفويض وإجراءات الموافقة.
 
 ### 3.6 سجل التدقيق والحوكمة الجنائية (`internal/kernal/governance`)
 
 * **إثبات الحركات والنزاهة الرياضية:**
-  * إنشاء سجل التدقيق الدائم (Append-Only Audit Log) لكل حركة مالية.
-  * الترميز البنيوي الحتمي بالفواصل الصريحة (`v1|...`) لمنع التباس الهاش وتصادمها.
-  * تسجيل الطوابع الزمنية بدقة النانو ثانية، وفرض الترقيم التسلسلي الصاعد (`SequenceNumber`) لكشف الحذف التراجعي (Tail-Truncation).
-  * محرك التحقق الجنائي الشامل (`VerifyAuditIntegrity`) لكشف أي تلاعب فوراً.
+  * إنشاء سجل تدقيق دائم (Append-Only Audit Log) وربط السجلات بتجزئة وتتابع ذري.
+  * التحقق من سلامة السلسلة عبر `VerifyAuditIntegrity`.
+  * كشف حذف الذيل عند توافر نقطة تحقق مستقلة محفوظة خارج سجل التدقيق عبر `VerifyAuditIntegrityWithCheckpoint`؛ لا يكفي التحقق الداخلي من السلسلة وحده لاكتشاف حذف آخر السجلات.
 
 ### 3.7 الأخطاء المالية المعيارية (`internal/kernal/apperrors`)
 
@@ -264,8 +272,8 @@ flowchart TB
 | `internal/masterdata` | **Kernal Kernel** | الحسابات، التقويم، الفترات، الشركات | `types`, `spi/storage` |
 | `internal/types` | **Kernal Kernel** | المبالغ، العملات، المعرفات، الحساب العشري | لا يعتمد على أي حزمة داخلية |
 | `internal/valuation` | **Kernal Kernel** | أسعار الصرف، تحويل العملات | `types`, `spi/storage` |
-| `internal/policy` | **Kernal Kernel** | السياسات وضوابط الاعتماد المالي | `types`, `masterdata` |
-| `internal/governance` | **Kernal Kernel** | سلسلة التدقيق، WORM، بصمات الاعتماد | `types`, `spi/storage` |
+| `internal/policy` | **Kernal Kernel** | سياسات الترحيل والعملات وأهلية الحسابات والأبعاد | `types`, `masterdata` |
+| `internal/governance` | **Kernal Kernel** | سلسلة التدقيق والتحقق مقابل نقطة تحقق خارجية | `types`, `spi/storage` |
 | `internal/subledgers` | **Orbital** | الدفاتر المساعدة (AR/AP/Cash/Assets) | `posting`, `types`, `masterdata` |
 | `internal/reporting` | **Orbital** | القوائم المالية وميزان المراجعة | `types`, `masterdata`, `spi/storage` |
 | `internal/events` | **Orbital** | استيعاب الأحداث ومطابقتها ومنع التكرار | `posting`, `types`, `spi/storage` |

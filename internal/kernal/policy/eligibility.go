@@ -11,6 +11,8 @@ import (
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 )
 
+var ErrControlAccountNotPostable = errors.New("control accounts cannot be posted directly")
+
 // CheckAccountEligibility verifies whether the accounts are eligible for the given transaction currency
 // and whether control accounts are respected.
 func CheckAccountEligibility(
@@ -30,6 +32,13 @@ func CheckAccountEligibility(
 
 		if !acc.IsActive {
 			return fmt.Errorf("account %s is inactive", acc.Code)
+		}
+		if acc.IsControlAccount {
+			return fmt.Errorf("%w: %s", ErrControlAccountNotPostable, acc.Code)
+		}
+		if acc.RequiresCostCenter &&
+			(line.CostCenterID == nil || *line.CostCenterID == (apiTypes.CostCenterID{})) {
+			return fmt.Errorf("%w: account %s requires a cost center", ErrCostCenterRequired, acc.Code)
 		}
 
 		// If account specifies a fixed currency, transaction/functional currency must match

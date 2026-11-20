@@ -12,6 +12,7 @@ var (
 	ErrAccountCodeRequired             = errors.New("account code is required")
 	ErrAccountNameRequired             = errors.New("account name is required")
 	ErrInvalidAccountType              = errors.New("invalid account type")
+	ErrInvalidNormalBalance            = errors.New("invalid account normal balance")
 	ErrInvalidSubClassificationForType = errors.New("invalid sub-classification for account type")
 	ErrInvalidControlAccount           = errors.New("control accounts must be reconcilable asset or liability accounts")
 )
@@ -71,7 +72,10 @@ func DefaultNormalBalance(accountType AccountType) NormalBalance {
 	}
 }
 
-func (a Account) Validate() error {
+func (a *Account) Validate() error {
+	if a == nil {
+		return ErrInvalidAccountType
+	}
 	if strings.TrimSpace(a.Code) == "" {
 		return ErrAccountCodeRequired
 	}
@@ -83,6 +87,9 @@ func (a Account) Validate() error {
 	}
 	if a.NormalBalance == "" {
 		a.NormalBalance = DefaultNormalBalance(a.Type)
+	}
+	if a.NormalBalance != NormalBalanceDebit && a.NormalBalance != NormalBalanceCredit {
+		return ErrInvalidNormalBalance
 	}
 	if !a.IsContraAccount && a.NormalBalance != DefaultNormalBalance(a.Type) {
 		return ErrInvalidAccountType
@@ -122,7 +129,8 @@ func validSubClassification(accountType AccountType, sub string) bool {
 			return true
 		}
 	case AccountTypeIncome:
-		return sub == SubClassOperatingRevenue || sub == SubClassOtherOperatingIncome
+		return sub == SubClassOperatingRevenue || sub == SubClassOtherOperatingIncome ||
+			sub == SubClassFinanceIncome
 	case AccountTypeExpense:
 		switch sub {
 		case SubClassCostOfSales, SubClassSellingDistributionExpense, SubClassGeneralAdminExpense,
@@ -135,21 +143,28 @@ func validSubClassification(accountType AccountType, sub string) bool {
 }
 
 func (a Account) IsCurrent(asOf time.Time) bool {
-	if a.EffectiveFrom.IsZero() {
-		return true
-	}
 	asOf = asOf.UTC()
-	if asOf.Before(a.EffectiveFrom.UTC()) {
+	if !a.EffectiveFrom.IsZero() && asOf.Before(a.EffectiveFrom.UTC()) {
 		return false
 	}
-	return a.EffectiveTo == nil || !asOf.After(a.EffectiveTo.UTC())
+	if a.EffectiveTo == nil {
+		return true
+	}
+	effectiveTo := a.EffectiveTo.UTC()
+	if !a.EffectiveFrom.IsZero() && effectiveTo.Before(a.EffectiveFrom.UTC()) {
+		return false
+	}
+	return !asOf.After(effectiveTo)
 }
 
 func (a Account) EffectiveIsCashEquivalent(asOf time.Time) bool {
 	return a.IsCurrent(asOf) && a.IsCashEquivalent
 }
 
-func (a Account) IsValid() error {
+func (a *Account) IsValid() error {
+	if a == nil {
+		return ErrInvalidAccountType
+	}
 	if a.ID == (types.AccountID{}) {
 		return ErrInvalidAccountType
 	}

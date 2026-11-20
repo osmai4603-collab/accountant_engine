@@ -1,7 +1,14 @@
-// Package postgres: Production PostgreSQL adapter implementing pkg/spi/storage with RLS and WORM policies.
+// Package postgres provides the sole production-certified storage adapter
+// for the accountant engine, backing all core accounting capabilities with
+// ACID guarantees, immutable ledger records, cryptographic audit chaining,
+// and database-enforced row level security (RLS).
 //
-// Import charter: May import pkg/api/v1/*, pkg/spi/* and pgx; never internal/kernal/*.
+// Charter & Guarantees:
+//   - Exclusive production adapter (GuaranteesDurability: true)
+//   - Multi-tenant isolation enforced via PostgreSQL Row Level Security (RLS)
+//   - WORM compliance: modifications or deletions to posted entries/lines and
+//     financial audit logs are blocked at the database engine level via triggers.
+//   - Numbered, checksum-validated schema migrations embedded via embed.FS.
 //
-// Baseline: AE-PLAN-STEP-P0 / P0-02, NEW_PROJECT_STRUCTURE.md,
-// ARCHITECTURAL_PRINCIPLES_CHARTER.md.
+// Baseline: AE-PLAN-STEP-P3 / P3-02, P3-03.
 package postgres

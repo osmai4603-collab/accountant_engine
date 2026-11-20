@@ -52,37 +52,58 @@ type EntryLine struct {
 }
 
 type JournalEntry struct {
-	ID                          types.JournalEntryID
-	CompanyID                   types.CompanyID
-	JournalID                   types.JournalID
-	FiscalPeriodID              types.FiscalPeriodID
-	EntryNumber                 string
-	SequenceNumber              int64
-	LegalNumber                 string
-	Status                      EntryStatus
-	Classification              EntryClassification
-	AdjustingEntryType          AdjustingEntryType
-	AdjustmentReason            string
-	AdjustmentApprovalReference string
-	AdjustmentAuthorized        bool
-	TargetPeriodNumber          int
-	EffectiveDate               time.Time
-	PostingDate                 time.Time
-	Description                 string
-	SourceModule                string
-	ReferenceID                 string
-	TransactionCurrency         string
-	ExchangeRate                decimal.Decimal
-	Lines                       []EntryLine
-	CreatedBy                   string
-	CreatedAt                   time.Time
-	UpdatedAt                   time.Time
-	PostedBy                    string
-	PostedAt                    *time.Time
-	ApprovedBy                  string
-	ApprovedAt                  *time.Time
-	ApprovalFingerprint         string
-	ReversalOfID                *types.JournalEntryID
-	ReversedByID                *types.JournalEntryID
-	ReversalReason              string
+	ID                  types.JournalEntryID
+	CompanyID           types.CompanyID
+	JournalID           types.JournalID
+	FiscalPeriodID      types.FiscalPeriodID
+	EntryNumber         string
+	SequenceNumber      int64
+	LegalNumber         string
+	Status              EntryStatus
+	Classification      EntryClassification
+	AdjustingEntryType  AdjustingEntryType
+	AdjustmentReason    string
+	TargetPeriodNumber  int
+	EffectiveDate       time.Time
+	PostingDate         time.Time
+	Description         string
+	SourceModule        string
+	ReferenceID         string
+	TransactionCurrency string
+	ExchangeRate        decimal.Decimal
+	Lines               []EntryLine
+	CreatedBy           string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	PostedBy            string
+	PostedAt            *time.Time
+	ReversalOfID        *types.JournalEntryID
+	ReversedByID        *types.JournalEntryID
+	ReversalReason      string
+}
+
+// Clone returns an independent copy of the entry, including pointer-valued metadata.
+func (entry JournalEntry) Clone() JournalEntry {
+	clone := entry
+	clone.Lines = make([]EntryLine, len(entry.Lines))
+	for i, line := range entry.Lines {
+		clone.Lines[i] = line
+		clone.Lines[i].PartnerID = clonePointer(line.PartnerID)
+		clone.Lines[i].CostCenterID = clonePointer(line.CostCenterID)
+		clone.Lines[i].ProjectID = clonePointer(line.ProjectID)
+		clone.Lines[i].SegmentID = clonePointer(line.SegmentID)
+		clone.Lines[i].BusinessUnitID = clonePointer(line.BusinessUnitID)
+	}
+	clone.PostedAt = clonePointer(entry.PostedAt)
+	clone.ReversalOfID = clonePointer(entry.ReversalOfID)
+	clone.ReversedByID = clonePointer(entry.ReversedByID)
+	return clone
+}
+
+func clonePointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
 }

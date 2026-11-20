@@ -8,7 +8,8 @@ import (
 )
 
 var (
-	ErrCompanyInactive = errors.New("company is inactive")
+	ErrCompanyInactive         = errors.New("company is inactive")
+	ErrCompanyIdentityMismatch = errors.New("company repository returned a different company")
 )
 
 // ValidateCompanyScope checks that the company exists and is active.
@@ -16,6 +17,9 @@ func ValidateCompanyScope(ctx context.Context, reader Reader, companyID types.Co
 	company, err := reader.GetCompany(ctx, companyID)
 	if err != nil {
 		return Company{}, err
+	}
+	if companyID == (types.CompanyID{}) || company.ID != companyID {
+		return Company{}, ErrCompanyIdentityMismatch
 	}
 	if !company.Active {
 		return company, ErrCompanyInactive

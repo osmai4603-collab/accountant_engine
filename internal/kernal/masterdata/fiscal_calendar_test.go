@@ -18,6 +18,34 @@ type mockMasterDataReader struct {
 	fiscalYears map[types.FiscalYearID]FiscalYear
 }
 
+type overrideFiscalReader struct {
+	Reader
+	year        FiscalYear
+	regular     FiscalPeriod
+	adjustments map[int]FiscalPeriod
+}
+
+func (r overrideFiscalReader) GetPeriodForDate(context.Context, types.CompanyID, time.Time) (FiscalPeriod, error) {
+	return r.regular, nil
+}
+
+func (r overrideFiscalReader) GetFiscalYear(context.Context, types.CompanyID, types.FiscalYearID) (FiscalYear, error) {
+	return r.year, nil
+}
+
+func (r overrideFiscalReader) GetPeriodByNumber(
+	_ context.Context,
+	_ types.CompanyID,
+	_ types.FiscalYearID,
+	number int,
+) (FiscalPeriod, error) {
+	period, ok := r.adjustments[number]
+	if !ok {
+		return FiscalPeriod{}, types.ErrFiscalPeriodNotFound
+	}
+	return period, nil
+}
+
 func newMockReader() *mockMasterDataReader {
 	return &mockMasterDataReader{
 		companies:   make(map[types.CompanyID]Company),
@@ -187,6 +215,89 @@ func TestFiscalCalendarAndPeriodValidation(t *testing.T) {
 	}
 }
 
+func TestPostingPeriodRequiresFiscalYearAndExplicitSoftClosePolicy(t *testing.T) {
+	ctx := context.Background()
+	reader := newMockReader()
+	companyID, yearID := types.NewCompanyID(), types.NewFiscalYearID()
+	reader.fiscalYears[yearID] = FiscalYear{
+		ID: yearID, CompanyID: companyID, State: FiscalYearSoftClosed,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 12, 31, 23, 59, 59, 999999999, time.UTC),
+	}
+	date := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+	reader.periods[companyID] = []FiscalPeriod{{
+		ID: types.NewFiscalPeriodID(), CompanyID: companyID, FiscalYearID: yearID,
+		State: PeriodSoftClosed, Type: FiscalPeriodTypeNormal, Number: 6,
+		StartDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 6, 30, 23, 59, 59, 0, time.UTC),
+	}}
+
+	if _, err := ValidatePeriodForPosting(ctx, reader, companyID, date); !errors.Is(err, ErrClosedFiscalYear) {
+		t.Fatalf("posting in soft-closed year without policy error = %v, want closed fiscal year", err)
+	}
+	if _, err := ValidatePeriodForPostingWithSoftClose(ctx, reader, companyID, date, true); err != nil {
+		t.Fatalf("posting in soft-closed period/year with explicit policy: %v", err)
+	}
+
+	reader.periods[companyID][0].FiscalYearID = types.FiscalYearID{}
+	if _, err := ValidatePeriodForPostingWithSoftClose(ctx, reader, companyID, date, true); !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("period without fiscal year error = %v, want incomplete fiscal period", err)
+	}
+}
+
+func TestFiscalPeriodRepositoryDataIsValidatedDefensively(t *testing.T) {
+	companyID := types.NewCompanyID()
+	year, periods := GenerateFiscalYear(companyID, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	date := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
+
+	reader := overrideFiscalReader{year: year, regular: periods[1]}
+	if _, err := ValidatePeriodForPosting(context.Background(), reader, companyID, date); !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("repository period not containing the posting date error = %v, want invalid fiscal period", err)
+	}
+
+	periodOutsideYear := periods[11]
+	periodOutsideYear.EndDate = year.EndDate.Add(time.Nanosecond)
+	reader.regular = periodOutsideYear
+	if _, err := ValidatePeriodForPosting(
+		context.Background(), reader, companyID, time.Date(2026, 12, 15, 0, 0, 0, 0, time.UTC),
+	); !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("period extending beyond fiscal year error = %v, want invalid fiscal period", err)
+	}
+
+	invalidYear := year
+	invalidYear.StartDate = time.Time{}
+	reader.year = invalidYear
+	reader.regular = periods[0]
+	if _, err := ValidatePeriodForPosting(
+		context.Background(), reader, companyID, time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+	); !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("fiscal year with missing bounds error = %v, want invalid fiscal period", err)
+	}
+}
+
+func TestAdjustmentPeriodMustMatchFiscalYearEnd(t *testing.T) {
+	companyID := types.NewCompanyID()
+	year, periods := GenerateFiscalYear(companyID, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	regularPeriod := periods[11]
+	adjustmentPeriod := periods[12]
+	adjustmentPeriod.StartDate = year.StartDate
+	reader := overrideFiscalReader{
+		year: year, regular: regularPeriod,
+		adjustments: map[int]FiscalPeriod{13: adjustmentPeriod},
+	}
+
+	_, err := ValidateAdjustmentPeriodForPosting(
+		context.Background(),
+		reader,
+		companyID,
+		time.Date(2026, 12, 15, 0, 0, 0, 0, time.UTC),
+		13,
+	)
+	if !errors.Is(err, ErrInvalidAdjustmentPeriod) {
+		t.Fatalf("adjustment period with inconsistent year-end dates error = %v, want invalid adjustment period", err)
+	}
+}
+
 func TestPeriodTransitions(t *testing.T) {
 	if err := ValidatePeriodTransition(PeriodOpen, PeriodSoftClosed); err != nil {
 		t.Fatalf("transition open -> soft_closed failed: %v", err)
@@ -223,6 +334,25 @@ func TestCompanyScopeValidation(t *testing.T) {
 	_, err = ValidateCompanyScope(ctx, reader, inactiveCompID)
 	if !errors.Is(err, ErrCompanyInactive) {
 		t.Fatalf("expected ErrCompanyInactive, got %v", err)
+	}
+
+	otherCompanyID := types.NewCompanyID()
+	reader.companies[activeCompID] = Company{ID: otherCompanyID, Active: true}
+	if _, err := ValidateCompanyScope(ctx, reader, activeCompID); !errors.Is(err, ErrCompanyIdentityMismatch) {
+		t.Fatalf("mismatched company identity error = %v, want identity mismatch", err)
+	}
+}
+
+func TestValidateAccountScopeRejectsMismatchedRepositoryIdentity(t *testing.T) {
+	companyID, accountID := types.NewCompanyID(), types.NewAccountID()
+	if err := ValidateAccountScope(Account{ID: accountID, CompanyID: companyID}, companyID, accountID); err != nil {
+		t.Fatalf("matching account scope: %v", err)
+	}
+	if err := ValidateAccountScope(Account{ID: types.NewAccountID(), CompanyID: companyID}, companyID, accountID); !errors.Is(err, ErrAccountIdentityMismatch) {
+		t.Fatalf("mismatched account ID error = %v, want identity mismatch", err)
+	}
+	if err := ValidateAccountScope(Account{ID: accountID, CompanyID: types.NewCompanyID()}, companyID, accountID); !errors.Is(err, ErrAccountIdentityMismatch) {
+		t.Fatalf("mismatched account company error = %v, want identity mismatch", err)
 	}
 }
 
@@ -286,13 +416,19 @@ func TestMasterDataEdgeCases(t *testing.T) {
 
 	// Test ValidatePeriodForPosting rejecting closed fiscal year
 	fyID := types.NewFiscalYearID()
-	closedYear := FiscalYear{ID: fyID, CompanyID: compID, State: FiscalYearHardClosed}
+	closedYear := FiscalYear{
+		ID: fyID, CompanyID: compID, State: FiscalYearHardClosed,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 12, 31, 23, 59, 59, 999999999, time.UTC),
+	}
 	reader.fiscalYears[fyID] = closedYear
 	openPeriodInClosedYear := FiscalPeriod{
 		ID:           types.NewFiscalPeriodID(),
 		CompanyID:    compID,
 		FiscalYearID: fyID,
 		State:        PeriodOpen,
+		Number:       1,
+		Type:         FiscalPeriodTypeNormal,
 		StartDate:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		EndDate:      time.Date(2026, 1, 31, 23, 59, 59, 0, time.UTC),
 	}
@@ -303,7 +439,7 @@ func TestMasterDataEdgeCases(t *testing.T) {
 		t.Fatalf("expected ErrClosedFiscalYear when fiscal year is closed, got %v", err)
 	}
 
-	// Test transitions and approvals
+	// Test transitions and audit requirements
 	if err := ValidateFiscalYearTransition(FiscalYearOpen, FiscalYearSoftClosed); err != nil {
 		t.Fatalf("valid FY transition failed: %v", err)
 	}
@@ -315,11 +451,5 @@ func TestMasterDataEdgeCases(t *testing.T) {
 	}
 	if err := ValidateFiscalYearReopen(FiscalYearHardClosed, FiscalYearOpen, "", ""); err == nil {
 		t.Fatalf("FY reopen without actor should fail")
-	}
-	if err := ValidatePeriodReopenWithApproval(PeriodHardClosed, PeriodOpen, "admin", "reason", "APPR-123"); err != nil {
-		t.Fatalf("valid period reopen with approval failed: %v", err)
-	}
-	if err := ValidatePeriodReopenWithApproval(PeriodHardClosed, PeriodOpen, "admin", "reason", ""); err == nil {
-		t.Fatalf("reopen without approval ID should fail")
 	}
 }

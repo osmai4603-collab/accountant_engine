@@ -2,7 +2,6 @@ package valuation
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
@@ -10,7 +9,7 @@ import (
 )
 
 type RateProviderSPI interface {
-	GetRate(ctx context.Context, fromCurrency, toCurrency string, date time.Time) (decimal.Decimal, error)
+	GetRate(ctx context.Context, rateType RateType, fromCurrency, toCurrency string, date time.Time) (decimal.Decimal, error)
 }
 
 func ConvertForDate(
@@ -24,9 +23,11 @@ func ConvertForDate(
 	if provider == nil {
 		return types.Money{}, decimal.Zero, ErrRateNotFound
 	}
-	from := strings.ToUpper(strings.TrimSpace(amount.Currency()))
-	to := strings.ToUpper(strings.TrimSpace(toCurrency))
-	rate, err := provider.GetRate(ctx, from, to, date)
+	from, to, err := validateRateQuery(amount.Currency(), toCurrency, rateType, date)
+	if err != nil {
+		return types.Money{}, decimal.Zero, err
+	}
+	rate, err := provider.GetRate(ctx, rateType, from, to, date)
 	if err != nil {
 		return types.Money{}, decimal.Zero, err
 	}

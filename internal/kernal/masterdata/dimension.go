@@ -1,6 +1,7 @@
 package masterdata
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -24,6 +25,15 @@ type AnalyticalDimensionValue struct {
 	Code      string
 	Name      string
 	Active    bool
+}
+
+type AnalyticalDimensionRepository interface {
+	GetAnalyticalDimensionForCompany(
+		context.Context,
+		types.CompanyID,
+		AnalyticalDimensionKind,
+		string,
+	) (AnalyticalDimensionValue, error)
 }
 
 func (v AnalyticalDimensionValue) Validate() error {

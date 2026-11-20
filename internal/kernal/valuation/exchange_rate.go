@@ -16,6 +16,7 @@ var (
 	ErrRateNotFound    = errors.New("exchange rate not found")
 	ErrInvalidRate     = errors.New("invalid exchange rate")
 	ErrInvalidCurrency = errors.New("invalid exchange-rate currency")
+	ErrDuplicateRate   = errors.New("exchange rate already registered for date and type")
 )
 
 type RateType string
@@ -39,21 +40,44 @@ type ExchangeRate struct {
 func (r ExchangeRate) Validate() error {
 	from := strings.ToUpper(strings.TrimSpace(r.FromCurrency))
 	to := strings.ToUpper(strings.TrimSpace(r.ToCurrency))
-	if _, ok := types.LookupCurrency(from); !ok {
+	fromCurrency, fromOK := types.LookupCurrency(from)
+	if !fromOK || fromCurrency.Code == types.XXX {
 		return ErrInvalidCurrency
 	}
-	if _, ok := types.LookupCurrency(to); !ok {
+	toCurrency, toOK := types.LookupCurrency(to)
+	if !toOK || toCurrency.Code == types.XXX {
 		return ErrInvalidCurrency
 	}
-	if !r.Rate.IsPositive() {
+	if !r.Rate.IsPositive() || r.EffectiveDate.IsZero() {
 		return ErrInvalidRate
 	}
-	switch r.Type {
-	case SpotRate, ClosingRate, AverageRate, HistoricalRate:
-	default:
+	if !validRateType(r.Type) {
 		return ErrInvalidRate
 	}
 	return nil
+}
+
+func validRateType(rateType RateType) bool {
+	switch rateType {
+	case SpotRate, ClosingRate, AverageRate, HistoricalRate:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateRateQuery(from, to string, rateType RateType, asOf time.Time) (string, string, error) {
+	from = strings.ToUpper(strings.TrimSpace(from))
+	to = strings.ToUpper(strings.TrimSpace(to))
+	fromCurrency, fromOK := types.LookupCurrency(from)
+	toCurrency, toOK := types.LookupCurrency(to)
+	if !fromOK || !toOK || fromCurrency.Code == types.XXX || toCurrency.Code == types.XXX {
+		return "", "", ErrInvalidCurrency
+	}
+	if asOf.IsZero() || !validRateType(rateType) {
+		return "", "", ErrInvalidRate
+	}
+	return from, to, nil
 }
 
 type RateRegistry struct {
@@ -79,7 +103,13 @@ func (r *RateRegistry) RegisterRate(rate ExchangeRate) error {
 	defer r.mu.Unlock()
 
 	key := r.rateKey(rate.Type, rate.FromCurrency, rate.ToCurrency)
-	list := append(r.rates[key], rate)
+	list := r.rates[key]
+	for _, current := range list {
+		if current.EffectiveDate.Equal(rate.EffectiveDate) {
+			return ErrDuplicateRate
+		}
+	}
+	list = append(list, rate)
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].EffectiveDate.Before(list[j].EffectiveDate)
 	})
@@ -88,14 +118,16 @@ func (r *RateRegistry) RegisterRate(rate ExchangeRate) error {
 }
 
 func (r *RateRegistry) GetRate(ctx context.Context, rateType RateType, from, to string, asOf time.Time) (decimal.Decimal, ExchangeRate, bool, error) {
-	from = strings.ToUpper(strings.TrimSpace(from))
-	to = strings.ToUpper(strings.TrimSpace(to))
+	from, to, err := validateRateQuery(from, to, rateType, asOf)
+	if err != nil {
+		return decimal.Zero, ExchangeRate{}, false, err
+	}
 	if from == to {
 		return decimal.NewFromInt(1), ExchangeRate{
 			FromCurrency:  from,
 			ToCurrency:    to,
 			Rate:          decimal.NewFromInt(1),
-			EffectiveDate: asOf,
+			EffectiveDate: asOf.UTC(),
 			Type:          rateType,
 		}, false, nil
 	}

@@ -1,4 +1,4 @@
-// Package policy: Posting approval rules and account eligibility policies.
+// Package policy: Accounting posting rules and account eligibility policies.
 //
 // Import charter: May import only sibling internal/kernal/* modules, uuid and decimal.
 //

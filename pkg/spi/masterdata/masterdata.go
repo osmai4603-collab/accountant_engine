@@ -9,13 +9,20 @@ import (
 
 	kernalMasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
-
-	"github.com/google/uuid"
 )
 
 var ErrCapabilityNotImplemented = types.ErrCapabilityNotImplemented
 
 var (
+	ErrInvalidCompany       = errors.New("invalid company")
+	ErrDuplicateCompanyCode = errors.New("duplicate company code")
+	ErrInvalidAccount       = errors.New("invalid account")
+	ErrDuplicateAccountCode = errors.New("duplicate account code")
+	ErrAccountNotFound      = types.ErrAccountNotFound
+	ErrInvalidFiscalYear    = errors.New("invalid fiscal year")
+	ErrFiscalYearNotFound   = errors.New("fiscal year not found")
+	ErrInvalidFiscalPeriod  = errors.New("invalid fiscal period")
+	ErrPeriodNotFound       = errors.New("fiscal period not found")
 	ErrInvalidJournal       = errors.New("invalid journal")
 	ErrCompanyNotFound      = errors.New("company not found")
 	ErrJournalNotFound      = errors.New("journal not found")
@@ -23,21 +30,21 @@ var (
 	ErrDuplicateJournalID   = errors.New("journal id already exists")
 )
 
-type AccountType string
+type AccountType = kernalMasterdata.AccountType
 
 const (
-	AccountTypeAsset     AccountType = "asset"
-	AccountTypeLiability AccountType = "liability"
-	AccountTypeEquity    AccountType = "equity"
-	AccountTypeIncome    AccountType = "income"
-	AccountTypeExpense   AccountType = "expense"
+	AccountTypeAsset     = kernalMasterdata.AccountTypeAsset
+	AccountTypeLiability = kernalMasterdata.AccountTypeLiability
+	AccountTypeEquity    = kernalMasterdata.AccountTypeEquity
+	AccountTypeIncome    = kernalMasterdata.AccountTypeIncome
+	AccountTypeExpense   = kernalMasterdata.AccountTypeExpense
 )
 
-type NormalBalance string
+type NormalBalance = kernalMasterdata.NormalBalance
 
 const (
-	NormalBalanceDebit  NormalBalance = "debit"
-	NormalBalanceCredit NormalBalance = "credit"
+	NormalBalanceDebit  = kernalMasterdata.NormalBalanceDebit
+	NormalBalanceCredit = kernalMasterdata.NormalBalanceCredit
 )
 
 type FiscalYearState = kernalMasterdata.FiscalYearState
@@ -65,9 +72,9 @@ type Company struct {
 	Active               bool
 }
 
-type JournalID uuid.UUID
+type JournalID = types.JournalID
 
-func NewJournalID() JournalID { return JournalID(uuid.New()) }
+func NewJournalID() JournalID { return types.NewJournalID() }
 
 // Journal is the public, company-scoped master-data representation of a
 // posting journal.

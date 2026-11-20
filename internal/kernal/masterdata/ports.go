@@ -16,3 +16,19 @@ type Reader interface {
 	GetFiscalYear(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID) (FiscalYear, error)
 	GetPeriodForDate(ctx context.Context, companyID types.CompanyID, date time.Time) (FiscalPeriod, error)
 }
+
+// AdjustmentPeriodReader resolves a period 13 or 14 within a fiscal year.
+// Adapters should implement this alongside Reader to enable adjustment posting.
+type AdjustmentPeriodReader interface {
+	GetPeriodByNumber(
+		ctx context.Context,
+		companyID types.CompanyID,
+		fiscalYearID types.FiscalYearID,
+		number int,
+	) (FiscalPeriod, error)
+}
+
+// JournalRepository resolves a journal by stable ID for posting-time policy checks.
+type JournalRepository interface {
+	GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID types.JournalID) (Journal, error)
+}

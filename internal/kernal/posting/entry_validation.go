@@ -3,6 +3,7 @@ package posting
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
@@ -18,6 +19,9 @@ var (
 	ErrZeroAmountLine                 = apiTypes.ErrZeroAmountLine
 	ErrNegativeAmountProhibited       = apiTypes.ErrNegativeAmountProhibited
 	ErrMissingJournalID               = errors.New("journal id is required")
+	ErrMissingEntryID                 = errors.New("journal entry id is required")
+	ErrMissingLineID                  = errors.New("journal entry line id is required")
+	ErrDuplicateLineID                = errors.New("journal entry line id is duplicated")
 	ErrZeroEntryDate                  = errors.New("entry date cannot be zero")
 	ErrCompanyMismatch                = errors.New("company id mismatch between header and lines")
 	ErrMissingTransactionCurrency     = errors.New("transaction currency is required")
@@ -27,6 +31,7 @@ var (
 	ErrInvalidAdjustingEntryMetadata  = errors.New("invalid adjusting entry metadata")
 	ErrAdjustingEntryMetadataRequired = errors.New("adjusting entry metadata is required")
 	ErrEntryAlreadyReversed           = errors.New("journal entry already reversed")
+	ErrReversalExecutorRequired       = errors.New("atomic reversal executor is required")
 	ErrEntryNotPosted                 = errors.New("journal entry is not posted")
 	ErrEntryNotDraft                  = errors.New("journal entry is not a draft")
 	ErrCannotModifyPostedMove         = apiTypes.ErrCannotModifyPostedMove
@@ -82,16 +87,28 @@ func ValidateEntryLine(line journal.EntryLine, round func(apiTypes.Money) (apiTy
 	if !line.ExchangeRate.IsPositive() {
 		return ErrInvalidExchangeRate
 	}
+	if line.TransactionCurrency == fDebitCur && !line.ExchangeRate.Equal(decimal.NewFromInt(1)) {
+		return ErrInvalidExchangeRate
+	}
 
-	// Mathematical consistency: TransactionAmount * ExchangeRate == FunctionalAmount
+	// Compare at the functional currency's posting precision. Transaction
+	// amounts can carry greater precision than the amount stored in the ledger.
 	expectedAmt := line.TransactionAmount.Amount().Mul(line.ExchangeRate)
 	expectedMoney, err := apiTypes.NewMoney(expectedAmt, fDebitCur)
+	if err != nil {
+		return err
+	}
+	expectedMoney, err = roundMoney(expectedMoney, round)
 	if err != nil {
 		return err
 	}
 	actualMoney := line.FunctionalDebit
 	if !creditZero {
 		actualMoney = line.FunctionalCredit
+	}
+	actualMoney, err = roundMoney(actualMoney, round)
+	if err != nil {
+		return err
 	}
 	if !expectedMoney.Amount().Equal(actualMoney.Amount()) {
 		return apiTypes.ErrInvalidAmount
@@ -108,6 +125,9 @@ func ValidateEntryDoubleEntry(entry *journal.JournalEntry, round func(apiTypes.M
 	if len(entry.Lines) < 2 {
 		return ErrMinimumLines
 	}
+	if err := ValidateEntryIdentity(*entry); err != nil {
+		return err
+	}
 	if entry.JournalID == (apiTypes.JournalID{}) {
 		return ErrMissingJournalID
 	}
@@ -115,27 +135,8 @@ func ValidateEntryDoubleEntry(entry *journal.JournalEntry, round func(apiTypes.M
 		return ErrZeroEntryDate
 	}
 
-	if entry.Classification != "" {
-		switch entry.Classification {
-		case journal.EntryClassRegular, journal.EntryClassAdjusting, journal.EntryClassClosing, journal.EntryClassOpening, journal.EntryClassReversing:
-		default:
-			return ErrInvalidEntry
-		}
-	}
-
-	if entry.AdjustingEntryType != "" {
-		switch entry.AdjustingEntryType {
-		case journal.AdjustingEntryAccrual, journal.AdjustingEntryDeferral, journal.AdjustingEntryProvisionEstimate, journal.AdjustingEntryReclassification:
-			if entry.Classification != journal.EntryClassAdjusting {
-				return ErrInvalidAdjustingEntryMetadata
-			}
-		default:
-			return ErrInvalidAdjustingEntryMetadata
-		}
-	}
-	if entry.Classification != journal.EntryClassAdjusting &&
-		(entry.AdjustmentReason != "" || entry.AdjustmentApprovalReference != "") {
-		return ErrInvalidAdjustingEntryMetadata
+	if err := ValidateEntryClassificationMetadata(*entry); err != nil {
+		return err
 	}
 
 	totals := make(map[string]decimal.Decimal)
@@ -176,6 +177,57 @@ func ValidateEntryDoubleEntry(entry *journal.JournalEntry, round func(apiTypes.M
 	return nil
 }
 
+// ValidateEntryClassificationMetadata enforces the metadata invariants for
+// adjusting and reversing entries before any posting-side effects are attempted.
+func ValidateEntryClassificationMetadata(entry journal.JournalEntry) error {
+	if entry.Classification != "" {
+		switch entry.Classification {
+		case journal.EntryClassRegular, journal.EntryClassAdjusting, journal.EntryClassClosing, journal.EntryClassOpening, journal.EntryClassReversing:
+		default:
+			return ErrInvalidEntry
+		}
+	}
+
+	if entry.Classification == journal.EntryClassAdjusting {
+		if entry.AdjustingEntryType == "" || strings.TrimSpace(entry.AdjustmentReason) == "" {
+			return ErrAdjustingEntryMetadataRequired
+		}
+		switch entry.AdjustingEntryType {
+		case journal.AdjustingEntryAccrual, journal.AdjustingEntryDeferral, journal.AdjustingEntryProvisionEstimate, journal.AdjustingEntryReclassification:
+		default:
+			return ErrInvalidAdjustingEntryMetadata
+		}
+	} else if entry.AdjustingEntryType != "" || entry.AdjustmentReason != "" {
+		return ErrInvalidAdjustingEntryMetadata
+	}
+	if (entry.Classification == journal.EntryClassReversing) != (entry.ReversalOfID != nil) {
+		return ErrInvalidReversal
+	}
+	if entry.ReversalOfID != nil &&
+		(*entry.ReversalOfID == (apiTypes.JournalEntryID{}) || *entry.ReversalOfID == entry.ID) {
+		return ErrInvalidReversal
+	}
+	return nil
+}
+
+// ValidateEntryIdentity requires a nonzero entry ID and unique, nonzero line IDs.
+func ValidateEntryIdentity(entry journal.JournalEntry) error {
+	if entry.ID == (apiTypes.JournalEntryID{}) {
+		return ErrMissingEntryID
+	}
+	seen := make(map[apiTypes.JournalEntryLineID]struct{}, len(entry.Lines))
+	for _, line := range entry.Lines {
+		if line.ID == (apiTypes.JournalEntryLineID{}) {
+			return ErrMissingLineID
+		}
+		if _, exists := seen[line.ID]; exists {
+			return ErrDuplicateLineID
+		}
+		seen[line.ID] = struct{}{}
+	}
+	return nil
+}
+
 // EnsureImmutable verifies that posted or reversed entries cannot be modified.
 func EnsureImmutable(status journal.EntryStatus) error {
 	if status == journal.EntryPosted || status == journal.EntryReversed {
@@ -210,6 +262,11 @@ func NewJournalEntry(
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),
 		Lines:          lines,
+	}
+	for i := range entry.Lines {
+		if entry.Lines[i].ID == (apiTypes.JournalEntryLineID{}) {
+			entry.Lines[i].ID = apiTypes.NewJournalEntryLineID()
+		}
 	}
 
 	if err := ValidateEntryDoubleEntry(&entry, nil); err != nil {

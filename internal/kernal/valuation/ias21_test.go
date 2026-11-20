@@ -2,6 +2,7 @@ package valuation
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -84,6 +85,9 @@ func TestIAS21ExchangeRateAndRevaluation(t *testing.T) {
 	if !result.Difference.Equal(expectedGain) {
 		t.Fatalf("expected gain %s, got %s", expectedGain, result.Difference)
 	}
+	if !result.RateDate.Equal(rateDate) {
+		t.Fatalf("rate date = %s, want source effective date %s", result.RateDate, rateDate)
+	}
 
 	// 4. Generate Double-Entry Journal for the Gain
 	compID := apiTypes.NewCompanyID()
@@ -100,7 +104,6 @@ func TestIAS21ExchangeRateAndRevaluation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateRevaluationEntry failed: %v", err)
 	}
-
 	if len(entry.Lines) != 2 {
 		t.Fatalf("expected 2 lines in reval entry, got %d", len(entry.Lines))
 	}
@@ -111,4 +114,214 @@ func TestIAS21ExchangeRateAndRevaluation(t *testing.T) {
 	if entry.Lines[1].AccountID != gainAccID || !entry.Lines[1].FunctionalCredit.Amount().Equal(decimal.NewFromInt(500)) {
 		t.Fatalf("expected Credit Gain 500, got %v", entry.Lines[1])
 	}
+}
+
+type rateTypeCaptureProvider struct {
+	got RateType
+}
+
+func (p *rateTypeCaptureProvider) GetRate(
+	_ context.Context,
+	rateType RateType,
+	_, _ string,
+	_ time.Time,
+) (decimal.Decimal, error) {
+	p.got = rateType
+	return decimal.NewFromInt(2), nil
+}
+
+func TestConvertForDatePassesRateType(t *testing.T) {
+	provider := &rateTypeCaptureProvider{}
+	amount, _ := types.NewMoneyFromString("10.00", "USD")
+	if _, _, err := ConvertForDate(context.Background(), provider, amount, "SAR", time.Now(), AverageRate); err != nil {
+		t.Fatalf("ConvertForDate: %v", err)
+	}
+	if provider.got != AverageRate {
+		t.Fatalf("provider rate type = %s, want %s", provider.got, AverageRate)
+	}
+}
+
+func TestSameCurrencyRateValidatesCodeAndDateBeforeReturningOne(t *testing.T) {
+	registry := NewRateRegistry()
+	date := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+
+	if _, _, _, err := registry.GetRate(context.Background(), SpotRate, "BAD", "BAD", date); !errors.Is(err, ErrInvalidCurrency) {
+		t.Fatalf("invalid same-currency code error = %v, want invalid currency", err)
+	}
+	if err := (ExchangeRate{
+		FromCurrency: "XXX", ToCurrency: "USD", Rate: decimal.NewFromInt(1),
+		EffectiveDate: date, Type: SpotRate,
+	}).Validate(); !errors.Is(err, ErrInvalidCurrency) {
+		t.Fatalf("no-currency exchange rate error = %v, want invalid currency", err)
+	}
+	if _, _, _, err := registry.GetRate(context.Background(), SpotRate, "USD", "USD", time.Time{}); !errors.Is(err, ErrInvalidRate) {
+		t.Fatalf("zero same-currency date error = %v, want invalid rate", err)
+	}
+	if rate, _, _, err := registry.GetRate(context.Background(), SpotRate, "USD", "USD", date); err != nil || !rate.Equal(decimal.NewFromInt(1)) {
+		t.Fatalf("valid same-currency rate = %s, %v; want 1, nil", rate, err)
+	}
+}
+
+func TestConvertForDateRejectsInvalidQueryBeforeCallingProvider(t *testing.T) {
+	provider := &rateTypeCaptureProvider{}
+	amount, _ := types.NewMoneyFromString("10.00", "USD")
+	if _, _, err := ConvertForDate(context.Background(), provider, amount, "USD", time.Time{}, SpotRate); !errors.Is(err, ErrInvalidRate) {
+		t.Fatalf("zero-date conversion error = %v, want invalid rate", err)
+	}
+	if provider.got != "" {
+		t.Fatalf("provider called for invalid query with rate type %s", provider.got)
+	}
+}
+
+func TestRateRegistryRejectsMissingAndDuplicateEffectiveDates(t *testing.T) {
+	registry := NewRateRegistry()
+	rate := ExchangeRate{
+		FromCurrency: "USD", ToCurrency: "SAR", Rate: decimal.RequireFromString("3.75"),
+		Type: ClosingRate,
+	}
+	if err := registry.RegisterRate(rate); !errors.Is(err, ErrInvalidRate) {
+		t.Fatalf("missing effective date error = %v, want invalid rate", err)
+	}
+	rate.EffectiveDate = time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	if err := registry.RegisterRate(rate); err != nil {
+		t.Fatalf("register initial rate: %v", err)
+	}
+	if err := registry.RegisterRate(rate); !errors.Is(err, ErrDuplicateRate) {
+		t.Fatalf("duplicate effective date error = %v, want duplicate rate", err)
+	}
+}
+
+type fixedRateProvider struct {
+	rate     decimal.Decimal
+	ref      ExchangeRate
+	inverted bool
+}
+
+func (p fixedRateProvider) GetRate(context.Context, RateType, string, string, time.Time) (decimal.Decimal, ExchangeRate, bool, error) {
+	return p.rate, p.ref, p.inverted, nil
+}
+
+func TestRevaluationRejectsNonPositiveProviderRate(t *testing.T) {
+	asOf := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	engine := NewRevaluationEngine(fixedRateProvider{
+		rate: decimal.Zero,
+		ref:  ExchangeRate{EffectiveDate: asOf},
+	})
+	carrying, _ := types.NewMoneyFromString("100.00", "SAR")
+	_, err := engine.Calculate(context.Background(), MonetaryPosition{
+		AccountID: types.NewAccountID(), ForeignCurrencyBalance: decimal.NewFromInt(10),
+		TransactionCurrency: "USD", FunctionalCurrency: "SAR", CarryingAmount: carrying, Type: Monetary,
+	}, asOf)
+	if !errors.Is(err, ErrInvalidRate) {
+		t.Fatalf("non-positive provider rate error = %v, want invalid rate", err)
+	}
+}
+
+func TestRevaluationValidatesRateReferenceAgainstRequest(t *testing.T) {
+	asOf := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	position := MonetaryPosition{
+		AccountID: types.NewAccountID(), ForeignCurrencyBalance: decimal.NewFromInt(10),
+		TransactionCurrency: "USD", FunctionalCurrency: "SAR",
+		CarryingAmount: mustValuationMoney(t, "37.50", "SAR"), Type: Monetary,
+	}
+	validReference := ExchangeRate{
+		FromCurrency: "USD", ToCurrency: "SAR", Rate: decimal.RequireFromString("3.75"),
+		EffectiveDate: asOf, Type: ClosingRate,
+	}
+	tests := []struct {
+		name string
+		rate decimal.Decimal
+		ref  ExchangeRate
+	}{
+		{name: "source currency mismatch", rate: validReference.Rate, ref: ExchangeRate{
+			FromCurrency: "EUR", ToCurrency: "SAR", Rate: validReference.Rate,
+			EffectiveDate: asOf, Type: ClosingRate,
+		}},
+		{name: "destination currency mismatch", rate: validReference.Rate, ref: ExchangeRate{
+			FromCurrency: "USD", ToCurrency: "EUR", Rate: validReference.Rate,
+			EffectiveDate: asOf, Type: ClosingRate,
+		}},
+		{name: "wrong rate type", rate: validReference.Rate, ref: ExchangeRate{
+			FromCurrency: "USD", ToCurrency: "SAR", Rate: validReference.Rate,
+			EffectiveDate: asOf, Type: SpotRate,
+		}},
+		{name: "reference rate mismatch", rate: validReference.Rate, ref: ExchangeRate{
+			FromCurrency: "USD", ToCurrency: "SAR", Rate: decimal.RequireFromString("3.74"),
+			EffectiveDate: asOf, Type: ClosingRate,
+		}},
+		{name: "provider rate mismatch", rate: decimal.RequireFromString("3.74"), ref: validReference},
+		{name: "future reference date", rate: validReference.Rate, ref: ExchangeRate{
+			FromCurrency: "USD", ToCurrency: "SAR", Rate: validReference.Rate,
+			EffectiveDate: asOf.Add(time.Hour), Type: ClosingRate,
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			engine := NewRevaluationEngine(fixedRateProvider{rate: test.rate, ref: test.ref})
+			if _, err := engine.Calculate(context.Background(), position, asOf); !errors.Is(err, ErrInvalidRate) {
+				t.Fatalf("Calculate error = %v, want invalid rate", err)
+			}
+		})
+	}
+
+	engine := NewRevaluationEngine(fixedRateProvider{rate: validReference.Rate, ref: validReference})
+	if _, err := engine.Calculate(context.Background(), position, asOf); err != nil {
+		t.Fatalf("valid rate reference: %v", err)
+	}
+}
+
+func TestRevaluationValidatesInvertedAndSameCurrencyRates(t *testing.T) {
+	asOf := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	invertedReference := ExchangeRate{
+		FromCurrency: "SAR", ToCurrency: "USD",
+		Rate:          decimal.NewFromInt(1).DivRound(decimal.RequireFromString("3.75"), 12),
+		EffectiveDate: asOf, Type: ClosingRate,
+	}
+	invertedRate := decimal.NewFromInt(1).DivRound(invertedReference.Rate, 12)
+	position := MonetaryPosition{
+		AccountID: types.NewAccountID(), ForeignCurrencyBalance: decimal.NewFromInt(10),
+		TransactionCurrency: "USD", FunctionalCurrency: "SAR",
+		CarryingAmount: mustValuationMoney(t, "37.50", "SAR"), Type: Monetary,
+	}
+	engine := NewRevaluationEngine(fixedRateProvider{
+		rate: invertedRate, ref: invertedReference, inverted: true,
+	})
+	if _, err := engine.Calculate(context.Background(), position, asOf); err != nil {
+		t.Fatalf("valid inverted rate reference: %v", err)
+	}
+
+	sameCurrencyPosition := MonetaryPosition{
+		AccountID: types.NewAccountID(), ForeignCurrencyBalance: decimal.NewFromInt(10),
+		TransactionCurrency: "USD", FunctionalCurrency: "USD",
+		CarryingAmount: mustValuationMoney(t, "10.00", "USD"), Type: Monetary,
+	}
+	wrongSameCurrencyReference := ExchangeRate{
+		FromCurrency: "USD", ToCurrency: "USD", Rate: decimal.NewFromInt(2),
+		EffectiveDate: asOf, Type: ClosingRate,
+	}
+	engine = NewRevaluationEngine(fixedRateProvider{
+		rate: decimal.NewFromInt(2), ref: wrongSameCurrencyReference,
+	})
+	if _, err := engine.Calculate(context.Background(), sameCurrencyPosition, asOf); !errors.Is(err, ErrInvalidRate) {
+		t.Fatalf("same-currency non-unit rate error = %v, want invalid rate", err)
+	}
+
+	validSameCurrencyReference := wrongSameCurrencyReference
+	validSameCurrencyReference.Rate = decimal.NewFromInt(1)
+	engine = NewRevaluationEngine(fixedRateProvider{
+		rate: decimal.NewFromInt(1), ref: validSameCurrencyReference,
+	})
+	if _, err := engine.Calculate(context.Background(), sameCurrencyPosition, asOf); err != nil {
+		t.Fatalf("same-currency unit rate: %v", err)
+	}
+}
+
+func mustValuationMoney(t *testing.T, amount, currency string) types.Money {
+	t.Helper()
+	money, err := types.NewMoneyFromString(amount, currency)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return money
 }

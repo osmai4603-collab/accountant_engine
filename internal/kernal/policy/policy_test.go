@@ -120,3 +120,92 @@ func TestPostingPolicyAndEligibility(t *testing.T) {
 		t.Fatalf("expected ErrCurrencyMismatch for currency-restricted account, got %v", err)
 	}
 }
+
+func TestPolicyEngineResolvesLatestEffectivePostingAndCurrencyPolicies(t *testing.T) {
+	engine := NewPolicyEngine()
+	companyID := apiTypes.NewCompanyID()
+	january := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	july := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	for _, postingPolicy := range []PostingPolicy{
+		{CompanyID: companyID, EffectiveDate: january, MaxBackdatingDays: 10},
+		{CompanyID: companyID, EffectiveDate: july, MaxBackdatingDays: 30},
+	} {
+		if err := engine.SetPolicy(postingPolicy); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, currencyPolicy := range []CurrencyPolicy{
+		{CompanyID: companyID, FunctionalCurrency: "USD", EffectiveDate: january, AllowedCurrencies: []string{"USD"}},
+		{CompanyID: companyID, FunctionalCurrency: "EUR", EffectiveDate: july, AllowedCurrencies: []string{"EUR"}},
+	} {
+		if err := engine.SetCurrencyPolicy(currencyPolicy); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	selectedPosting, err := engine.PostingPolicyFor(companyID, july.AddDate(0, -1, 0))
+	if err != nil || selectedPosting.MaxBackdatingDays != 10 {
+		t.Fatalf("pre-July policy = %+v, %v; want January version", selectedPosting, err)
+	}
+	selectedCurrency, err := engine.CurrencyPolicyFor(companyID, july)
+	if err != nil || selectedCurrency.FunctionalCurrency != "EUR" {
+		t.Fatalf("July currency policy = %+v, %v; want EUR version", selectedCurrency, err)
+	}
+	selectedCurrency.AllowedCurrencies[0] = "GBP"
+	unchangedCurrency, err := engine.CurrencyPolicyFor(companyID, july)
+	if err != nil || unchangedCurrency.AllowedCurrencies[0] != "EUR" {
+		t.Fatalf("mutating returned currency policy changed stored values: %+v, %v", unchangedCurrency, err)
+	}
+	if _, err := engine.PostingPolicyFor(companyID, january.Add(-time.Nanosecond)); !errors.Is(err, ErrPolicyNotFound) {
+		t.Fatalf("policy lookup before first effective date error = %v, want policy not found", err)
+	}
+	if err := engine.SetPolicy(PostingPolicy{CompanyID: companyID, EffectiveDate: july}); !errors.Is(err, ErrInvalidPolicy) {
+		t.Fatalf("duplicate policy version error = %v, want invalid policy", err)
+	}
+}
+
+func TestCurrencyPolicyRoundingAndAllowedCurrency(t *testing.T) {
+	pol := CurrencyPolicy{
+		FunctionalCurrency: "USD", AllowedCurrencies: []string{"EUR"},
+		RoundingMethod: RoundingHalfUp,
+	}
+	amount, err := apiTypes.NewMoneyFromString("1.005", "USD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rounded, err := pol.Round(amount)
+	if err != nil || rounded.Amount().StringFixed(2) != "1.01" {
+		t.Fatalf("half-up round = %s, %v; want 1.01 USD", rounded, err)
+	}
+	if !pol.AllowsCurrency(" usd ") || !pol.AllowsCurrency("eur") || pol.AllowsCurrency("GBP") {
+		t.Fatal("currency policy allowed an unconfigured currency or rejected a configured one")
+	}
+}
+
+func TestAccountEligibilityRejectsControlAccounts(t *testing.T) {
+	accountID := apiTypes.NewAccountID()
+	entry := &journal.JournalEntry{Lines: []journal.EntryLine{{AccountID: accountID, TransactionCurrency: "USD"}}}
+	accounts := map[apiTypes.AccountID]masterdata.Account{
+		accountID: {ID: accountID, Code: "AR", IsActive: true, IsControlAccount: true},
+	}
+	if err := CheckAccountEligibility(context.Background(), entry, accounts); !errors.Is(err, ErrControlAccountNotPostable) {
+		t.Fatalf("control-account eligibility error = %v, want prohibited", err)
+	}
+}
+
+func TestAccountEligibilityEnforcesAccountCostCenterRequirement(t *testing.T) {
+	accountID := apiTypes.NewAccountID()
+	entry := &journal.JournalEntry{Lines: []journal.EntryLine{{AccountID: accountID}}}
+	accounts := map[apiTypes.AccountID]masterdata.Account{
+		accountID: {ID: accountID, Code: "6010", IsActive: true, RequiresCostCenter: true},
+	}
+	if err := CheckAccountEligibility(context.Background(), entry, accounts); !errors.Is(err, ErrCostCenterRequired) {
+		t.Fatalf("missing account-required cost center error = %v, want cost-center-required", err)
+	}
+
+	costCenterID := apiTypes.NewCostCenterID()
+	entry.Lines[0].CostCenterID = &costCenterID
+	if err := CheckAccountEligibility(context.Background(), entry, accounts); err != nil {
+		t.Fatalf("account with required cost center: %v", err)
+	}
+}

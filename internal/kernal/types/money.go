@@ -60,6 +60,10 @@ func Zero(currency string) (Money, error) {
 }
 
 func newMoney(amount decimal.Decimal, currency string) (Money, error) {
+	currencyInfo, ok := LookupCurrency(currency)
+	if !ok || currencyInfo.Code == XXX {
+		return Money{}, ErrInvalidCurrency
+	}
 	if precisionDigits(amount) > maximumPrecision {
 		return Money{}, ErrAmountExceedsPrecision
 	}
@@ -79,10 +83,7 @@ func (m Money) Rounded() (Money, error) {
 }
 
 func newMoneyAtScale(amount decimal.Decimal, currency string) (Money, error) {
-	if precisionDigits(amount) > maximumPrecision {
-		return Money{}, ErrAmountExceedsPrecision
-	}
-	return Money{amount: amount, currency: currency}, nil
+	return newMoney(amount, currency)
 }
 
 func precisionDigits(value decimal.Decimal) int {
@@ -236,11 +237,15 @@ func (m Money) MarshalJSON() ([]byte, error) {
 	if m.currency == "" {
 		return []byte("null"), nil
 	}
+	scale := int32(-m.amount.Exponent())
+	if scale < FinancialScale {
+		scale = FinancialScale
+	}
 	return json.Marshal(struct {
 		Amount   string `json:"amount"`
 		Currency string `json:"currency"`
 	}{
-		Amount:   m.amount.RoundBank(FinancialScale).StringFixed(FinancialScale),
+		Amount:   m.amount.RoundBank(scale).StringFixed(scale),
 		Currency: m.currency,
 	})
 }

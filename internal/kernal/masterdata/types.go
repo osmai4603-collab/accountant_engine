@@ -8,9 +8,11 @@ import (
 )
 
 var (
-	ErrCompanyNotFound = errors.New("company not found")
-	ErrJournalNotFound = errors.New("journal not found")
-	ErrInvalidJournal  = errors.New("invalid journal")
+	ErrCompanyNotFound       = errors.New("company not found")
+	ErrJournalNotFound       = errors.New("journal not found")
+	ErrInvalidJournal        = errors.New("invalid journal")
+	ErrJournalNotCurrent     = errors.New("journal is not valid on the posting date")
+	ErrJournalReaderRequired = errors.New("journal repository is required for posting")
 )
 
 type AccountType string
@@ -64,10 +66,14 @@ type Company struct {
 }
 
 type Journal struct {
-	ID        types.JournalID
-	CompanyID types.CompanyID
-	Code      string
-	Name      string
+	ID                types.JournalID
+	CompanyID         types.CompanyID
+	Code              string
+	Name              string
+	AllowedCurrencies []string
+	AllowedAccountIDs []types.AccountID
+	EffectiveFrom     time.Time
+	EffectiveTo       *time.Time
 }
 
 type Account struct {

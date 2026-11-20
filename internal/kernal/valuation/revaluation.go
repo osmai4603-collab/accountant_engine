@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
@@ -61,12 +62,21 @@ func (e *RevaluationEngine) Calculate(ctx context.Context, position MonetaryPosi
 	if position.Type != Monetary {
 		return FXResult{}, ErrInvalidPosition
 	}
+	if asOf.IsZero() {
+		return FXResult{}, ErrInvalidPosition
+	}
 	if position.AccountID == (apiTypes.AccountID{}) || position.TransactionCurrency == "" ||
 		position.FunctionalCurrency == "" ||
 		position.CarryingAmount.Currency() != position.FunctionalCurrency ||
 		!position.ForeignCurrencyBalance.IsPositive() ||
 		!position.CarryingAmount.Amount().IsPositive() {
 		return FXResult{}, ErrInvalidPosition
+	}
+	for _, code := range []string{position.TransactionCurrency, position.FunctionalCurrency} {
+		currency, ok := types.LookupCurrency(code)
+		if !ok || currency.Code == types.XXX {
+			return FXResult{}, types.ErrInvalidCurrency
+		}
 	}
 	if e.provider == nil {
 		return FXResult{}, ErrRateNotFound
@@ -75,6 +85,14 @@ func (e *RevaluationEngine) Calculate(ctx context.Context, position MonetaryPosi
 	rate, ref, inverted, err := e.provider.GetRate(ctx, ClosingRate, position.TransactionCurrency, position.FunctionalCurrency, asOf)
 	if err != nil {
 		return FXResult{}, err
+	}
+	if err := validateRevaluationRate(
+		rate, ref, inverted, position.TransactionCurrency, position.FunctionalCurrency, asOf,
+	); err != nil {
+		return FXResult{}, err
+	}
+	if position.TransactionCurrency == position.FunctionalCurrency && !rate.Equal(decimal.NewFromInt(1)) {
+		return FXResult{}, ErrInvalidRate
 	}
 
 	revaluedAmount, err := types.NewMoney(position.ForeignCurrencyBalance.Mul(rate), position.FunctionalCurrency)
@@ -103,12 +121,46 @@ func (e *RevaluationEngine) Calculate(ctx context.Context, position MonetaryPosi
 		Difference:             diffMoney,
 		IsGain:                 isGain,
 		ClosingRate:            rate,
-		RateDate:               asOf,
+		RateDate:               ref.EffectiveDate,
 		RevaluedAmount:         revaluedAmount,
 		RateReference:          ref,
 		RateReferenceAvailable: true,
 		RateInverted:           inverted,
 	}, nil
+}
+
+func validateRevaluationRate(
+	rate decimal.Decimal,
+	reference ExchangeRate,
+	inverted bool,
+	from, to string,
+	asOf time.Time,
+) error {
+	if !rate.IsPositive() || reference.Type != ClosingRate ||
+		reference.EffectiveDate.IsZero() || reference.EffectiveDate.After(asOf) {
+		return ErrInvalidRate
+	}
+	if err := reference.Validate(); err != nil {
+		return ErrInvalidRate
+	}
+
+	expectedFrom, expectedTo := strings.ToUpper(strings.TrimSpace(from)), strings.ToUpper(strings.TrimSpace(to))
+	if inverted {
+		expectedFrom, expectedTo = expectedTo, expectedFrom
+	}
+	if strings.ToUpper(strings.TrimSpace(reference.FromCurrency)) != expectedFrom ||
+		strings.ToUpper(strings.TrimSpace(reference.ToCurrency)) != expectedTo {
+		return ErrInvalidRate
+	}
+
+	referencedRate := reference.Rate
+	if inverted {
+		referencedRate = decimal.NewFromInt(1).DivRound(referencedRate, 12)
+	}
+	if !rate.Equal(referencedRate) {
+		return ErrInvalidRate
+	}
+	return nil
 }
 
 type FXJournalAccounts struct {

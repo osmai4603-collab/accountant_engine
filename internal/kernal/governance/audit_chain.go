@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
@@ -14,7 +13,13 @@ import (
 
 const GenesisHash = "0000000000000000000000000000000000000000000000000000000000000000"
 
-var ErrAuditChainBroken = errors.New("audit chain integrity violation: tampering or broken link detected")
+var (
+	ErrAuditChainBroken                = errors.New("audit chain integrity violation: tampering or broken link detected")
+	ErrAtomicAuditRepositoryRequired   = errors.New("atomic audit repository is required")
+	ErrAuditCheckpointProviderRequired = errors.New("external audit checkpoint provider is required")
+	ErrInvalidAuditCheckpoint          = errors.New("external audit checkpoint is invalid")
+	ErrAuditCheckpointMismatch         = errors.New("audit chain does not match external checkpoint")
+)
 
 // AuditLog represents a cryptographically hashed immutable audit entry.
 type AuditLog struct {
@@ -38,20 +43,25 @@ func CalculateHash(log AuditLog) string {
 	payloadSum := sha256.Sum256(log.Payload)
 	payloadHash := hex.EncodeToString(payloadSum[:])
 	h := sha256.New()
-	_, _ = fmt.Fprintf(h, "v1|%d|%s|%s|%s|%s|%s|%s|%d|%s|%s",
-		log.SequenceNumber,
-		log.CompanyID.String(),
-		log.EntityType,
-		log.EntityID,
-		log.Action,
-		log.ActorID,
-		log.CorrelationID,
-		log.Timestamp.UTC().UnixNano(),
-		payloadHash,
-		log.PreviousLogHash,
-	)
+	writeAuditHashField(h, "v2")
+	writeAuditHashField(h, fmt.Sprint(log.SequenceNumber))
+	writeAuditHashField(h, log.CompanyID.String())
+	writeAuditHashField(h, log.EntityType)
+	writeAuditHashField(h, log.EntityID)
+	writeAuditHashField(h, log.Action)
+	writeAuditHashField(h, log.ActorID)
+	writeAuditHashField(h, log.Reason)
+	writeAuditHashField(h, log.CorrelationID)
+	writeAuditHashField(h, fmt.Sprint(log.Timestamp.UTC().UnixNano()))
+	writeAuditHashField(h, payloadHash)
+	writeAuditHashField(h, log.PreviousLogHash)
 	sum := h.Sum(nil)
 	return hex.EncodeToString(sum[:])
+}
+
+func writeAuditHashField(h interface{ Write([]byte) (int, error) }, value string) {
+	_, _ = fmt.Fprintf(h, "%d:", len(value))
+	_, _ = h.Write([]byte(value))
 }
 
 type AuditLogRepository interface {
@@ -60,9 +70,26 @@ type AuditLogRepository interface {
 	IterateAuditLogs(ctx context.Context, companyID apiTypes.CompanyID, fn func(log AuditLog) error) error
 }
 
+// AtomicAuditLogRepository appends an audit record while atomically assigning
+// its sequence number and previous hash for the company.
+type AtomicAuditLogRepository interface {
+	AppendAuditLogAtomic(ctx context.Context, log AuditLog) (AuditLog, error)
+}
+
+// AuditCheckpoint records a chain position retained outside the mutable audit log.
+type AuditCheckpoint struct {
+	CompanyID      apiTypes.CompanyID
+	SequenceNumber uint64
+	LogHash        string
+}
+
+// AuditCheckpointProvider supplies a trusted, externally retained chain checkpoint.
+type AuditCheckpointProvider interface {
+	GetAuditCheckpoint(ctx context.Context, companyID apiTypes.CompanyID) (AuditCheckpoint, error)
+}
+
 type AuditChain struct {
 	repo AuditLogRepository
-	mu   sync.Mutex
 }
 
 func NewAuditChain(repo AuditLogRepository) *AuditChain {
@@ -71,35 +98,16 @@ func NewAuditChain(repo AuditLogRepository) *AuditChain {
 
 // Append appends an audit log into the cryptographic chain, ensuring link to previous hash.
 func (c *AuditChain) Append(ctx context.Context, log AuditLog) (AuditLog, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	last, err := c.repo.GetLastAuditLogForCompany(ctx, log.CompanyID)
-	if err != nil {
-		return AuditLog{}, err
+	repository, ok := c.repo.(AtomicAuditLogRepository)
+	if !ok {
+		return AuditLog{}, ErrAtomicAuditRepositoryRequired
 	}
-
-	if last == nil || last.CurrentLogHash == "" {
-		log.PreviousLogHash = GenesisHash
-		log.SequenceNumber = 1
-	} else {
-		log.PreviousLogHash = last.CurrentLogHash
-		log.SequenceNumber = last.SequenceNumber + 1
-	}
-
 	if log.Timestamp.IsZero() {
 		log.Timestamp = time.Now().UTC()
 	} else {
 		log.Timestamp = log.Timestamp.UTC()
 	}
-
-	log.CurrentLogHash = CalculateHash(log)
-
-	if err := c.repo.AppendAuditLog(ctx, log); err != nil {
-		return AuditLog{}, err
-	}
-
-	return log, nil
+	return repository.AppendAuditLogAtomic(ctx, log)
 }
 
 // VerifyAuditIntegrity verifies that all audit records for a company form an unbroken hash chain
@@ -133,6 +141,53 @@ func (c *AuditChain) VerifyAuditIntegrity(ctx context.Context, companyID apiType
 
 	if err != nil {
 		return false, err
+	}
+	return true, nil
+}
+
+// VerifyAuditIntegrityWithCheckpoint also verifies the externally retained chain position.
+func (c *AuditChain) VerifyAuditIntegrityWithCheckpoint(
+	ctx context.Context,
+	companyID apiTypes.CompanyID,
+	provider AuditCheckpointProvider,
+) (bool, error) {
+	if provider == nil {
+		return false, ErrAuditCheckpointProviderRequired
+	}
+	checkpoint, err := provider.GetAuditCheckpoint(ctx, companyID)
+	if err != nil {
+		return false, err
+	}
+	if checkpoint.CompanyID != companyID ||
+		(checkpoint.SequenceNumber == 0 && checkpoint.LogHash != GenesisHash) ||
+		(checkpoint.SequenceNumber > 0 && checkpoint.LogHash == "") {
+		return false, ErrInvalidAuditCheckpoint
+	}
+	valid, err := c.VerifyAuditIntegrity(ctx, companyID)
+	if err != nil || !valid {
+		return valid, err
+	}
+
+	var latest AuditLog
+	foundCheckpoint := checkpoint.SequenceNumber == 0
+	err = c.repo.IterateAuditLogs(ctx, companyID, func(log AuditLog) error {
+		latest = log
+		if log.SequenceNumber == checkpoint.SequenceNumber {
+			foundCheckpoint = true
+			if log.CurrentLogHash != checkpoint.LogHash {
+				return ErrAuditCheckpointMismatch
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	if !foundCheckpoint || latest.SequenceNumber != checkpoint.SequenceNumber {
+		return false, ErrAuditCheckpointMismatch
+	}
+	if checkpoint.SequenceNumber == 0 && checkpoint.LogHash != GenesisHash {
+		return false, ErrAuditCheckpointMismatch
 	}
 	return true, nil
 }
