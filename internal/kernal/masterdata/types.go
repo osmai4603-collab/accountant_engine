@@ -10,6 +10,7 @@ import (
 var (
 	ErrCompanyNotFound = errors.New("company not found")
 	ErrJournalNotFound = errors.New("journal not found")
+	ErrInvalidJournal  = errors.New("invalid journal")
 )
 
 type AccountType string
@@ -89,6 +90,10 @@ type Account struct {
 	SubClassification   string
 	IFRSCategory        string
 	DisplayOrder        int
+	EffectiveFrom       time.Time
+	EffectiveTo         *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type FiscalYear struct {

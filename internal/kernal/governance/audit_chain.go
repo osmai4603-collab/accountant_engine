@@ -19,6 +19,7 @@ var ErrAuditChainBroken = errors.New("audit chain integrity violation: tampering
 // AuditLog represents a cryptographically hashed immutable audit entry.
 type AuditLog struct {
 	ID              int64
+	SequenceNumber  uint64
 	CompanyID       apiTypes.CompanyID
 	EntityType      string
 	EntityID        string
@@ -34,19 +35,22 @@ type AuditLog struct {
 
 // CalculateHash calculates the SHA-256 digest over the audit entry fields.
 func CalculateHash(log AuditLog) string {
-	timestamp := log.Timestamp.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
-	input := log.PreviousLogHash +
-		log.CompanyID.String() +
-		log.EntityType +
-		log.EntityID +
-		log.Action +
-		log.ActorID +
-		log.Reason +
-		log.CorrelationID +
-		string(log.Payload) +
-		timestamp
-
-	sum := sha256.Sum256([]byte(input))
+	payloadSum := sha256.Sum256(log.Payload)
+	payloadHash := hex.EncodeToString(payloadSum[:])
+	h := sha256.New()
+	_, _ = fmt.Fprintf(h, "v1|%d|%s|%s|%s|%s|%s|%s|%d|%s|%s",
+		log.SequenceNumber,
+		log.CompanyID.String(),
+		log.EntityType,
+		log.EntityID,
+		log.Action,
+		log.ActorID,
+		log.CorrelationID,
+		log.Timestamp.UTC().UnixNano(),
+		payloadHash,
+		log.PreviousLogHash,
+	)
+	sum := h.Sum(nil)
 	return hex.EncodeToString(sum[:])
 }
 
@@ -77,8 +81,10 @@ func (c *AuditChain) Append(ctx context.Context, log AuditLog) (AuditLog, error)
 
 	if last == nil || last.CurrentLogHash == "" {
 		log.PreviousLogHash = GenesisHash
+		log.SequenceNumber = 1
 	} else {
 		log.PreviousLogHash = last.CurrentLogHash
+		log.SequenceNumber = last.SequenceNumber + 1
 	}
 
 	if log.Timestamp.IsZero() {
@@ -100,10 +106,16 @@ func (c *AuditChain) Append(ctx context.Context, log AuditLog) (AuditLog, error)
 // and that none of the payloads or metadata have been modified.
 func (c *AuditChain) VerifyAuditIntegrity(ctx context.Context, companyID apiTypes.CompanyID) (bool, error) {
 	var expectedPrevHash = GenesisHash
+	var expectedSequence uint64
 	var logIndex int64
 
 	err := c.repo.IterateAuditLogs(ctx, companyID, func(log AuditLog) error {
 		logIndex++
+		expectedSequence++
+		if log.SequenceNumber != expectedSequence {
+			return fmt.Errorf("%w: at log %d, expected sequence %d, got %d",
+				ErrAuditChainBroken, log.ID, expectedSequence, log.SequenceNumber)
+		}
 		if log.PreviousLogHash != expectedPrevHash {
 			return fmt.Errorf("%w: at log %d, expected prev hash %s, got %s",
 				ErrAuditChainBroken, log.ID, expectedPrevHash, log.PreviousLogHash)

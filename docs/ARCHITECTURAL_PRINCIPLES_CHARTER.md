@@ -60,7 +60,7 @@ technical_terms: "en"
 ### المبدأ الأول: استقلال البنية التحتية والتخزين (Infrastructure Independence)
 
 - **[PRIN-INFRA-01] التجريد التام لطبقة البيانات (Storage-Agnostic Kernal):**
-  - النواة المحاسبية (`internal/posting`, `internal/masterdata`, `internal/types`) لا تعلم شيئاً عن PostgreSQL، أو محركات SQL، أو ملفات التخزين، أو جداول قواعد البيانات.
+  - النواة المحاسبية (`internal/kernal/posting`, `internal/kernal/masterdata`, `internal/kernal/types`) لا تعلم شيئاً عن PostgreSQL، أو محركات SQL، أو ملفات التخزين، أو جداول قواعد البيانات.
   - كل عمليات القراءة والكتابة والحفظ تتم عبر عقود وموانئ تخزين مجردة بالكامل (`pkg/spi/storage`).
 - **[PRIN-INFRA-02] حظر استيراد مكتبات التخزين في النواة:**
   - يُحظر تماماً استيراد `database/sql`, `github.com/jackc/pgx`, أو أي حزمة قاعدة بيانات داخل طبقة الـ Kernal Domain.
@@ -99,19 +99,22 @@ technical_terms: "en"
 
 ### المبدأ الرابع: قدسية وسلامة القيد المحاسبي (Double-Entry & Ledger Sanctity)
 
-- **[PRIN-SANCT-01] التوازن الحتمي الصارم للقيد المزدوج ($\sum \text{Debit} = \sum \text{Credit}$):**
+- **[PRIN-SANCT-01] التوازن الحتمي ومطابقة العملة الوظيفية ($\sum \text{Debit} = \sum \text{Credit}$):**
   - التوازن المحاسبي بالعملة الوظيفية هو قانون فيزيائي حتمي داخل النواة. يُرفض أي قيد غير متوازن فوراً في مرحلة التحقق وقبل فتح أي معاملة تخزين.
-- **[PRIN-SANCT-02] الحفظ الذري الشامل للمعاملات (Strict Atomicity / All-or-Nothing):**
-  - ترحيل القيد، تحديث أرصدة الأستاذ العام، تسجيل حركات الدفاتر الفرعية، وحفظ مسار التدقيق تحدث معاً كوحدة عمل واحدة (`Unit of Work`) أو تتراجع بالكامل فوراً عند حدوث أي خلل.
+  - تطابق العملة الوظيفية لكافة أسطر القيد مع العملة الوظيفية المعتمدة للشركة إلزامي؛ وأي اختلاف يُعد خرقاً معمارياً يرفض بـ `ErrFunctionalCurrencyMismatch`.
+- **[PRIN-SANCT-02] الحفظ الذري الشامل للمعاملات (Strict Atomicity & Ordered Locking):**
+  - ترحيل القيد، حجز الأقفال التصاعدي لمنع Deadlock، تخصيص رقم القيد، تحديث أرصدة الأستاذ العام، تسجيل حركات الدفاتر الفرعية، وحفظ مسار التدقيق المشفر تحدث معاً كوحدة عمل واحدة (`Unit of Work`) أو تتراجع بالكامل فوراً عند حدوث أي خلل.
 - **[PRIN-SANCT-03] الحرمة الأبدية للقيود المرحلة (Strict Immutability):**
   - القيد المرحّل لا يمكن تعديله أو حذفه إطلاقاً. لا يوجد أمر `UPDATE` أو `DELETE` في قاعدة البيانات يمس القيود المرحلة.
   - التصحيح يتم حصراً بقيد عكسي مستقل يرتبط دلالياً بالقيد الأصلي.
 - **[PRIN-SANCT-04] حظر التعديل المباشر للأرصدة (No Direct Balance Mutation):**
   - لا توجد دالة أو واجهة لتعديل الأرصدة يدوياً (`SetBalance`). الأرصدة هي ناتج حتمي مشتق من مجموع أسطر القيود المرحلة.
-- **[PRIN-SANCT-05] حرمة الحسابات التجميعية والفترات المقفلة:**
-  - منع الترحيل قطعياً على الحسابات التجميعية (Header Accounts) وفي الفترات المقفلة نهائياً (`CLOSED`).
-- **[PRIN-SANCT-06] الدقة الرقمية وحظر الفاصلة العائمة (No Floats):**
+- **[PRIN-SANCT-05] حرمة الحسابات التجميعية والفترات والسنوات المقفلة:**
+  - منع الترحيل قطعياً على الحسابات التجميعية (Header Accounts) وفي الفترات أو السنوات المالية المقفلة (`CLOSED`).
+  - فترات التسوية 13 و 14 تعامل كأوعية إجرائية وتستبعد تماماً من البحث بالتواريخ.
+- **[PRIN-SANCT-06] الدقة الرقمية وحظر الإسقاط الصامت لفروق التقريب (No Floats & Zero Silent Residual Loss):**
   - حظر استخدام `float32` و `float64` في العمليات المالية، والاعتماد الحصري على الأعداد الصحيحة الصغرى أو مكتبات الحساب العشري الدقيق.
+  - حظر إسقاط أو ابتلاع فروق التقريب بصمت؛ وأي متبقي ناتج عن التقريب للوحدة الصغرى يجب تسويته بحساب تسوية معتمد (`ErrRoundingAccountRequired`).
 
 ---
 
@@ -165,11 +168,13 @@ flowchart TD
     end
 
     subgraph Layer1 ["الطبقة 1: النواة المحاسبية الحتمية (Kernal Kernel)"]
-        POSTING["internal/posting (Double-Entry & Posting Pipeline)"]
-        MASTER["internal/masterdata (COA, Calendar, Periods)"]
-        TYPES["internal/types (Money, Decimal, Currencies)"]
-        VALUATION["internal/valuation (Exchange Rates, FX)"]
-        GOVERNANCE["internal/governance (Audit Chain)"]
+        POSTING["internal/kernal/posting (Double-Entry & Posting Pipeline)"]
+        MASTER["internal/kernal/masterdata (COA, Calendar, Periods)"]
+        TYPES["internal/kernal/types (Money, Decimal, Currencies)"]
+        VALUATION["internal/kernal/valuation (Exchange Rates, FX)"]
+        POLICY["internal/kernal/policy (Posting Rules & Limits)"]
+        GOVERNANCE["internal/kernal/governance (Audit Chain & Verification)"]
+        APPERRORS["internal/kernal/apperrors (Standard Financial Errors)"]
         SPI["pkg/spi/storage (Persistence Ports)"]
     end
 

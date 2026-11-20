@@ -72,10 +72,12 @@ func NewJournalID() JournalID { return JournalID(uuid.New()) }
 // Journal is the public, company-scoped master-data representation of a
 // posting journal.
 type Journal struct {
-	ID        JournalID
-	CompanyID types.CompanyID
-	Code      string
-	Name      string
+	ID                JournalID
+	CompanyID         types.CompanyID
+	Code              string
+	Name              string
+	AllowedCurrencies []string
+	AllowedAccountIDs []types.AccountID
 }
 
 func (j Journal) Validate() error {
@@ -87,27 +89,7 @@ func (j Journal) Validate() error {
 	return nil
 }
 
-type Account struct {
-	ID                  types.AccountID
-	CompanyID           types.CompanyID
-	Code                string
-	Name                string
-	Type                AccountType
-	NormalBalance       NormalBalance
-	Currency            string
-	ParentID            *types.AccountID
-	IsReconcilable      bool
-	IsControlAccount    bool
-	IsContraAccount     bool
-	IsActive            bool
-	RequiresCostCenter  bool
-	IsCashEquivalent    bool
-	IsNonCashAdjustment bool
-	CashFlowActivity    string
-	SubClassification   string
-	IFRSCategory        string
-	DisplayOrder        int
-}
+type Account = kernalMasterdata.Account
 
 type FiscalYear = kernalMasterdata.FiscalYear
 type FiscalPeriod = kernalMasterdata.FiscalPeriod

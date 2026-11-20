@@ -35,6 +35,10 @@ var (
 	ErrInvalidReversal                = errors.New("invalid reversal entry")
 	ErrInvalidDimensionReference      = errors.New("dimension reference cannot be empty/nil")
 	ErrRoundingAccountRequired        = errors.New("rounding difference account is required to settle sub-minor-unit amounts")
+	ErrFunctionalCurrencyMismatch     = apiTypes.ErrCurrencyMismatch
+	ErrTransactionCurrencyMismatch    = apiTypes.ErrCurrencyMismatch
+	ErrPosterIDRequired               = errors.New("poster actor id is required")
+	ErrInvalidEntryState              = errors.New("invalid journal entry state")
 )
 
 // ValidateEntryLine validates a single entry line.
@@ -49,6 +53,9 @@ func ValidateEntryLine(line journal.EntryLine, round func(apiTypes.Money) (apiTy
 
 	if line.TransactionCurrency == "" {
 		return ErrMissingTransactionCurrency
+	}
+	if line.TransactionAmount.Currency() != line.TransactionCurrency {
+		return ErrTransactionCurrencyMismatch
 	}
 	if line.TransactionAmount.Amount().IsZero() {
 		return ErrZeroAmountLine
@@ -82,29 +89,11 @@ func ValidateEntryLine(line journal.EntryLine, round func(apiTypes.Money) (apiTy
 	if err != nil {
 		return err
 	}
-	if round != nil {
-		expectedMoney, err = round(expectedMoney)
-	} else {
-		expectedMoney, err = expectedMoney.Rounded()
-	}
-	if err != nil {
-		return err
-	}
-
 	actualMoney := line.FunctionalDebit
 	if !creditZero {
 		actualMoney = line.FunctionalCredit
 	}
-	if round != nil {
-		actualMoney, err = round(actualMoney)
-	} else {
-		actualMoney, err = actualMoney.Rounded()
-	}
-	if err != nil {
-		return err
-	}
-
-	if !expectedMoney.Equal(actualMoney) {
+	if !expectedMoney.Amount().Equal(actualMoney.Amount()) {
 		return apiTypes.ErrInvalidAmount
 	}
 

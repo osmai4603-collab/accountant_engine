@@ -67,12 +67,13 @@ flowchart TB
     end
 
     subgraph TargetCore ["🟢 النواة المحاسبية الأساسية (Accounting Kernal Kernel)"]
-        POSTING["internal/posting<br/>• Double-Entry Validation<br/>• Atomic Posting Pipeline<br/>• Reversal Engine<br/>• Strict Invariants"]
-        MASTER["internal/masterdata<br/>• COA & Account Trees<br/>• Fiscal Calendar & Periods<br/>• Company Scope & Tenants"]
-        TYPES["internal/types<br/>• Int64 / Decimal Precision<br/>• Currencies (ISO 4217)<br/>• Immutable Models"]
-        VALUATION["internal/valuation<br/>• Exchange Rates<br/>• Currency Conversion<br/>• Revaluation Policies"]
-        POLICY["internal/policy<br/>• Posting Rules & Approval<br/>• Account Eligibility Policies"]
-        GOVERNANCE["internal/governance<br/>• Immutable Audit Chain<br/>• WORM Proof & Verification"]
+        POSTING["internal/kernal/posting<br/>• Double-Entry Validation<br/>• Atomic 8-Step Pipeline<br/>• Rounding Difference Settlement<br/>• Ordered Locking & Reversals"]
+        MASTER["internal/kernal/masterdata<br/>• COA & Account Trees<br/>• Fiscal Calendar & Periods 13/14<br/>• Company Scope & Tenants"]
+        TYPES["internal/kernal/types<br/>• Int64 / Decimal Precision<br/>• Currencies (ISO 4217)<br/>• Banker's Rounding & Immutable Value Objects"]
+        VALUATION["internal/kernal/valuation<br/>• Exchange Rates & Historical Feeds<br/>• Conversion Engine<br/>• IAS 21 Revaluation"]
+        POLICY["internal/kernal/policy<br/>• Currency & Posting Policies<br/>• Maker-Checker Thresholds<br/>• Auto-Settle Rounding Rules"]
+        GOVERNANCE["internal/kernal/governance<br/>• Delimited Hash Chain<br/>• Nanosecond & Monotonic Sequences<br/>• Forensic Verifier Engine"]
+        APPERRORS["internal/kernal/apperrors<br/>• Unified Financial Error Taxonomy<br/>• Coded Sentinel Errors"]
     end
 
     subgraph Orbitals ["🔵 المكونات المدارية (Orbital Components - Opt-in)"]
@@ -118,52 +119,62 @@ flowchart TB
 
 ## 3. المكونات الأساسية للنواة المحاسبية (Kernal Kernel Components)
 
-تتألف النواة المحاسبية حصراً من الحزم والمسؤوليات الست التالية:
+تتألف النواة المحاسبية الصرفة حصراً من الحزم والمسؤوليات السبع التالية:
 
-### 3.1 محرك الترحيل والقيد المزدوج (`internal/posting`)
+### 3.1 محرك الترحيل والقيد المزدوج (`internal/kernal/posting`)
 
 * **قلب النواة الحسابي:**
-  * التحقق الرياضي الصارم من توازن القيد المزدوج ($\sum D = \sum C$).
-  * خط أنابيب الترحيل الذري (Atomic Posting Pipeline).
+  * التحقق الرياضي الصارم من توازن القيد المزدوج ومطابقة العملة الوظيفية للشركة وعملات الأسطر.
+  * خط أنابيب الترحيل الذري الثماني (`Atomic 8-Step Pipeline`) تحت مظلة `UnitOfWork`.
   * حجز أقفال الصفوف المرتبة تصاعدياً (`SELECT FOR UPDATE by AccountID ASC`) لمنع الـ Deadlocks.
+  * المعالجة الصريحة لفروق التقريب المصرفي والتسوية بحساب مخصص عبر `RoundEntryWithRoundingPolicy` وفرض `ErrRoundingAccountRequired`.
   * إدارة القيود العكسية (Reversals) والربط التوثيقي الدلالي بالقيد الأصلي.
   * فرض الحرمة المطلقة للقيود المرحلة ومنع التعديل أو الحذف (`Immutability`).
 
-### 3.2 البيانات المالية الرئيسية (`internal/masterdata`)
+### 3.2 البيانات المالية الرئيسية (`internal/kernal/masterdata`)
 
 * **هيكل الحسابات والفترات:**
-  * إدارة شجرة الحسابات المتدرجة (COA) ومنع العلاقات الدائرية.
+  * إدارة شجرة الحسابات المتدرجة (COA)، والتصنيفات الفرعية، والتاريخ الفعلي (`Effective-Dating`).
   * فحص أهلية الحساب للترحيل وحظر الترحيل على الحسابات التجميعية (Header Accounts).
-  * تقويم الفترات المالية (Fiscal Calendar) وإدارة حالات الفترات (`OPEN`, `SOFT_LOCKED`, `CLOSED`).
-  * عزل وتحديد سياق الشركة المستأجرة (`Company Scope`).
+  * تقويم الفترات المالية (Fiscal Calendar) والفصل الإجرائي الصارم لفترات التسوية 13 و 14 واستبعادها من البحث بالتواريخ (`Contains == false`).
+  * التحقق الثنائي المتزامن من انفتاح الفترة والسنة المالية معاً (`ValidatePeriodForPosting`).
+  * إدارة اليوميات المعتمدة وقيود العملات والحسابات المصرح بها.
 
-### 3.3 الأنواع والقيم المالية الدقيقة (`internal/types`)
+### 3.3 الأنواع والقيم المالية الدقيقة (`internal/kernal/types`)
 
 * **الأمان الرقمي والدقة:**
-  * تمثيل العملات والمبالغ المالية بدقة الأعداد الصحيحة الصغرى (`Int64 minor units`) أو الحساب العشري الدقيق (`shopspring/decimal`).
-  * حظر استخدام أرقام الفاصلة العائمة (`float32 / float64`).
-  * تعريف كائنات القيمة غير القابلة للتغيير (Immutable Value Objects): `Money`, `Currency`, `CompanyID`, `AccountID`, `JournalEntryID`.
+  * تمثيل العملات والمبالغ المالية بدقة الأعداد الصحيحة الصغرى أو الحساب العشري الدقيق (`shopspring/decimal`).
+  * الحظر البات لاستخدام أرقام الفاصلة العائمة (`float32 / float64`).
+  * خوارزمية التقريب المصرفي (`Banker's Rounding / Half to Even`).
+  * كائنات القيمة المعرفة بالأنواع الصلبة (Typed Identifiers): `CompanyID`, `AccountID`, `FiscalYearID`, `FiscalPeriodID`, `JournalID`.
 
-### 3.4 التقييم وأسعار الصرف (`internal/valuation`)
+### 3.4 التقييم وأسعار الصرف (`internal/kernal/valuation`)
 
 * **التعامل مع العملات المتعددة:**
-  * إدارة أسعار الصرف التاريخية المعتمدة وتاريخ سريانها.
-  * تحويل مبالغ العملات الأجنبية بدقة إلى العملة الوظيفية وفق قواعد التقريب المصرفي (`Banker's Rounding`).
+  * إدارة أسعار الصرف التاريخية المعتمدة ومزودات الأسعار (`RateProviderSPI`).
+  * محرك التحويل المالي الصريح (`ConversionEngine`) بين عملات المعاملات والعملة الوظيفية.
   * سياسات إعادة التقييم الدوري واحتساب فروق أسعار الصرف المحققة وغير المحققة (IAS 21).
 
-### 3.5 السياسات وضوابط الاعتماد (`internal/policy`)
+### 3.5 السياسات وضوابط الاعتماد (`internal/kernal/policy`)
 
-* **حوكمة قواعد الترحيل:**
+* **حوكمة قواعد الترحيل والرقابة:**
   * التحقق من استيفاء القيد للسياسات المالية قبل السماح بترحيله.
-  * فحص قواعد التوقيع المزدوج أو الموافقات المطلوبة للقيود الاستثنائية.
-  * منع أي التفاف أو تجاوز لقواعد القيود المعتمدة.
+  * سياسات العملات (`CurrencyPolicy`) بما فيها التسوية التلقائية للتقريب (`AutoSettleRoundingDifferences`).
+  * فحص قواعد الرقابة المزدوجة (`Maker-Checker`) والتحقق من بصمة المحتوى الثابتة (`ContentHash`).
 
-### 3.6 سجل التدقيق والحوكمة الجنائية (`internal/governance`)
+### 3.6 سجل التدقيق والحوكمة الجنائية (`internal/kernal/governance`)
 
-* **إثبات الحركات المالية:**
+* **إثبات الحركات والنزاهة الرياضية:**
   * إنشاء سجل التدقيق الدائم (Append-Only Audit Log) لكل حركة مالية.
-  * ربط الحركات بسلسلة تجزئة رياضية غير قابلة للكسر (Cryptographic Hash Chaining).
-  * التحقق من بصمات الاعتماد والنزاهة وتصدير أدلة التدقيق للجهات الرقابية.
+  * الترميز البنيوي الحتمي بالفواصل الصريحة (`v1|...`) لمنع التباس الهاش وتصادمها.
+  * تسجيل الطوابع الزمنية بدقة النانو ثانية، وفرض الترقيم التسلسلي الصاعد (`SequenceNumber`) لكشف الحذف التراجعي (Tail-Truncation).
+  * محرك التحقق الجنائي الشامل (`VerifyAuditIntegrity`) لكشف أي تلاعب فوراً.
+
+### 3.7 الأخطاء المالية المعيارية (`internal/kernal/apperrors`)
+
+* **التصنيف الموحد للأخطاء:**
+  * أخطاء محاسبية مصنفة ومكودة بدقة (`CodedError`).
+  * تصنيف أخطاء التوازن، الفترات، الحسابات، الأقفال، والتزامن لتسهيل معالجتها برمجياً دون غموض.
 
 ---
 

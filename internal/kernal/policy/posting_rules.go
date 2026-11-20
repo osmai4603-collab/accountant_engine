@@ -11,6 +11,35 @@ import (
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 )
 
+type RoundingMethod string
+
+const (
+	RoundingBankers RoundingMethod = "bankers"
+	RoundingHalfUp  RoundingMethod = "half_up"
+)
+
+type CurrencyPolicy struct {
+	CompanyID                     apiTypes.CompanyID
+	FunctionalCurrency            string
+	PresentationCurrency          string
+	RoundingMethod                RoundingMethod
+	ToleranceScale                int
+	AllowedCurrencies             []string
+	RoundingDifferenceAccountID   apiTypes.AccountID
+	AutoSettleRoundingDifferences bool
+	EffectiveDate                 time.Time
+}
+
+func (p CurrencyPolicy) Validate() error {
+	if p.CompanyID == (apiTypes.CompanyID{}) || p.FunctionalCurrency == "" || p.EffectiveDate.IsZero() {
+		return ErrInvalidPolicy
+	}
+	if p.RoundingMethod != "" && p.RoundingMethod != RoundingBankers && p.RoundingMethod != RoundingHalfUp {
+		return ErrInvalidPolicy
+	}
+	return nil
+}
+
 var (
 	ErrPolicyNotFound           = errors.New("accounting policy not found")
 	ErrInvalidPolicy            = errors.New("invalid accounting policy")
