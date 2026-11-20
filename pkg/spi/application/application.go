@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 )
 
@@ -26,12 +26,12 @@ type Principal struct {
 type Action string
 
 const (
-	ActionRead             Action = "ledger.read"
-	ActionCreate           Action = "ledger.create"
-	ActionValidate         Action = "ledger.validate"
-	ActionPost             Action = "ledger.post"
-	ActionReverse          Action = "ledger.reverse"
-	ActionCreateAdjustment Action = "ledger.adjustment.create"
+	ActionRead             Action = "journal.read"
+	ActionCreate           Action = "journal.create"
+	ActionValidate         Action = "journal.validate"
+	ActionPost             Action = "journal.post"
+	ActionReverse          Action = "journal.reverse"
+	ActionCreateAdjustment Action = "journal.adjustment.create"
 	ActionClose            Action = "period.close"
 	ActionReopen           Action = "period.reopen"
 )
@@ -126,19 +126,19 @@ type CreateDraftCommand struct {
 	ReferenceID                 string
 	TransactionCurrency         string
 	ExchangeRate                string
-	Classification              ledger.EntryClassification
+	Classification              journal.EntryClassification
 	TargetPeriodNumber          int
-	AdjustingEntryType          ledger.AdjustingEntryType
+	AdjustingEntryType          journal.AdjustingEntryType
 	AdjustmentReason            string
 	AdjustmentApprovalReference string
-	Lines                       []ledger.EntryLine
+	Lines                       []journal.EntryLine
 }
 
 // CreateAdjustingEntryCommand submits an adjusting entry together with the
 // host-authorized adjustment delegation and its audit evidence.
 type CreateAdjustingEntryCommand struct {
 	Draft             CreateDraftCommand
-	Type              ledger.AdjustingEntryType
+	Type              journal.AdjustingEntryType
 	Reason            string
 	ApprovalReference string
 }
@@ -229,7 +229,7 @@ type GetEntryQuery struct {
 // EntryResult is returned by mutating use cases. IdempotentReplay reports that
 // an earlier identical request produced this result.
 type EntryResult struct {
-	Entry            ledger.JournalEntry
+	Entry            journal.JournalEntry
 	IdempotentReplay bool
 }
 
@@ -240,7 +240,7 @@ type Service interface {
 	Validate(ctx context.Context, command ValidateEntryCommand) error
 	Post(ctx context.Context, command PostEntryCommand) (EntryResult, error)
 	Reverse(ctx context.Context, command ReverseEntryCommand) (EntryResult, error)
-	GetEntry(ctx context.Context, query GetEntryQuery) (ledger.JournalEntry, error)
+	GetEntry(ctx context.Context, query GetEntryQuery) (journal.JournalEntry, error)
 }
 
 // TransactionalService is an optional capability of the accounting use-case
@@ -259,7 +259,7 @@ type TransactionalService interface {
 // idempotency key. It lets callers detect a replay before re-applying
 // non-posting side effects such as subledger balance updates.
 type IdempotentPostingLookup interface {
-	FindPostedEntryByIdempotencyKey(ctx context.Context, companyID types.CompanyID, key string) (ledger.JournalEntry, bool, error)
+	FindPostedEntryByIdempotencyKey(ctx context.Context, companyID types.CompanyID, key string) (journal.JournalEntry, bool, error)
 }
 
 // DeterministicDraftCreator is an optional capability that lets callers supply

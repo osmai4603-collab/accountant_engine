@@ -15,10 +15,10 @@ technical_terms: "en"
 
 > **بيان الإلزام والهدف:**  
 > تُحدد هذه الوثيقة **الهيكل المعماري والبرمجي الجديد (Target Packaging & Directory Structure)** لمشروع `accounting_engine`.  
-> يعكس هذا الهيكل الرؤية المعتمدة لتحويل المشروع إلى **نواة محاسبية نقية، عالية الأداء، وقابلة للتضمين (Embeddable Core Engine)** عبر Go SDK، مع الفصل الصارم بين:
+> يعكس هذا الهيكل الرؤية المعتمدة لتحويل المشروع إلى **نواة محاسبية نقية، عالية الأداء، وقابلة للتضمين (Embeddable Kernal Engine)** عبر Go SDK، مع الفصل الصارم بين:
 >
 > 1. السطح البرمجي العام المفتوح للمستهلك (`pkg/`).
-> 2. النواة المحاسبية الحتمية الصرفة (`internal/core/`).
+> 2. النواة المحاسبية الحتمية الصرفة (`internal/kernal/`).
 > 3. المكونات المدارية الاختيارية (`internal/orbitals/`).
 > 4. محولات التخزين الملموسة (`storage/`).
 > 5. وحدات المعايير التخصصية (`modules/`).
@@ -72,7 +72,7 @@ accounting_engine/
 │
 ├── internal/                             # 🔒 2. المنطق الداخلي المحمي للنواة ومكوناتها (Internal Domain)
 │   │
-│   ├── core/                             # 🟢 النواة المحاسبية الصرفة (Core Accounting Kernel)
+│   ├── kernal/                             # 🟢 النواة المحاسبية الصرفة (Kernal Accounting Kernel)
 │   │   ├── posting/                      # محرك الترحيل الذري، القيد المزدوج، العكس، والأقفال
 │   │   │   ├── pipeline.go               # خط أنابيب الترحيل المالي
 │   │   │   ├── entry_validation.go       # التحقق الرياضي والهيكلي الصارم للقيد المزدوج
@@ -163,8 +163,8 @@ accounting_engine/
 │   └── benchmark/                        # قياس زمن استجابة الترحيل (P95 < 50ms) والضغط المتزامن
 │
 └── docs/                                 # 📖 6. الوثائق والمعايير المعمارية الرسمية المعتمدة
-    ├── PID_RESTRUCTURING_EMBEDDABLE_CORE.md
-    ├── TARGET_ACCOUNTING_CORE_KERNEL.md
+    ├── PID_RESTRUCTURING_EMBEDDABLE_KERNAL.md
+    ├── TARGET_ACCOUNTING_KERNAL.md
     ├── ARCHITECTURAL_PRINCIPLES_CHARTER.md
     ├── ACCOUNTING_CAPABILITIES_INVENTORY.md
     ├── ACCOUNTING_BUSINESS_RULES.md
@@ -184,7 +184,7 @@ accounting_engine/
 * **`pkg/api/v1/`:** نماذج بيانات ثابتة غير قابلة للتغيير (`Immutable DTOs`)، لا تحتوي على أي منطق تخزين أو استعلام.
 * **`pkg/spi/`:** عقود الموانئ (Ports) التي تضمن استقلالية المحرك؛ حيث تتحدث النواة مع هذه العقود ولا تعلم من ينفذها.
 
-### 2. طبقة النواة المحاسبية الصرفة (`internal/core/`)
+### 2. طبقة النواة المحاسبية الصرفة (`internal/kernal/`)
 
 * تمثل **القلب الحسابي المصمت** للمحرك. لا تعتمد على أي حزم مدارية، ولا تعتمد على أي بروتوكول خارجي.
 * مسؤولة حصرياً عن: التحقق من التوازن، الترحيل الذري، حظر الحسابات التجميعية، الفترات المالية، الحساب العشري الدقيق، والقيود العكسية.
@@ -248,7 +248,7 @@ flowchart TD
         SPI["pkg/spi"]
     end
 
-    subgraph InternalCore ["النواة المحاسبية (internal/core/)"]
+    subgraph InternalCore ["النواة المحاسبية (internal/kernal/)"]
         CORE_PKG["posting, masterdata, types, valuation, policy, governance"]
     end
 

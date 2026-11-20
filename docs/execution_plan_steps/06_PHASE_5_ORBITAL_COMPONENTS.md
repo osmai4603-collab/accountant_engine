@@ -42,7 +42,7 @@ technical_terms: "en"
     - نسخ منطق الدفاتر المساعدة من `accounting_engine/internal/subledgers/`.
     - نسخ اختبارات مطابقة حسابات الرقابة.
   - **ما يجب تعديله (Modify):**
-    - توجيه الحزمة للاعتماد على النواة المحاسبية `internal/core/posting` و `internal/core/types`.
+    - توجيه الحزمة للاعتماد على النواة المحاسبية `internal/kernal/posting` و `internal/kernal/types`.
     - منع ترحيل أي قيد فرعي غير مقترن بحساب رقابة صالح.
   - **ما يجب بناؤه من جديد (Build New):**
     - دالة فحص المطابقة اللحظية بين الدفتر الفرعي والأستاذ العام (`AssertSubledgerParity`).
@@ -79,7 +79,7 @@ technical_terms: "en"
     - نسخ نماذج استخراج التدفق النقدي من `accounting_engine/pkg/sdk/cash_flow.go`.
   - **ما يجب تعديله (Modify):**
     - التأكد من أن التقارير تقرأ الأرصدة عبر موانئ `storage.BalanceStore` و `storage.EntryStore`.
-    - ضبط تصنيف الحسابات في القوائم وفق الشجرة المعتمدة في `internal/core/masterdata`.
+    - ضبط تصنيف الحسابات في القوائم وفق الشجرة المعتمدة في `internal/kernal/masterdata`.
   - **ما يجب بناؤه من جديد (Build New):**
     - فحص آلي في دالة المركز المالي يتأكد برمجياً من تحقق المعادلة:
       $$\text{Assets} == \text{Liabilities} + \text{Equity}$$

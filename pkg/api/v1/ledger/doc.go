@@ -1,4 +1,4 @@
-// Package ledger: Public journal entry, entry line, account and fiscal period models.
+// Package ledger: Public chart-of-accounts and fiscal-period models.
 //
 // Import charter: Same as pkg/api/v1: no internal/*, no storage/* and no network packages.
 //

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
@@ -15,7 +15,7 @@ import (
 // EntryReader reads journal entries belonging to one company. It is the only
 // ledger-read surface a standard module may depend on.
 type EntryReader interface {
-	GetEntry(ctx context.Context, companyID types.CompanyID, entryID types.JournalEntryID) (ledger.JournalEntry, error)
+	GetEntry(ctx context.Context, companyID types.CompanyID, entryID types.JournalEntryID) (journal.JournalEntry, error)
 }
 
 // BalanceReader reads deterministic account balances as of a date in a

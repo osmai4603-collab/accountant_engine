@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicevents "github.com/osmai4603-collab/accounting_engine/pkg/spi/events"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
@@ -44,12 +44,12 @@ const (
 
 // DraftStore persists draft journal entries.
 type DraftStore interface {
-	SaveDraft(ctx context.Context, entry ledger.JournalEntry) error
+	SaveDraft(ctx context.Context, entry journal.JournalEntry) error
 }
 
 // EntryReader reads journal entries scoped to a company.
 type EntryReader interface {
-	GetEntry(ctx context.Context, companyID types.CompanyID, entryID types.JournalEntryID) (ledger.JournalEntry, error)
+	GetEntry(ctx context.Context, companyID types.CompanyID, entryID types.JournalEntryID) (journal.JournalEntry, error)
 }
 
 // PostingOperation distinguishes a first posting from a reversal posting.
@@ -64,7 +64,7 @@ const (
 // The adapter persists it; it must not re-implement accounting policy, balance
 // validation, approval, or reversal construction.
 type PostingCommit struct {
-	Entry           ledger.JournalEntry
+	Entry           journal.JournalEntry
 	Operation       PostingOperation
 	OriginalEntryID *types.JournalEntryID
 	// ActorID and Reason are persisted with the operation for audit purposes.
@@ -76,7 +76,7 @@ type PostingCommit struct {
 
 // PostingWriter commits a validated posting atomically.
 type PostingWriter interface {
-	CommitPosting(ctx context.Context, commit PostingCommit) (ledger.JournalEntry, error)
+	CommitPosting(ctx context.Context, commit PostingCommit) (journal.JournalEntry, error)
 }
 
 // SequenceAllocator reserves the next journal entry number.
@@ -151,7 +151,7 @@ type IdempotencyStore interface {
 	Fail(ctx context.Context, companyID types.CompanyID, key, payloadHash, status string) error
 }
 
-// Ports is the explicit dependency set required to build the core engine.
+// Ports is the explicit dependency set required to build the kernal engine.
 // Optional fields are capabilities: nil means the capability is disabled, not
 // silently emulated.
 type Ports struct {

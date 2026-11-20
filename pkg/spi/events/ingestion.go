@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 
 	"github.com/google/uuid"
 )
@@ -35,7 +35,7 @@ type Ingestion struct {
 	// FailureClass is FailureClassTransient, FailureClassTerminal, or empty.
 	FailureClass  string
 	FailureReason string
-	Entry         ledger.JournalEntry
+	Entry         journal.JournalEntry
 }
 
 // Canonical ingestion lifecycle states.
@@ -129,7 +129,7 @@ type AccountMapping struct {
 type IdempotencyStore interface {
 	GetPublicEventIngestion(ctx context.Context, companyID uuid.UUID, idempotencyKey string) (Ingestion, bool, error)
 	ClaimPublicEventIngestion(ctx context.Context, record Ingestion) (existing Ingestion, claimed bool, err error)
-	CompletePublicEventIngestion(ctx context.Context, companyID uuid.UUID, idempotencyKey string, entry ledger.JournalEntry) error
+	CompletePublicEventIngestion(ctx context.Context, companyID uuid.UUID, idempotencyKey string, entry journal.JournalEntry) error
 	FailPublicEventIngestion(ctx context.Context, companyID uuid.UUID, idempotencyKey, reason string) error
 }
 
@@ -140,7 +140,7 @@ type IdempotencyStore interface {
 type ScopedIdempotencyStore interface {
 	IdempotencyStore
 	GetPublicEventIngestionForSource(ctx context.Context, companyID uuid.UUID, sourceSystem, idempotencyKey string) (Ingestion, bool, error)
-	CompletePublicEventIngestionForSource(ctx context.Context, companyID uuid.UUID, sourceSystem, idempotencyKey, payloadHash string, entry ledger.JournalEntry) error
+	CompletePublicEventIngestionForSource(ctx context.Context, companyID uuid.UUID, sourceSystem, idempotencyKey, payloadHash string, entry journal.JournalEntry) error
 	FailPublicEventIngestionForSource(ctx context.Context, companyID uuid.UUID, sourceSystem, idempotencyKey, failureClass, reason string) error
 }
 

@@ -1,6 +1,6 @@
 ---
 title: "الخطة التنفيذية الرئيسية لإعادة هيكلة المحرك المحاسبي — Master Implementation Plan"
-subtitle: "خطة تفكيك وإعادة بناء النواة المحاسبية القابلة للتضمين (Embeddable Core Engine)"
+subtitle: "خطة تفكيك وإعادة بناء النواة المحاسبية القابلة للتضمين (Embeddable Kernal Engine)"
 document_code: "AE-PLAN-MASTER-001"
 plan_type: "reengineering_embeddable_core"
 version: "1.0.0"
@@ -18,7 +18,7 @@ technical_terms: "en"
 
 - **نوع الخطة:** `reengineering_embeddable_core`
 - **الغرض:** تفكيك واقتطاع النواة المحاسبية من مشروع `accounting_engine` وإعادة بنائها داخل المشروع المستهدف `accountant_engine` كنواة نقية وقابلة للتضمين (Embeddable Library) خالية تماماً من بروتوكولات الشبكة (gRPC/HTTP) وخالية من إدارة الهويات والمصادقة، مع حصر ما يُنسخ وما يُعدل وما يُبنى من جديد.
-- **المرجع:** وثيقة بدء المشروع [PID_RESTRUCTURING_EMBEDDABLE_CORE.md](../PID_RESTRUCTURING_EMBEDDABLE_CORE.md) وميثاق المبادئ المعمارية [ARCHITECTURAL_PRINCIPLES_CHARTER.md](../ARCHITECTURAL_PRINCIPLES_CHARTER.md).
+- **المرجع:** وثيقة بدء المشروع [PID_RESTRUCTURING_EMBEDDABLE_KERNAL.md](../PID_RESTRUCTURING_EMBEDDABLE_KERNAL.md) وميثاق المبادئ المعمارية [ARCHITECTURAL_PRINCIPLES_CHARTER.md](../ARCHITECTURAL_PRINCIPLES_CHARTER.md).
 - **تاريخ الإنشاء:** 2026-11-20
 - **آخر تحديث:** 2026-11-20
 
@@ -30,7 +30,7 @@ technical_terms: "en"
 | :--- | :--- | :--- | :--- | :--- |
 | **`P0`** | **التهيئة والتأسيس (Bootstrap & Setup):** إعداد المشروع المستهدف، ملف `go.mod` الرشيق، وهيكل المجلدات وأدوات السلامة. | `P0-01`, `P0-02`, `P0-03` | لا شيء | [01_PHASE_0_BOOTSTRAP_AND_SETUP.md](01_PHASE_0_BOOTSTRAP_AND_SETUP.md) |
 | **`P1`** | **العقود العامة والموانئ المجردة (Public Contracts & SPI):** تأسيس النماذج العامة ومنافذ التخزين المجردة وسياق الأمان. | `P1-01`, `P1-02`, `P1-03` | `P0` (اكتمال واعتماد المرحلة) | [02_PHASE_1_PUBLIC_CONTRACTS_AND_SPI.md](02_PHASE_1_PUBLIC_CONTRACTS_AND_SPI.md) |
-| **`P2`** | **بناء النواة المحاسبية الصرفة (Core Kernel Construction):** بناء حزم القلب المحاسبي (Types, MasterData, Posting, Valuation, Policy, Governance). | `P2-01`, `P2-02`, `P2-03`, `P2-04`, `P2-05`, `P2-06`, `P2-07` | `P1` (اكتمال واعتماد المرحلة) | [03_PHASE_2_CORE_KERNEL_CONSTRUCTION.md](03_PHASE_2_CORE_KERNEL_CONSTRUCTION.md) |
+| **`P2`** | **بناء النواة المحاسبية الصرفة (Kernal Kernel Construction):** بناء حزم القلب المحاسبي (Types, MasterData, Posting, Valuation, Policy, Governance). | `P2-01`, `P2-02`, `P2-03`, `P2-04`, `P2-05`, `P2-06`, `P2-07` | `P1` (اكتمال واعتماد المرحلة) | [03_PHASE_2_CORE_KERNEL_CONSTRUCTION.md](03_PHASE_2_CORE_KERNEL_CONSTRUCTION.md) |
 | **`P3`** | **محولات التخزين ووحدة العمل (Storage Adapters & UoW):** بناء محول الذاكرة المؤقتة (`storage/memory` للتطوير والاختبارات فقط)، ومحول PostgreSQL الإنتاجي الحصري (`storage/postgres`) مع سياسات RLS وقواعد الحرمة WORM. | `P3-01`, `P3-02`, `P3-03`, `P3-04` | `P2` (اكتمال واعتماد المرحلة) | [04_PHASE_3_STORAGE_ADAPTERS.md](04_PHASE_3_STORAGE_ADAPTERS.md) |
 | **`P4`** | **السطح البرمجي العام للمكتبة (SDK Public Surface):** بناء `sdk.Engine` والمنشئ الموحد واستيعاب الأحداث وإثبات التضمين الخارجي. | `P4-01`, `P4-02`, `P4-03`, `P4-04` | `P3` (اكتمال واعتماد المرحلة) | [05_PHASE_4_SDK_PUBLIC_SURFACE.md](05_PHASE_4_SDK_PUBLIC_SURFACE.md) |
 | **`P5`** | **المكونات المدارية الاختيارية (Orbital Components):** بناء الدفاتر المساعدة، محرك التقارير المالية، التسويات، وتوحيد القوائم. | `P5-01`, `P5-02`, `P5-03`, `P5-04` | `P4` (اكتمال واعتماد المرحلة) | [06_PHASE_5_ORBITAL_COMPONENTS.md](06_PHASE_5_ORBITAL_COMPONENTS.md) |
@@ -121,7 +121,7 @@ flowchart TD
 | المجموعة | المهام | شرط التوازي | التداخل والقيود | حالة السماح بالتوازي |
 | :---: | :--- | :--- | :--- | :--- |
 | **Grp-A** | `P1-02` و `P1-03` | بعد اكتمال `P1-01` | `pkg/spi/storage` مستقل عن `pkg/spi/application` | **مسموح بالتوازي** |
-| **Grp-B** | `P2-05` و `P2-07` | بعد اكتمال `P2-01` و `P2-03` | `internal/core/valuation` مستقل عن `internal/core/governance` | **مسموح بالتوازي** |
+| **Grp-B** | `P2-05` و `P2-07` | بعد اكتمال `P2-01` و `P2-03` | `internal/kernal/valuation` مستقل عن `internal/kernal/governance` | **مسموح بالتوازي** |
 | **Grp-C** | `P3-01` و `P3-02` | بعد اعتماد `P2` | `storage/memory` مستقل عن ملفات `storage/postgres/migrations` | **مسموح بالتوازي** |
 | **Grp-D** | `P5-01`, `P5-02`, `P5-03` | بعد اعتماد `P4` | كل مكون مداري في مجلد مستقل ولا يعدل في الآخر | **مسموح بالتوازي** |
 | **Grp-E** | `P6-01`, `P6-02`, `P6-03`, `P6-04` | بعد اعتماد `P5` | كل وحدة معيارية (`modules/*`) معزولة ومستقلة تماماً | **مسموح بالتوازي** |
@@ -132,10 +132,10 @@ flowchart TD
 | :--- | :--- | :--- |
 | `P0-01`..`03` | `go.mod`, `go.sum`, `scripts/*`, شجرة المجلدات | لا يوجد |
 | `P1-01`..`03` | `pkg/api/v1/*`, `pkg/spi/*` | `go.mod` |
-| `P2-01`..`07` | `internal/core/*` | `pkg/api/v1/*`, `pkg/spi/*` |
+| `P2-01`..`07` | `internal/kernal/*` | `pkg/api/v1/*`, `pkg/spi/*` |
 | `P3-01`..`04` | `storage/postgres/*`, `storage/memory/*` | `pkg/spi/storage/*` |
-| `P4-01`..`04` | `pkg/sdk/*`, `test/external_consumer/*` | `internal/core/*`, `storage/*` |
-| `P5-01`..`04` | `internal/orbitals/*` | `pkg/sdk/*`, `internal/core/*` |
+| `P4-01`..`04` | `pkg/sdk/*`, `test/external_consumer/*` | `internal/kernal/*`, `storage/*` |
+| `P5-01`..`04` | `internal/orbitals/*` | `pkg/sdk/*`, `internal/kernal/*` |
 | `P6-01`..`04` | `modules/*` | `pkg/spi/standards/*` |
 | `P7-01`..`03` | `test/*`, تقارير الاعتماد النهائية | كافة ملفات الكود (وضع قراءة واختبار) |
 

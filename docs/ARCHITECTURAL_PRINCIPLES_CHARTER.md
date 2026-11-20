@@ -6,7 +6,7 @@ version: "1.0.0"
 date: "2026-11-20"
 status: "ميثاق معماري معتمد"
 project: "Accounting Engine"
-classification: "Core Architectural Principles & Tenets"
+classification: "Kernal Architectural Principles & Tenets"
 language: "ar"
 technical_terms: "en"
 ---
@@ -15,7 +15,7 @@ technical_terms: "en"
 
 > **بيان الإلزام والهدف:**  
 > يُحدد هذا الميثاق **المبادئ المعمارية الحاكمة والقواعد الإلزامية غير القابلة للتفاوض (Architectural Principles & Invariants)** لمشروع `accounting_engine`.  
-> صُممت هذه المبادئ لضمان أن تكون النواة المحاسبية **محوراً مركزياً نقياً ومستقلاً** (Pure Central Core)، بحيث تعتمد جميع المكونات الأخرى (المدارية، ومحولات التخزين، والأنظمة المضيفة) على النواة، بينما **لا تعتمد النواة المحاسبية إطلاقاً على أي تفاصيل تقنية أو قطاعية أو بروتوكولية خارجية**.
+> صُممت هذه المبادئ لضمان أن تكون النواة المحاسبية **محوراً مركزياً نقياً ومستقلاً** (Pure Central Kernal)، بحيث تعتمد جميع المكونات الأخرى (المدارية، ومحولات التخزين، والأنظمة المضيفة) على النواة، بينما **لا تعتمد النواة المحاسبية إطلاقاً على أي تفاصيل تقنية أو قطاعية أو بروتوكولية خارجية**.
 
 ---
 
@@ -59,11 +59,11 @@ technical_terms: "en"
 
 ### المبدأ الأول: استقلال البنية التحتية والتخزين (Infrastructure Independence)
 
-- **[PRIN-INFRA-01] التجريد التام لطبقة البيانات (Storage-Agnostic Core):**
+- **[PRIN-INFRA-01] التجريد التام لطبقة البيانات (Storage-Agnostic Kernal):**
   - النواة المحاسبية (`internal/posting`, `internal/masterdata`, `internal/types`) لا تعلم شيئاً عن PostgreSQL، أو محركات SQL، أو ملفات التخزين، أو جداول قواعد البيانات.
   - كل عمليات القراءة والكتابة والحفظ تتم عبر عقود وموانئ تخزين مجردة بالكامل (`pkg/spi/storage`).
 - **[PRIN-INFRA-02] حظر استيراد مكتبات التخزين في النواة:**
-  - يُحظر تماماً استيراد `database/sql`, `github.com/jackc/pgx`, أو أي حزمة قاعدة بيانات داخل طبقة الـ Core Domain.
+  - يُحظر تماماً استيراد `database/sql`, `github.com/jackc/pgx`, أو أي حزمة قاعدة بيانات داخل طبقة الـ Kernal Domain.
 - **[PRIN-INFRA-03] قابلية استبدال التخزين (Pluggable Persistence):**
   - يجب أن تكون النواة قادرة على العمل والاجتياز الكامل لكافة اختباراتها الحسابية باستخدام موائم الذاكرة المؤقتة (`storage/memory`) تماماً كما تعمل مع محول PostgreSQL الإنتاجي (`storage/postgres`) دون تعديل سطر واحد في كود النواة.
 - **[PRIN-INFRA-04] عزل منطق الأعمال عن استعلامات SQL:**
@@ -73,13 +73,13 @@ technical_terms: "en"
 
 ### المبدأ الثاني: استقلال التكامل والنقل (Integration & Transport Independence)
 
-- **[PRIN-INTEG-01] حظر بروتوكولات النقل الشبكي داخل النواة (Transport-Agnostic Core):**
+- **[PRIN-INTEG-01] حظر بروتوكولات النقل الشبكي داخل النواة (Transport-Agnostic Kernal):**
   - النواة المحاسبية ليست خادماً شبكياً (Server)، بل هي مكتبة برمجية نقية مضمنة (`Embedded Go Library`).
   - يُحظر منعاً باتاً تضمين أي كود يتعلق بـ HTTP REST, gRPC, Protobuf, WebSockets, أو JSON serialization داخل النواة المحاسبية الصرفة.
 - **[PRIN-INTEG-02] التكامل الحصري عبر الأحداث الاقتصادية المعيارية (Event-Driven Integration):**
   - الطريقة الوحيدة التي يتخاطب بها العالم الخارجي مع المحرك هي تمرير **أحداث اقتصادية مجردة (`AccountingEvent`)** أو قيود محاسبية عبر استدعاءات دوال Go مباشرة داخل المعالج (`In-Process SDK Call`).
   - مسؤولية تحويل بروتوكولات الشبكة (REST Requests أو gRPC Streams) إلى أحداث اقتصادية تقع على عاتق بوابات النقل الخارجية المستقلة (Gateways/Adapters) خارج النواة.
-- **[PRIN-INTEG-03] تجريد عمليات المصادقة وإدارة الهويات (Auth-Free Core):**
+- **[PRIN-INTEG-03] تجريد عمليات المصادقة وإدارة الهويات (Auth-Free Kernal):**
   - لا يدير المحرك جداول للمستخدمين، أو كلمات المرور، أو جلسات تسجيل الدخول، أو رموز JWT/OAuth.
   - تتلقى النواة سياق أمان موثوقاً ومجرداً (`Context Security Principal`) يمرره النظام المضيف عبر `context.Context` وتثبته النواة في سجل التدقيق دون إدارة هويات.
 
@@ -164,7 +164,7 @@ flowchart TD
         EVENTS["internal/events (Idempotency Ingestion)"]
     end
 
-    subgraph Layer1 ["الطبقة 1: النواة المحاسبية الحتمية (Core Kernel)"]
+    subgraph Layer1 ["الطبقة 1: النواة المحاسبية الحتمية (Kernal Kernel)"]
         POSTING["internal/posting (Double-Entry & Posting Pipeline)"]
         MASTER["internal/masterdata (COA, Calendar, Periods)"]
         TYPES["internal/types (Money, Decimal, Currencies)"]

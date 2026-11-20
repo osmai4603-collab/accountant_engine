@@ -11,7 +11,7 @@ func TestPrincipalContextRoundTrip(t *testing.T) {
 	principal := Principal{
 		ActorID:     "accountant-1",
 		TenantID:    "tenant-1",
-		Permissions: []string{"ledger.post"},
+		Permissions: []string{"journal.post"},
 	}
 
 	ctx := WithPrincipal(context.Background(), principal)

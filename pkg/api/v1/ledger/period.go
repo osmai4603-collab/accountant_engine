@@ -1,64 +1,23 @@
 package ledger
 
-import (
-	"time"
+import kernalLedger "github.com/osmai4603-collab/accounting_engine/internal/kernal/ledger"
 
-	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
-)
-
-type PeriodState string
-
-const (
-	PeriodOpen       PeriodState = "open"
-	PeriodSoftClosed PeriodState = "soft_closed"
-	PeriodHardClosed PeriodState = "hard_closed"
-)
-
-type FiscalYearState string
+type PeriodState = kernalLedger.PeriodState
+type FiscalYearState = kernalLedger.FiscalYearState
+type FiscalPeriodType = kernalLedger.FiscalPeriodType
+type FiscalYear = kernalLedger.FiscalYear
+type FiscalPeriod = kernalLedger.FiscalPeriod
 
 const (
-	FiscalYearOpen       FiscalYearState = "open"
-	FiscalYearSoftClosed FiscalYearState = "soft_closed"
-	FiscalYearHardClosed FiscalYearState = "hard_closed"
+	PeriodOpen       = kernalLedger.PeriodOpen
+	PeriodSoftClosed = kernalLedger.PeriodSoftClosed
+	PeriodHardClosed = kernalLedger.PeriodHardClosed
+
+	FiscalYearOpen       = kernalLedger.FiscalYearOpen
+	FiscalYearSoftClosed = kernalLedger.FiscalYearSoftClosed
+	FiscalYearHardClosed = kernalLedger.FiscalYearHardClosed
+
+	FiscalPeriodTypeNormal            = kernalLedger.FiscalPeriodTypeNormal
+	FiscalPeriodTypeYearEndAdjustment = kernalLedger.FiscalPeriodTypeYearEndAdjustment
+	FiscalPeriodTypeAuditAdjustment   = kernalLedger.FiscalPeriodTypeAuditAdjustment
 )
-
-type FiscalPeriodType string
-
-const (
-	FiscalPeriodTypeNormal            FiscalPeriodType = "normal"
-	FiscalPeriodTypeYearEndAdjustment FiscalPeriodType = "year_end_adjustment"
-	FiscalPeriodTypeAuditAdjustment   FiscalPeriodType = "audit_adjustment"
-)
-
-// FiscalYear is an immutable public fiscal-year value object.
-type FiscalYear struct {
-	ID        types.FiscalYearID
-	CompanyID types.CompanyID
-	Name      string
-	StartDate time.Time
-	EndDate   time.Time
-	State     FiscalYearState
-	Periods   []FiscalPeriod
-}
-
-type FiscalPeriod struct {
-	ID           types.FiscalPeriodID
-	CompanyID    types.CompanyID
-	FiscalYearID types.FiscalYearID
-	Number       int
-	Name         string
-	StartDate    time.Time
-	EndDate      time.Time
-	State        PeriodState
-	Type         FiscalPeriodType
-}
-
-func (p FiscalPeriod) Contains(date time.Time) bool {
-	if p.Type == FiscalPeriodTypeYearEndAdjustment || p.Type == FiscalPeriodTypeAuditAdjustment {
-		return false
-	}
-	date = date.UTC()
-	start := p.StartDate.UTC()
-	end := p.EndDate.UTC()
-	return !date.Before(start) && !date.After(end)
-}

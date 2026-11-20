@@ -3,7 +3,7 @@ package events
 import (
 	"time"
 
-	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 )
 
@@ -27,5 +27,5 @@ type AccountingEvent struct {
 	IdempotencyKey string
 	// JournalDraft, when provided, is posted as-is (after validation by the posting path)
 	// and mapping lookup is skipped. This allows adapters to submit canonical/ready entries.
-	JournalDraft *ledger.JournalEntry
+	JournalDraft *journal.JournalEntry
 }

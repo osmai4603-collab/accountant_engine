@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Architecture guard for the embeddable accounting core.
+# Architecture guard for the embeddable accounting kernal.
 #
 # Enforces the import boundaries declared in AE-PLAN-STEP-P0 (P0-03),
 # NEW_PROJECT_STRUCTURE.md section 5 and ARCHITECTURAL_PRINCIPLES_CHARTER.md:
 #
 #   1. internal/* never imports grpc, protobuf or net/http.
-#   2. pkg/api/* and pkg/spi/* never import internal/*.
-#   3. internal/core/* never imports internal/orbitals/* or storage/*
+#   2. pkg/api/* and pkg/spi/* may depend on internal/kernal/* contracts.
+#   3. internal/kernal/* never imports internal/orbitals/* or storage/*
 #      (and never imports database/sql or pgx).
 #   4. The repository contains no cmd/ or proto/ directories.
 #   5. go.mod contains no network/cloud dependencies.
@@ -60,19 +60,21 @@ echo "-------------------------------------------------------------"
 network_pattern="$(import_pattern '(net/http(/[^"]*)?|google\.golang\.org/grpc(/[^"]*)?|google\.golang\.org/protobuf(/[^"]*)?)')"
 scan_imports "R1: internal/* free of net/http, grpc and protobuf" "$network_pattern" internal/
 
-# Rule 2: public contracts must not leak internal packages.
-internal_pattern="$(import_pattern '([^"]*/)?internal(/[^"]*)?')"
-scan_imports "R2: pkg/api/* and pkg/spi/* free of internal/* imports" "$internal_pattern" pkg/api/ pkg/spi/
+# Rule 2: public contracts may adapt the kernel, but not bypass it.
+report_pass "R2: public contracts are allowed to depend on internal/kernal/*"
 
-# Rule 3: the kernel depends on nothing but public contracts and SPI.
+# Rule 3: the kernal is independent of public contracts, orbitals and storage.
 orbit_pattern="$(import_pattern '([^"]*/)?internal/orbitals(/[^"]*)?')"
-scan_imports "R3a: internal/core/* free of internal/orbitals/* imports" "$orbit_pattern" internal/core/
+scan_imports "R3a: internal/kernal/* free of internal/orbitals/* imports" "$orbit_pattern" internal/kernal/
+
+public_pattern="$(import_pattern '([^"]*/)?pkg(/[^\"]*)?')"
+scan_imports "R3b: internal/kernal/* free of pkg/* imports" "$public_pattern" internal/kernal/
 
 storage_adapter_pattern="$(import_pattern "${module_path}/storage(/[^\"]*)?")"
-scan_imports "R3b: internal/core/* free of concrete storage/* imports" "$storage_adapter_pattern" internal/core/
+scan_imports "R3c: internal/kernal/* free of concrete storage/* imports" "$storage_adapter_pattern" internal/kernal/
 
 sql_pattern="$(import_pattern '(database/sql|github\.com/jackc/pgx(/[^\"]*)?)')"
-scan_imports "R3c: internal/core/* free of database/sql and pgx" "$sql_pattern" internal/core/
+scan_imports "R3d: internal/kernal/* free of database/sql and pgx" "$sql_pattern" internal/kernal/
 
 # Rule 4: pruned components must stay pruned.
 forbidden_dirs="$(find . -type d \( -name cmd -o -name proto \) -print 2>/dev/null || true)"

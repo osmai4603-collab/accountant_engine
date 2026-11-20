@@ -1,7 +1,7 @@
 //go:build tools
 
 // Package tools pins the four essential direct dependencies of the embeddable
-// accounting core until the first production packages land in P1.
+// accounting kernal until the first production packages land in P1.
 //
 // The file is excluded from normal builds by the "tools" build tag, so it adds
 // no runtime code to the library. It exists so that `go mod tidy` is idempotent

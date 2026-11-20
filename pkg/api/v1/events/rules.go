@@ -3,7 +3,7 @@ package events
 import (
 	"sync"
 
-	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 )
 
@@ -50,6 +50,6 @@ func (r *Router) GetRules(eventType string) []PostingRule {
 	return out
 }
 
-func EvaluateAndConstructEntry(rule PostingRule, event AccountingEvent) (ledger.JournalEntry, error) {
-	return ledger.JournalEntry{}, types.ErrCapabilityNotImplemented
+func EvaluateAndConstructEntry(rule PostingRule, event AccountingEvent) (journal.JournalEntry, error) {
+	return journal.JournalEntry{}, types.ErrCapabilityNotImplemented
 }

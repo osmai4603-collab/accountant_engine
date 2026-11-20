@@ -73,7 +73,7 @@ technical_terms: "en"
   الهيكل القديم يخلط بين النواة والخدمة، ويحتوي على مجلدات غير مرغوبة في النواة (`cmd/accounting-service`, `cmd/agy`, `proto/`, `internal/serviceauth`, `internal/ratelimit`). غياب هيكل مجلدات نظيف في بداية العمل يؤدي إلى فوضى الاستيراد وتداخل التبعيات.
 
 - **الهدف الذي تحققه:**  
-  تأسيس الشجرة الهيكلية المعتمدة في [NEW_PROJECT_STRUCTURE.md](../NEW_PROJECT_STRUCTURE.md) داخل مستودع المشروع، وتجهيز المسارات لتقسيم العمل إلى (سطح عام `pkg/`، نواة `internal/core/`، مدارات `internal/orbitals/`، محولات `storage/`، ووحدات `modules/`).
+  تأسيس الشجرة الهيكلية المعتمدة في [NEW_PROJECT_STRUCTURE.md](../NEW_PROJECT_STRUCTURE.md) داخل مستودع المشروع، وتجهيز المسارات لتقسيم العمل إلى (سطح عام `pkg/`، نواة `internal/kernal/`، مدارات `internal/orbitals/`، محولات `storage/`، ووحدات `modules/`).
 
 - **نطاق المهمة:**  
   - يشمل: إنشاء المجلدات الفرعية وملفات `doc.go` التأسيسية التي تشرح مسؤولية كل حزمة.
@@ -84,7 +84,7 @@ technical_terms: "en"
     1. إنشاء المسارات التالية:
        - `pkg/sdk`, `pkg/api/v1/types`, `pkg/api/v1/ledger`, `pkg/api/v1/events`, `pkg/api/v1/reporting`, `pkg/api/v1/subledger`.
        - `pkg/spi/storage`, `pkg/spi/standards`, `pkg/spi/masterdata`, `pkg/spi/application`.
-       - `internal/core/posting`, `internal/core/masterdata`, `internal/core/types`, `internal/core/valuation`, `internal/core/policy`, `internal/core/governance`.
+       - `internal/kernal/posting`, `internal/kernal/masterdata`, `internal/kernal/types`, `internal/kernal/valuation`, `internal/kernal/policy`, `internal/kernal/governance`.
        - `internal/orbitals/subledgers`, `internal/orbitals/reporting`, `internal/orbitals/events`, `internal/orbitals/reconciliation`, `internal/orbitals/consolidation`.
        - `storage/postgres/migrations`, `storage/memory`.
        - `modules/ifrs15`, `modules/ifrs16`, `modules/ifrs9`, `modules/ias12`.
@@ -106,7 +106,7 @@ technical_terms: "en"
 ### `P0-03` — إعداد سكربتات فحص السلامة المعمارية وحوكمة التبعيات
 
 - **المشكلة التي تحلها:**  
-  خلال عمليات النقل والتعديل المتتابعة، قد يقوم المطور أو الوكيل باستيراد حزمة غير مصرح بها عن طريق الخطأ (مثل استيراد `internal` داخل `pkg/api`، أو استيراد `storage` داخل `internal/core/posting`) دون أن يلاحظ، مما يفسد المعمارية النظيفة.
+  خلال عمليات النقل والتعديل المتتابعة، قد يقوم المطور أو الوكيل باستيراد حزمة غير مصرح بها عن طريق الخطأ (مثل استيراد `internal` داخل `pkg/api`، أو استيراد `storage` داخل `internal/kernal/posting`) دون أن يلاحظ، مما يفسد المعمارية النظيفة.
 
 - **الهدف الذي تحققه:**  
   توفير سكربت فحص آلي محلي (`scripts/verify_architecture.sh`) يتحقق من عدم وجود أي استيراد ممنوع، ويمنع وجود تبعيات دائرية، ويضمن عدم تسرب بروتوكولات الشبكة إلى كود النواة.
@@ -120,12 +120,12 @@ technical_terms: "en"
     1. إنشاء سكربت `scripts/verify_architecture.sh` يقوم بالآتي:
        - فحص عدم احتواء المشروع على أي استيراد لـ `google.golang.org/grpc` أو `net/http` داخل `internal/*`.
        - فحص عدم احتواء `pkg/api/*` و `pkg/spi/*` على أي استيراد لـ `internal/*`.
-       - فحص عدم احتواء `internal/core/*` على استيراد لـ `internal/orbitals/*` أو `storage/*`.
+       - فحص عدم احتواء `internal/kernal/*` على استيراد لـ `internal/orbitals/*` أو `storage/*`.
     2. إعطاء صلاحية التنفيذ للسكربت `chmod +x scripts/verify_architecture.sh`.
   - **ما يجب نسخه (Copy):**
     - استلهام منطق فحص التوافق من `accounting_engine/scripts/check_api_compat.sh` وتكييفه.
   - **ما يجب تعديله (Modify):**
-    - تكييف قواعد الفحص لتطابق التقسيم الجديد (`internal/core` مقابل `internal/orbitals`).
+    - تكييف قواعد الفحص لتطابق التقسيم الجديد (`internal/kernal` مقابل `internal/orbitals`).
 
 - **الاعتماديات:** `P0-02`.
 

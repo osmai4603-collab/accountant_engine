@@ -23,7 +23,7 @@ technical_terms: "en"
 ## فهرس المحتويات
 
 1. [شروط القبول الحتمية غير القابلة للتفاوض (Non-Negotiable Acceptance Conditions)](#1-شروط-القبول-الحتمية-غير-القابلة-للتفاوض-non-negotiable-acceptance-conditions)
-2. [معايير قبول النواة المحاسبية والترحيل (Core Accounting & Posting Acceptance)](#2-معايير-قبول-النواة-المحاسبية-والترحيل-core-accounting--posting-acceptance)
+2. [معايير قبول النواة المحاسبية والترحيل (Kernal Accounting & Posting Acceptance)](#2-معايير-قبول-النواة-المحاسبية-والترحيل-kernal-accounting--posting-acceptance)
 3. [معايير قبول المعمارية والعقود العامة (Architecture & Public Contracts Acceptance)](#3-معايير-قبول-المعمارية-والعقود-العامة-architecture--public-contracts-acceptance)
 4. [معايير قبول تعدد الشركات والأمان (Multi-Tenancy & Security Acceptance)](#4-معايير-قبول-تعدد-الشركات-والأمان-multi-tenancy--security-acceptance)
 5. [معايير قبول التخزين والذرية والمطابقة (Persistence, Atomicity & Reconciliation)](#5-معايير-قبول-التخزين-والذرية-والمطابقة-persistence-atomicity--reconciliation)
@@ -49,7 +49,7 @@ technical_terms: "en"
 
 ---
 
-## 2. معايير قبول النواة المحاسبية والترحيل (Core Accounting & Posting Acceptance)
+## 2. معايير قبول النواة المحاسبية والترحيل (Kernal Accounting & Posting Acceptance)
 
 | المعرف | معيار القبول الدقيق | طريقة الإثبات والتحقق |
 | :--- | :--- | :--- |

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	"github.com/shopspring/decimal"
@@ -33,20 +33,20 @@ var (
 // StandardPostingRequest carries all metadata, audit trail identifiers,
 // and balanced entry lines required to post a standard-derived transaction.
 type StandardPostingRequest struct {
-	EntryID                     types.JournalEntryID       // Optional deterministic entry ID; derived if empty
-	StandardRef                 string                     // e.g. "IFRS-15-REV-REC", "IFRS-9-ECL", "IFRS-16-LEASE", "IAS-12-TAX"
-	EntityID                    string                     // Original entity ID (ContractID, LeaseID, InstrumentID, etc.)
-	IdempotencyKey              string                     // Strict idempotency key
-	CompanyID                   types.CompanyID            // Target company
-	JournalID                   types.JournalID            // Destination journal
-	FiscalPeriodID              types.FiscalPeriodID       // Optional fiscal period ID
-	EffectiveDate               time.Time                  // Accounting effective date
-	PostingDate                 time.Time                  // Posting date (defaults to EffectiveDate if zero)
-	Description                 string                     // Human-readable description
-	Lines                       []ledger.EntryLine         // Real balanced entry lines
-	Classification              ledger.EntryClassification // Regular or Adjusting
+	EntryID                     types.JournalEntryID        // Optional deterministic entry ID; derived if empty
+	StandardRef                 string                      // e.g. "IFRS-15-REV-REC", "IFRS-9-ECL", "IFRS-16-LEASE", "IAS-12-TAX"
+	EntityID                    string                      // Original entity ID (ContractID, LeaseID, InstrumentID, etc.)
+	IdempotencyKey              string                      // Strict idempotency key
+	CompanyID                   types.CompanyID             // Target company
+	JournalID                   types.JournalID             // Destination journal
+	FiscalPeriodID              types.FiscalPeriodID        // Optional fiscal period ID
+	EffectiveDate               time.Time                   // Accounting effective date
+	PostingDate                 time.Time                   // Posting date (defaults to EffectiveDate if zero)
+	Description                 string                      // Human-readable description
+	Lines                       []journal.EntryLine         // Real balanced entry lines
+	Classification              journal.EntryClassification // Regular or Adjusting
 	TargetPeriodNumber          int
-	AdjustingEntryType          ledger.AdjustingEntryType
+	AdjustingEntryType          journal.AdjustingEntryType
 	AdjustmentReason            string
 	AdjustmentApprovalReference string
 }
@@ -202,7 +202,7 @@ func (p *defaultStandardPoster) PostStandardEntry(
 
 	classification := req.Classification
 	if classification == "" {
-		classification = ledger.EntryClassRegular
+		classification = journal.EntryClassRegular
 	}
 
 	postingDate := req.PostingDate
@@ -254,13 +254,13 @@ func (p *defaultStandardPoster) PostStandardEntry(
 		EntryID:   deterministicEntryID,
 	})
 	if err == nil && existing.ID == deterministicEntryID {
-		if existing.Status == ledger.EntryPosted {
+		if existing.Status == journal.EntryPosted {
 			return publicapplication.EntryResult{
 				Entry:            existing,
 				IdempotentReplay: true,
 			}, nil
 		}
-		if existing.Status == ledger.EntryDraft {
+		if existing.Status == journal.EntryDraft {
 			// Complete pending posting
 			postCmd := publicapplication.PostEntryCommand{
 				Context:   commandContext,
@@ -284,7 +284,7 @@ func (p *defaultStandardPoster) PostStandardEntry(
 	}
 
 	// If draft was already posted via idempotent replay, return it directly
-	if created.Entry.Status == ledger.EntryPosted {
+	if created.Entry.Status == journal.EntryPosted {
 		return created, nil
 	}
 

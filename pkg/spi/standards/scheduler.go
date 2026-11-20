@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	// ErrSchedulerNotReady is returned when attempting to run a scheduled job before core dependencies are initialized.
+	// ErrSchedulerNotReady is returned when attempting to run a scheduled job before kernal dependencies are initialized.
 	ErrSchedulerNotReady = errors.New("scheduler: engine dependencies not ready")
 
 	// ErrJobNotFound is returned when attempting to run an unregistered job.
