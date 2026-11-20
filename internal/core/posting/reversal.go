@@ -1,0 +1,95 @@
+package posting
+
+import (
+	"strings"
+	"time"
+
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
+	"github.com/shopspring/decimal"
+)
+
+// BuildReversalEntry constructs an exact reversing journal entry for an already posted entry.
+// Invariants enforced:
+// 1. Debits and Credits are cleanly swapped on each line.
+// 2. Analytical dimensions (Partner, CostCenter, Project, Segment, BusinessUnit) are preserved 1:1.
+// 3. Reversal date cannot precede original entry effective date.
+// 4. Combined net impact of original + reversal across all accounts is identically zero.
+func BuildReversalEntry(original ledger.JournalEntry, reversalDate time.Time, actorID string, reason string) (ledger.JournalEntry, error) {
+	if original.Status != ledger.EntryPosted {
+		return ledger.JournalEntry{}, ErrEntryNotPosted
+	}
+	if original.ReversedByID != nil {
+		return ledger.JournalEntry{}, ErrEntryAlreadyReversed
+	}
+
+	actorID = strings.TrimSpace(actorID)
+	if actorID == "" {
+		return ledger.JournalEntry{}, ErrReversalActorRequired
+	}
+
+	if reversalDate.IsZero() {
+		reversalDate = time.Now().UTC()
+	} else {
+		reversalDate = reversalDate.UTC()
+	}
+
+	// Compare calendar dates (day-level granularity)
+	origCal := original.EffectiveDate.UTC().Truncate(24 * time.Hour)
+	revCal := reversalDate.Truncate(24 * time.Hour)
+	if revCal.Before(origCal) {
+		return ledger.JournalEntry{}, ErrReversalDateBeforeOriginal
+	}
+
+	now := time.Now().UTC()
+	originalID := original.ID
+
+	reversal := ledger.JournalEntry{
+		ID:                  types.NewJournalEntryID(),
+		CompanyID:           original.CompanyID,
+		JournalID:           original.JournalID,
+		FiscalPeriodID:      original.FiscalPeriodID,
+		EffectiveDate:       reversalDate,
+		PostingDate:         reversalDate,
+		Status:              ledger.EntryPosted,
+		Classification:      ledger.EntryClassReversing,
+		Description:         "Reversal of " + original.EntryNumber,
+		SourceModule:        original.SourceModule,
+		TransactionCurrency: original.TransactionCurrency,
+		ExchangeRate:        original.ExchangeRate,
+		CreatedBy:           actorID,
+		CreatedAt:           now,
+		UpdatedAt:           now,
+		PostedBy:            actorID,
+		PostedAt:            &now,
+		ReversalOfID:        &originalID,
+		ReversalReason:      strings.TrimSpace(reason),
+		Lines:               make([]ledger.EntryLine, len(original.Lines)),
+	}
+
+	for i, line := range original.Lines {
+		reversal.Lines[i] = ledger.EntryLine{
+			ID:                  types.NewJournalEntryLineID(),
+			AccountID:           line.AccountID,
+			PartnerID:           line.PartnerID,
+			CostCenterID:        line.CostCenterID,
+			ProjectID:           line.ProjectID,
+			SegmentID:           line.SegmentID,
+			BusinessUnitID:      line.BusinessUnitID,
+			MatchingNumber:      line.MatchingNumber,
+			ReconciledAmount:    decimal.Zero,
+			TransactionAmount:   line.TransactionAmount,
+			TransactionCurrency: line.TransactionCurrency,
+			ExchangeRate:        line.ExchangeRate,
+			// Swap functional debit and credit
+			FunctionalDebit:  line.FunctionalCredit,
+			FunctionalCredit: line.FunctionalDebit,
+		}
+	}
+
+	if err := ValidateEntryDoubleEntry(&reversal, nil); err != nil {
+		return ledger.JournalEntry{}, err
+	}
+
+	return reversal, nil
+}
