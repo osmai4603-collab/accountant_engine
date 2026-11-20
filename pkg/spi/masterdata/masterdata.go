@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 	"unicode/utf8"
 
+	kernalMasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 
 	"github.com/google/uuid"
@@ -40,28 +40,20 @@ const (
 	NormalBalanceCredit NormalBalance = "credit"
 )
 
-type FiscalYearState string
+type FiscalYearState = kernalMasterdata.FiscalYearState
+type PeriodState = kernalMasterdata.PeriodState
+type FiscalPeriodType = kernalMasterdata.FiscalPeriodType
 
 const (
-	FiscalYearOpen       FiscalYearState = "open"
-	FiscalYearSoftClosed FiscalYearState = "soft_closed"
-	FiscalYearHardClosed FiscalYearState = "hard_closed"
-)
-
-type PeriodState string
-
-const (
-	PeriodOpen       PeriodState = "open"
-	PeriodSoftClosed PeriodState = "soft_closed"
-	PeriodHardClosed PeriodState = "hard_closed"
-)
-
-type FiscalPeriodType string
-
-const (
-	FiscalPeriodTypeNormal            FiscalPeriodType = "normal"
-	FiscalPeriodTypeYearEndAdjustment FiscalPeriodType = "year_end_adjustment"
-	FiscalPeriodTypeAuditAdjustment   FiscalPeriodType = "audit_adjustment"
+	FiscalYearOpen                    = kernalMasterdata.FiscalYearOpen
+	FiscalYearSoftClosed              = kernalMasterdata.FiscalYearSoftClosed
+	FiscalYearHardClosed              = kernalMasterdata.FiscalYearHardClosed
+	PeriodOpen                        = kernalMasterdata.PeriodOpen
+	PeriodSoftClosed                  = kernalMasterdata.PeriodSoftClosed
+	PeriodHardClosed                  = kernalMasterdata.PeriodHardClosed
+	FiscalPeriodTypeNormal            = kernalMasterdata.FiscalPeriodTypeNormal
+	FiscalPeriodTypeYearEndAdjustment = kernalMasterdata.FiscalPeriodTypeYearEndAdjustment
+	FiscalPeriodTypeAuditAdjustment   = kernalMasterdata.FiscalPeriodTypeAuditAdjustment
 )
 
 type Company struct {
@@ -117,26 +109,8 @@ type Account struct {
 	DisplayOrder        int
 }
 
-type FiscalYear struct {
-	ID        types.FiscalYearID
-	CompanyID types.CompanyID
-	Name      string
-	StartDate time.Time
-	EndDate   time.Time
-	State     FiscalYearState
-}
-
-type FiscalPeriod struct {
-	ID           types.FiscalPeriodID
-	CompanyID    types.CompanyID
-	FiscalYearID types.FiscalYearID
-	Number       int
-	Name         string
-	StartDate    time.Time
-	EndDate      time.Time
-	State        PeriodState
-	Type         FiscalPeriodType
-}
+type FiscalYear = kernalMasterdata.FiscalYear
+type FiscalPeriod = kernalMasterdata.FiscalPeriod
 
 // Store exposes company-scoped reads and typed creation of the minimum master
 // data required to prepare an accounting company for use.
