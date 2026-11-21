@@ -700,3 +700,56 @@ func TestPeriodAndFiscalYearReopenValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateFiscalYearRejectsEndDateBeforeStartDate(t *testing.T) {
+	companyID := types.NewCompanyID()
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fy := FiscalYear{
+		ID:        types.NewFiscalYearID(),
+		CompanyID: companyID,
+		Name:      "FY2026",
+		StartDate: now,
+		EndDate:   now.AddDate(0, -1, 0), // EndDate BEFORE StartDate
+		State:     FiscalYearOpen,
+	}
+	err := ValidateFiscalYear(fy, nil)
+	if !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("expected ErrInvalidFiscalPeriod for EndDate before StartDate, got %v", err)
+	}
+}
+
+func TestValidatePeriodForPostingRejectsDateOutsideYear(t *testing.T) {
+	companyID := types.NewCompanyID()
+	yearID := types.NewFiscalYearID()
+	fyStart := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fyEnd := time.Date(2026, 12, 31, 23, 59, 59, 999999999, time.UTC)
+
+	// Period says it's in the year, but the query date passed to ValidatePeriodForPosting is outside the year
+	queryDate := time.Date(2027, 1, 5, 0, 0, 0, 0, time.UTC)
+	period := FiscalPeriod{
+		ID:           types.NewFiscalPeriodID(),
+		CompanyID:    companyID,
+		FiscalYearID: yearID,
+		Number:       1,
+		StartDate:    fyStart,
+		EndDate:      fyStart.AddDate(0, 1, 0),
+		State:        PeriodOpen,
+		Type:         FiscalPeriodTypeNormal,
+	}
+	year := FiscalYear{
+		ID:        yearID,
+		CompanyID: companyID,
+		Name:      "FY2026",
+		StartDate: fyStart,
+		EndDate:   fyEnd,
+		State:     FiscalYearOpen,
+	}
+	reader := overrideFiscalReader{
+		regular: period,
+		year:    year,
+	}
+	_, err := ValidatePeriodForPosting(context.Background(), reader, companyID, queryDate)
+	if !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("expected ErrInvalidFiscalPeriod when date is outside year, got %v", err)
+	}
+}

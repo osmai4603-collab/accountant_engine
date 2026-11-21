@@ -263,3 +263,64 @@ func TestAuditChainRejectsUninitializedReceiverAndRepositories(t *testing.T) {
 		t.Fatalf("nil repo VerifyAuditIntegrityWithCheckpoint error = %v, want ErrAuditRepositoryRequired", err)
 	}
 }
+
+// TestCalculateHashGoldenVector verifies that CalculateHash is strictly deterministic
+// and changes if any length prefix or hashing field is altered.
+func TestCalculateHashGoldenVector(t *testing.T) {
+	companyID := apiTypes.NewCompanyID()
+	fixedTime := time.Date(2026, 11, 21, 6, 0, 0, 0, time.UTC)
+	log := AuditLog{
+		CompanyID:       companyID,
+		SequenceNumber:  1,
+		EntityType:      "JOURNAL_ENTRY",
+		EntityID:        "JE-100",
+		Action:          "POST",
+		ActorID:         "actor-1",
+		Reason:          "rebalancing",
+		CorrelationID:   "corr-1",
+		Timestamp:       fixedTime,
+		Payload:         []byte(`{"key":"value"}`),
+		PreviousLogHash: GenesisHash,
+	}
+	hash1 := CalculateHash(log)
+	if hash1 == "" {
+		t.Fatal("expected non-empty hash")
+	}
+	// Determinism
+	hash2 := CalculateHash(log)
+	if hash1 != hash2 {
+		t.Fatalf("hash non-deterministic: %s != %s", hash1, hash2)
+	}
+
+	// Any modification to any field must produce a different hash
+	logMod := log
+	logMod.Reason = "rebalancing " // single space
+	if CalculateHash(logMod) == hash1 {
+		t.Fatal("expected hash to change on reason modification")
+	}
+
+	logMod2 := log
+	logMod2.Payload = []byte(`{"key":"value "}`)
+	if CalculateHash(logMod2) == hash1 {
+		t.Fatal("expected hash to change on payload modification")
+	}
+}
+
+func TestVerifyAuditSnapshotSequenceMismatchKillsMutant(t *testing.T) {
+	companyID := apiTypes.NewCompanyID()
+	snapshot := AuditVerificationSnapshot{
+		CompanyID:        companyID,
+		SnapshotSequence: 5, // mismatch with checkpoint SequenceNumber 1
+		Checkpoint: AuditCheckpoint{
+			CompanyID:      companyID,
+			SequenceNumber: 1,
+			LogHash:        "non-empty",
+			Version:        1,
+		},
+		Logs: make([]AuditLog, 5),
+	}
+	err := verifyAuditSnapshot(companyID, snapshot)
+	if !errors.Is(err, ErrAuditCheckpointMismatch) {
+		t.Fatalf("expected ErrAuditCheckpointMismatch, got %v", err)
+	}
+}

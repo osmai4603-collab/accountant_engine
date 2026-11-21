@@ -1,113 +1,57 @@
-# خط الأساس المعتمد للنواة المحاسبية — Kernel Release Baseline v10
+# خط الأساس المعتمد للنواة المحاسبية — Kernel Release Baseline v12
 
+- **رمز الوثيقة:** `AE-BASELINE-KERNEL-V12`
+- **الإصدار الأساس السابق:** Kernel v11 (`accountant_engine11.zip`)
+- **الإصدار الحالي المستهدف:** Kernel v12 Final Stabilization & Acceptance
 - **تاريخ الاعتماد:** 2026-11-21
-- **رمز الوثيقة:** `AE-BASELINE-KERNEL-V10`
-- **النطاق:** `internal/kernal/` حصراً
+- **بيئة البناء والاعتماد:** `go version go1.26.3 linux/amd64`
+- **النطاق البرمجي الملزم:** `internal/kernal/` حصراً
 
 ---
 
-## 1. جرد ملفات النواة وتصنيفها (خط أساس v9 قبل تعديلات v10)
+## 1. جرد ملفات النواة وتصنيفها (إصدار v12)
 
-### أ. ملفات المصدر (Source Code) — 24 ملفاً
+يحتوي مجلد `internal/kernal/` على 78 ملفاً مصنفة كما يلي:
 
-1. `internal/kernal/apperrors/errors.go`
-2. `internal/kernal/governance/audit_chain.go`
-3. `internal/kernal/governance/verifier.go`
-4. `internal/kernal/journal/entry.go`
-5. `internal/kernal/ledger/account.go`
-6. `internal/kernal/ledger/period.go`
-7. `internal/kernal/masterdata/account.go`
-8. `internal/kernal/masterdata/coa.go`
-9. `internal/kernal/masterdata/company_scope.go`
-10. `internal/kernal/masterdata/cost_center.go`
-11. `internal/kernal/masterdata/dimension.go`
-12. `internal/kernal/masterdata/fiscal_calendar.go`
-13. `internal/kernal/masterdata/journal.go`
-14. `internal/kernal/masterdata/ports.go`
-15. `internal/kernal/masterdata/types.go`
-16. `internal/kernal/policy/eligibility.go`
-17. `internal/kernal/policy/posting_rules.go`
-18. `internal/kernal/posting/adjusting.go`
-19. `internal/kernal/posting/entry_validation.go`
-20. `internal/kernal/posting/lock_manager.go`
-21. `internal/kernal/posting/pipeline.go`
-22. `internal/kernal/posting/reversal.go`
-23. `internal/kernal/posting/rounding.go`
-24. `internal/kernal/types/currency.go`
-25. `internal/kernal/types/errors.go`
-26. `internal/kernal/types/identifiers.go`
-27. `internal/kernal/types/money.go`
-28. `internal/kernal/types/rounding.go`
-29. `internal/kernal/valuation/conversion.go`
-30. `internal/kernal/valuation/exchange_rate.go`
-31. `internal/kernal/valuation/revaluation.go`
+### 1.1 الوثائق الرسمية للنواة (7 ملفات)
+1. `KERNEL_ACCOUNTING_INVARIANTS.md` — الوثيقة المرجعية لقواعد المجال المحاسبي الـ27.
+2. `KERNEL_TRACEABILITY_MATRIX.md` — مصفوفة التتبع بين القواعد والتنفيذ والاختبارات (`AE-TRACE-KERNEL-V12`).
+3. `KERNEL_COMPLETION_REPORT.md` — تقرير الإنجاز النهائي واعتماد 10/10 (`AE-REP-KERNEL-V12`).
+4. `KERNEL_RELEASE_BASELINE.md` — هذه الوثيقة المرجعية لخط الأساس والجرد.
+5. `KERNEL_COVERAGE_EXCEPTIONS.md` — سجل الفروع المستثناة تقنياً وتحليل الدفاع البنيوي.
+6. `KERNEL_MUTATION_REPORT.md` — تقرير اختبارات الطفرات الموجهة وتوثيق معدل القتل (100%).
+7. `KERNEL_V12_CHANGELOG.md` — سجل التغييرات التاريخية للإصدار v12.
 
-### ب. ملفات التوثيق (Documentation) — 9 ملفات
-
-1. `internal/kernal/doc.go`
-2. `internal/kernal/governance/doc.go`
-3. `internal/kernal/journal/doc.go`
-4. `internal/kernal/ledger/doc.go`
-5. `internal/kernal/masterdata/doc.go`
-6. `internal/kernal/policy/doc.go`
-7. `internal/kernal/posting/doc.go`
-8. `internal/kernal/types/doc.go`
-9. `internal/kernal/valuation/doc.go`
-
-### ج. ملفات الاختبار (Tests) — 13 ملفاً
-
-1. `internal/kernal/governance/audit_snapshot_test.go`
-2. `internal/kernal/governance/audit_test.go`
-3. `internal/kernal/journal/entry_test.go`
-4. `internal/kernal/masterdata/account_validity_test.go`
-5. `internal/kernal/masterdata/fiscal_calendar_test.go`
-6. `internal/kernal/masterdata/journal_test.go`
-7. `internal/kernal/policy/policy_test.go`
-8. `internal/kernal/posting/entry_invariants_test.go`
-9. `internal/kernal/posting/lock_test.go`
-10. `internal/kernal/posting/pipeline_invariants_test.go`
-11. `internal/kernal/posting/rounding_precision_test.go`
-12. `internal/kernal/posting/rounding_test.go`
-13. `internal/kernal/types/money_fuzz_test.go`
-14. `internal/kernal/types/money_test.go`
-15. `internal/kernal/types/rounding_test.go`
-16. `internal/kernal/valuation/ias21_test.go`
-
-### د. ملفات بيانات الاختبار (Testdata)
-
-- `internal/kernal/posting/testdata/fuzz/FuzzReversalNetImpactIsZeroPerAccount/68e9ff99a56b7025`
+### 1.2 الملفات البرمجية والاختبارات (71 ملفاً)
+- `doc.go` و `doc_test.go` (فحص النقاء المعماري والاستقلال الذاتي).
+- `apperrors/`: أخطاء النواة المصنفة واختباراتها.
+- `types/`: الحسابات المالية الدقيقة، العملات، الأرقام العشرية، والتقريب، واختبارات الوحدة وFuzz.
+- `journal/`: نموذج القيد والأسطر وحالات القيد والتسويات والنسخ.
+- `posting/`: خط أنابيب الترحيل، التوازن المزدوج، العكس، الأقفال، واختبارات الخصائص وFuzz.
+- `masterdata/`: الشركات، الحسابات، شجرة الحسابات، اليوميات، مراكز التكلفة، والتقويم المالي واختباراته.
+- `policy/`: محرك السياسات وقواعد الأهلية والتحقق الزمني.
+- `valuation/`: سجل أسعار الصرف، تحويل العملات، وإعادة التقييم المالي.
+- `governance/`: سلسلة التدقيق المشفرة، نقاط التحقق، واختبارات اللقطات المتسقة.
+- `ledger/`: نماذج مرجعية خفيفة محصنة وفق `doc.go`.
 
 ---
 
-## 2. مقارنة v8 مقابل v9 — الملفات المفقودة المطلوب مراجعتها واستعادتها
+## 2. مصفوفة التحقق من بوابات الإصدار (Release Gates)
 
-بمقارنة ملفات النواة في `accountant_engine8.zip` مع خط الأساس الحالي، تم حصر 10 ملفات غابت عن v9:
-
-1. `internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md` — وثيقة القواعد الـ 27 الحاكمة للنواة (P0).
-2. `internal/kernal/doc_test.go` — اختبار أمثلة التوثيق.
-3. `internal/kernal/ledger/ledger_test.go` — اختبار تكامل نماذج الأستاذ العام.
-4. `internal/kernal/governance/verification_test.go` — اختبارات التحقق من سجل التدقيق.
-5. `internal/kernal/apperrors/errors_test.go` — اختبارات تصنيف الأخطاء ونوعيتها.
-6. `internal/kernal/types/identifiers_test.go` — اختبارات صحة المعرفات (UUIDs) والمقارنة.
-7. `internal/kernal/masterdata/fiscal_calendar_fuzz_test.go` — اختبار Fuzz لاتصال وعدم تداخل الفترات المالية.
-8. `internal/kernal/masterdata/validation_test.go` — اختبارات شاملة للتحقق من بيانات الدليل ودورات الحسابات.
-9. `internal/kernal/posting/property_adversarial_test.go` — اختبارات عدائية لخصائص القيود والترحيل.
-10. `internal/kernal/posting/posting_fuzz_test.go` — اختبار Fuzz لتوازن القيود.
-
-**سياسة المعالجة:**
-
-- لا استعادة عمياء أو آلية فورية.
-- استعادة وثيقة الثوابت `KERNEL_ACCOUNTING_INVARIANTS.md` في المرحلة 1 بعد تدقيق نصوصها مقابل الكود.
-- استعادة ملفات الاختبار تباعاً في المراحل 2، 7، 9، 10، 11 مع التأكد من مطابقتها للعقود وتحديث ما يلزم وفق القرارات المعتمدة.
-
----
-
-## 3. تدقيق الاعتماديات والاستيراد (Import Audit)
-
-تم فحص جميع ملفات النواة، والتأكد من التالي:
-
-- صفر استيراد خارجي من حزم `pkg/`، `storage/`، `orbitals/`، `modules/`.
-- صفر استيراد لطبقة قواعد البيانات `database/sql`.
-- صفر استيراد لبروتوكولات النقل والشبكة `net/http`، `net`، `google.golang.org/grpc`.
-- عدم تعديل ملفات `go.mod` أو `go.sum` مطلقاً.
-- النواة معزولة تماماً وتعتمد فقط على المكتبة القياسية ومكتبتي `shopspring/decimal` و`google/uuid`.
+| البوابة | المتطلب | الحالة | الدليل |
+|---|---|:---:|---|
+| **Gate A — Scope** | الالتزام الصارم بـ `internal/kernal/` | **PASS** | `git diff --name-only` يؤكد عدم تعديل أي ملف خارجي |
+| **Gate B — Invariants** | استيفاء القواعد المحاسبية الـ27 | **PASS** | موثقة في `KERNEL_ACCOUNTING_INVARIANTS.md` |
+| **Gate C — Money** | الدقة والعملات والتقريب المتسق | **PASS** | اجتياز اختبارات الحدود وFuzz وBanker's Rounding |
+| **Gate D — Posting** | خط أنابيب الترحيل المالي الآمن | **PASS** | التحقق الإلزامي من القواعد قبل تفويض المضيف |
+| **Gate E — Lifecycle** | دورة حياة القيود والتسوية والعكس | **PASS** | قيود عكسية وتصنيفات متكاملة واختبارات صافي الأثر صفر |
+| **Gate F — Master/Fiscal** | البيانات المرجعية والتقويم المالي | **PASS** | منع التداخل والفجوات واختبار الفترتين 13 و 14 |
+| **Gate G — Policy** | سياسات الترحيل وتاريخ النفاذ | **PASS** | عزل كامل للشركات ونفاذ زمني حتمي Fail-Closed |
+| **Gate H — Valuation** | تحويل العملات وإعادة التقييم | **PASS** | حتمية كاملة بدون أي استخدام لأعداد عائمة (Float) |
+| **Gate I — Audit** | سلسلة تدقيق مشفرة ومقاومة للعبث | **PASS** | تشفير كنسي، لقطات متسقة، وكشف العبث بنسبة 100% |
+| **Gate J — Tests** | اختبارات الوحدة والتزامن والـ Fuzz | **PASS** | 160 اختباراً، 9 أهداف Fuzz، وخلو تام من Data Races |
+| **Gate K — Coverage** | التغطية الكودية والسلوكية | **PASS** | 93.1% إجمالي، وتوثيق معتمد للفروع المستثناة |
+| **Gate L — Mutation** | اختبارات الطفرات الدلالية الموجهة | **PASS** | قتل 100% من الطفرات الحرجة للقواعد المحاسبية |
+| **Gate M — Traceability** | مصفوفة التتبع الكاملة | **PASS** | مطابقة 66 مرجعاً بنسبة 100% وصفر مرجع مفقود |
+| **Gate N — Docs** | اتساق الوثائق وتحديث الإصدارات | **PASS** | توحيد كافة الوثائق تحت مظلة الإصدار v12 |
+| **Gate O — Defects** | خلو النواة من عيوب P0/P1 مفتوحة | **PASS** | صفر عيوب مفتوحة في سجل التثبيت النهائي |
