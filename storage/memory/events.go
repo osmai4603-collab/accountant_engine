@@ -3,10 +3,10 @@ package memory
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
-	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicevents "github.com/osmai4603-collab/accounting_engine/pkg/spi/events"
 )
 
@@ -117,18 +117,9 @@ func (d *Driver) GetPublicEventAccountMapping(ctx context.Context, companyID uui
 	}
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	// Stored in in-memory event mappings
-	key := fmt.Sprintf("%s:%s:%s", companyID.String(), eventType, ledgerID)
-	aid, ok := d.eventMappings[key]
-	if !ok {
-		return publicevents.AccountMapping{}, false, nil
-	}
-	return publicevents.AccountMapping{
-		CompanyID:        companyID,
-		EventType:        eventType,
-		LedgerID:         ledgerID,
-		DebitAccountCode: aid.String(),
-	}, true, nil
+	key := fmt.Sprintf("%s:%s:%s", companyID.String(), strings.TrimSpace(eventType), strings.TrimSpace(ledgerID))
+	m, ok := d.eventMappings[key]
+	return m, ok, nil
 }
 
 func (d *Driver) SavePublicEventAccountMapping(ctx context.Context, mapping publicevents.AccountMapping) error {
@@ -140,7 +131,7 @@ func (d *Driver) SavePublicEventAccountMapping(ctx context.Context, mapping publ
 	if d.readOnly {
 		return ErrReadOnlyTransaction
 	}
-	key := fmt.Sprintf("%s:%s:%s", mapping.CompanyID.String(), mapping.EventType, mapping.LedgerID)
-	d.eventMappings[key] = types.AccountID(uuid.MustParse(mapping.DebitAccountCode))
+	key := fmt.Sprintf("%s:%s:%s", mapping.CompanyID.String(), strings.TrimSpace(mapping.EventType), strings.TrimSpace(mapping.LedgerID))
+	d.eventMappings[key] = mapping
 	return nil
 }

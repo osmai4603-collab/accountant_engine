@@ -108,6 +108,7 @@ func (d *Driver) CommitPosting(ctx context.Context, commit storage.PostingCommit
 		}
 		// Link reversal
 		orig.ReversedByID = &entry.ID
+		orig.Status = journal.EntryReversed
 		eMap[orig.ID] = orig
 
 		entry.ReversalOfID = commit.OriginalEntryID

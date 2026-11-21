@@ -42,7 +42,7 @@ type Driver struct {
 
 	// Public event ingestion
 	eventIngestions map[string]publicevents.Ingestion
-	eventMappings   map[string]types.AccountID
+	eventMappings   map[string]publicevents.AccountMapping
 
 	// Concurrency lock manager
 	postingLocks sync.Map
@@ -62,7 +62,7 @@ func newDriver() *Driver {
 		auditRecords:     make([]storage.AuditRecord, 0),
 		idempotency:      make(map[idempotencyKey]storage.IdempotencyRecord),
 		eventIngestions:  make(map[string]publicevents.Ingestion),
-		eventMappings:    make(map[string]types.AccountID),
+		eventMappings:    make(map[string]publicevents.AccountMapping),
 	}
 }
 
@@ -83,7 +83,7 @@ func (d *Driver) clone() *Driver {
 		auditLastHash:    d.auditLastHash,
 		idempotency:      make(map[idempotencyKey]storage.IdempotencyRecord, len(d.idempotency)),
 		eventIngestions:  make(map[string]publicevents.Ingestion, len(d.eventIngestions)),
-		eventMappings:    make(map[string]types.AccountID, len(d.eventMappings)),
+		eventMappings:    make(map[string]publicevents.AccountMapping, len(d.eventMappings)),
 	}
 
 	for k, v := range d.companies {

@@ -421,12 +421,13 @@ storage/
 
 ## 7. سجل بوابة اعتماد المرحلة P3 (Stage Gate Verification Log)
 
-- **تاريخ الفحص المستهدف:** فور اكتمال المهام من `P3-01` إلى `P3-04`.
-- **المعايير الحتمية للاعتماد:**
-  1. نجاح تطبيق وتراجع كافة ترحيلات PostgreSQL الـ 32 (`MigrateUp` و `MigrateDown`) بنسبة 100% وفق تسلسل شجرة الاعتماديات.
-  2. اجتياز فحص شمولية وفرض RLS على الـ 42 جدولاً مالياً (`TestEveryFinancialTableHasForcedRLS: PASS`).
-  3. اجتياز اختبارات الحرمة الجنائية WORM ومنع أوامر التعديل والحذف (`TestPostgresImmutability: PASS`).
-  4. اجتياز اختبارات عقود البيانات الأساسية على كلا المحولين (`masterdatacontract.Run: PASS`).
-  5. اجتياز اختبارات التكافؤ المباشر لموانئ التخزين (Storage SPI Parity: PASS).
-  6. نظافة تامة في فحص السباق الخيطي `go test -race ./storage/...`.
-  7. التحقق التام من خلو الكود من أي إمكانية لاستخدام `storage/memory` في بيئات الإنتاج.
+- **تاريخ الفحص والاعتماد:** 2026-11-21
+- **حالة الاعتماد:** معتمدة ومكتملة بنسبة 100% (STAGE GATE PASSED)
+- **نتائج المعايير الحتمية للاعتماد:**
+  1. [x] نجاح تطبيق وتراجع كافة ترحيلات PostgreSQL الـ 32 (`MigrateUp` و `MigrateDown`) بنسبة 100% وفق تسلسل شجرة الاعتماديات (`TestMigrateUpAndMigrateDownCycle: PASS`).
+  2. [x] اجتياز فحص شمولية وفرض RLS على الـ 42 جدولاً مالياً (`TestEveryFinancialTableHasForcedRLS: PASS`).
+  3. [x] اجتياز اختبارات الحرمة الجنائية WORM ومنع أوامر التعديل والحذف (`TestPostgresWORMImmutability: PASS`).
+  4. [x] اجتياز اختبارات عقود البيانات الأساسية على كلا المحولين (`masterdatacontract.Run: PASS`).
+  5. [x] اجتياز اختبارات التكافؤ المباشر لموانئ التخزين (Storage SPI Parity: PASS عبر 12 سيناريو بنجاح كامل).
+  6. [x] نظافة تامة في فحص السباق الخيطي `go test -race ./storage/... ./test/contract_parity/...`.
+  7. [x] التحقق التام من خلو الكود من أي إمكانية لاستخدام `storage/memory` في بيئات الإنتاج (`GuaranteesDurability: false`، وفصل حزم الإنتاج).

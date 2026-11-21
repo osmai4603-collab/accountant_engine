@@ -13,6 +13,7 @@ var ErrReadOnlyTransaction = errors.New("memory: write attempted in read-only tr
 type transactionContextKey struct{}
 
 type memoryTransactionScope struct {
+	root     *Driver
 	driver   *Driver
 	readOnly bool
 }
@@ -112,6 +113,7 @@ func (d *Driver) ExecuteWithOptions(ctx context.Context, opts storage.TxOptions,
 	}
 
 	txCtx := context.WithValue(ctx, transactionContextKey{}, memoryTransactionScope{
+		root:     d,
 		driver:   snapshot,
 		readOnly: opts.ReadOnly,
 	})

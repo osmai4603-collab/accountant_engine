@@ -1,0 +1,37 @@
+# Storage SPI Contract Parity Report — P3-04
+
+- **Generated (UTC):** 2026-11-20T23:44:25Z
+- **Engine version:** (devel)
+- **Adapters:** Memory (Dev/Test only), PostgreSQL (Production standard).
+
+| Engine | Scenario | Adapter | Result | Semantic differences | Duration |
+| :--- | :--- | :--- | :---: | :--- | ---: |
+| (devel) | AuditWriter | memory | PASS | none; storage contract assertions passed | 0s |
+| (devel) | AuditWriter | postgres | PASS | none; storage contract assertions passed | 981ms |
+| (devel) | CommitPostingAndBalance | memory | PASS | none; storage contract assertions passed | 0s |
+| (devel) | CommitPostingAndBalance | postgres | PASS | none; storage contract assertions passed | 719ms |
+| (devel) | DraftStore | memory | PASS | none; storage contract assertions passed | 0s |
+| (devel) | DraftStore | postgres | PASS | none; storage contract assertions passed | 653ms |
+| (devel) | IdempotencyLifecycle | memory | PASS | none; storage contract assertions passed | 0s |
+| (devel) | IdempotencyLifecycle | postgres | PASS | none; storage contract assertions passed | 595ms |
+| (devel) | RollbackAtomicity | memory | PASS | none; storage contract assertions passed | 0s |
+| (devel) | RollbackAtomicity | postgres | PASS | none; storage contract assertions passed | 539ms |
+| (devel) | SequenceAllocator | memory | PASS | none; storage contract assertions passed | 0s |
+| (devel) | SequenceAllocator | postgres | PASS | none; storage contract assertions passed | 706ms |
+
+- **Totals:** 12 passed, 0 failed, 0 skipped.
+
+## Capability differences
+
+- memory: durability=false
+- memory: foreign_keys=false
+- memory: savepoints=false
+- memory: serializable=true
+- postgres: durability=true
+- postgres: foreign_keys=true
+- postgres: savepoints=false
+- postgres: serializable=true
+
+## Unexpected differences
+
+None recorded.

@@ -21,15 +21,16 @@ func (a *Adapter) Ports() storage.Ports {
 	if a == nil || a.driver == nil {
 		return storage.Ports{}
 	}
+	t := transactionAwareDriver{driver: a.driver}
 	return storage.Ports{
-		Drafts:      a.driver,
-		Entries:     a.driver,
-		Posting:     a.driver,
-		Sequences:   a.driver,
-		MasterData:  a.driver,
-		Balance:     a.driver,
-		Audit:       a.driver,
-		Idempotency: a.driver,
+		Drafts:      t,
+		Entries:     t,
+		Posting:     t,
+		Sequences:   t,
+		MasterData:  t,
+		Balance:     t,
+		Audit:       t,
+		Idempotency: t,
 		TxRunner:    a.driver,
 		UOWRunner:   a.driver,
 		Events: publicevents.Stores{
