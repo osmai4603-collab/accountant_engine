@@ -16,6 +16,11 @@ import (
 // 3. Reversal date cannot precede original entry effective date.
 // 4. Combined net impact of original + reversal across all accounts is identically zero.
 func BuildReversalEntry(original journal.JournalEntry, reversalDate time.Time, actorID string, reason string) (journal.JournalEntry, error) {
+	return BuildReversalEntryAt(original, reversalDate, actorID, reason, time.Now().UTC())
+}
+
+// BuildReversalEntryAt constructs a reversing journal entry using an explicit timestamp.
+func BuildReversalEntryAt(original journal.JournalEntry, reversalDate time.Time, actorID string, reason string, now time.Time) (journal.JournalEntry, error) {
 	if original.Status != journal.EntryPosted {
 		return journal.JournalEntry{}, ErrEntryNotPosted
 	}
@@ -34,7 +39,7 @@ func BuildReversalEntry(original journal.JournalEntry, reversalDate time.Time, a
 	original = original.Clone()
 
 	if reversalDate.IsZero() {
-		reversalDate = time.Now().UTC()
+		reversalDate = now.UTC()
 	} else {
 		reversalDate = reversalDate.UTC()
 	}
@@ -46,7 +51,7 @@ func BuildReversalEntry(original journal.JournalEntry, reversalDate time.Time, a
 		return journal.JournalEntry{}, ErrReversalDateBeforeOriginal
 	}
 
-	now := time.Now().UTC()
+	now = now.UTC()
 	originalID := original.ID
 
 	reversal := journal.JournalEntry{

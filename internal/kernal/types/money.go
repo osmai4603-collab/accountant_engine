@@ -21,12 +21,15 @@ import (
 //     or settle the residual returned by RoundingDifference on a dedicated
 //     rounding difference account.
 const (
-	FinancialScale = 4
-	InternalScale  = 12
+	FinancialScale               = 4
+	InternalScale                = 12
+	MaximumSignificantDigits     = 28
+	MaximumIntegerDigits         = 28
+	MaximumRepresentationalScale = 28
 )
 
 // maximumPrecision limits significant coefficient digits, not representational trailing zeros.
-const maximumPrecision = 28
+const maximumPrecision = MaximumSignificantDigits
 
 type Money struct {
 	amount   decimal.Decimal
@@ -66,7 +69,10 @@ func newMoney(amount decimal.Decimal, currency string) (Money, error) {
 	if !ok || currencyInfo.Code == XXX {
 		return Money{}, ErrInvalidCurrency
 	}
-	if precisionDigits(amount) > maximumPrecision {
+	if amount.Exponent() < -MaximumRepresentationalScale || amount.Exponent() > MaximumIntegerDigits {
+		return Money{}, ErrAmountExceedsPrecision
+	}
+	if precisionDigits(amount) > MaximumSignificantDigits {
 		return Money{}, ErrAmountExceedsPrecision
 	}
 	return Money{amount: amount, currency: currency}, nil
@@ -224,8 +230,15 @@ func (m Money) ensureSameCurrency(other Money) error {
 	return nil
 }
 
+// String returns a rounded representation for human display.
+// Callers must not use String for comparisons, hashing, or persistence.
 func (m Money) String() string {
 	return fmt.Sprintf("%s %s", m.amount.RoundBank(FinancialScale).StringFixed(FinancialScale), m.currency)
+}
+
+// ExactString returns the unrounded decimal representation of the money amount.
+func (m Money) ExactString() string {
+	return fmt.Sprintf("%s %s", m.amount.String(), m.currency)
 }
 
 func CurrencyMinorUnit(currency string) int32 {

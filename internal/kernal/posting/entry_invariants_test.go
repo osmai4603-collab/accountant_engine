@@ -459,7 +459,7 @@ func TestPostingPipelineEndToEnd(t *testing.T) {
 		return entry, nil
 	}, WithPolicyEngine(testPostingPolicyEngine(t, compID, "USD")))
 
-	posted, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster-1", Reason: "Regular Posting"})
+	posted, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster-1", Reason: "Regular Posting", IdempotencyKey: "idem-key-1"})
 	if err != nil {
 		t.Fatalf("pipeline.PostEntry failed: %v", err)
 	}
@@ -474,15 +474,25 @@ func TestPostingPipelineEndToEnd(t *testing.T) {
 	// 1. Rejection on non-draft status
 	postedEntry := entry
 	postedEntry.Status = journal.EntryPosted
-	_, err = pipeline.PostEntry(ctx, postedEntry, PostOptions{ActorID: "poster-1"})
+	_, err = pipeline.PostEntry(ctx, postedEntry, PostOptions{ActorID: "poster-1", IdempotencyKey: "idem-key-1"})
 	if !errors.Is(err, ErrInvalidEntryState) {
 		t.Fatalf("expected ErrInvalidEntryState for non-draft, got %v", err)
 	}
 
 	// 2. Rejection on empty ActorID
-	_, err = pipeline.PostEntry(ctx, entry, PostOptions{ActorID: ""})
+	_, err = pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "", IdempotencyKey: "idem-key-1"})
 	if !errors.Is(err, ErrPosterIDRequired) {
 		t.Fatalf("expected ErrPosterIDRequired, got %v", err)
+	}
+
+	// 2b. Rejection on empty IdempotencyKey
+	_, err = pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster-1", IdempotencyKey: ""})
+	if !errors.Is(err, ErrIdempotencyKeyRequired) {
+		t.Fatalf("expected ErrIdempotencyKeyRequired for empty key, got %v", err)
+	}
+	_, err = pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster-1", IdempotencyKey: "   "})
+	if !errors.Is(err, ErrIdempotencyKeyRequired) {
+		t.Fatalf("expected ErrIdempotencyKeyRequired for whitespace key, got %v", err)
 	}
 
 	// 3. Rejection on functional currency mismatch with company
@@ -499,7 +509,7 @@ func TestPostingPipelineEndToEnd(t *testing.T) {
 	eurEntry.Lines[0].FunctionalCredit = makeMoney(t, "0.00", "EUR")
 	eurEntry.Lines[1].FunctionalDebit = makeMoney(t, "0.00", "EUR")
 	eurEntry.Lines[1].FunctionalCredit = makeMoney(t, "100.00", "EUR")
-	_, err = eurPipeline.PostEntry(ctx, eurEntry, PostOptions{ActorID: "poster-1"})
+	_, err = eurPipeline.PostEntry(ctx, eurEntry, PostOptions{ActorID: "poster-1", IdempotencyKey: "idem-key-1"})
 	if !errors.Is(err, ErrFunctionalCurrencyMismatch) {
 		t.Fatalf("expected ErrFunctionalCurrencyMismatch, got %v", err)
 	}

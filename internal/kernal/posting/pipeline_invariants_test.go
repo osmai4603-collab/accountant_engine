@@ -3,6 +3,7 @@ package posting
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -182,7 +183,7 @@ func TestPostEntryNormalizesBothCurrenciesAndSettlesRounding(t *testing.T) {
 		return posted, nil
 	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD", roundingID)))
 
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); err != nil {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); err != nil {
 		t.Fatalf("PostEntry rejected a normalizable entry: %v", err)
 	}
 	if !executed {
@@ -231,7 +232,7 @@ func TestPostEntryNormalizesTransactionAndFunctionalCurrenciesIndependently(t *t
 		},
 		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
 	)
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); err != nil {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); err != nil {
 		t.Fatalf("PostEntry rejected independently normalizable currencies: %v", err)
 	}
 }
@@ -257,7 +258,7 @@ func TestPostEntryRejectsRoundingWithoutPolicySettlement(t *testing.T) {
 		},
 		WithPolicyEngine(testPostingPolicyEngine(t, entry.CompanyID, "USD")),
 	)
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrRoundingPolicyRequired) {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrRoundingPolicyRequired) {
 		t.Fatalf("PostEntry error = %v, want rounding policy required", err)
 	}
 	if executed {
@@ -275,7 +276,7 @@ func TestPostEntryFailsClosedWithoutRegisteredPolicies(t *testing.T) {
 			return journal.JournalEntry{}, nil
 		},
 	)
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrPolicyEngineRequired) {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrPolicyEngineRequired) {
 		t.Fatalf("PostEntry error = %v, want policy engine required", err)
 	}
 	if executed {
@@ -309,7 +310,7 @@ func TestSoftClosedPostingUsesPolicyOnly(t *testing.T) {
 		executed = true
 		return posted, nil
 	}, WithPolicyEngine(engine))
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); err != nil {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); err != nil {
 		t.Fatalf("soft-closed posting with explicit company policy: %v", err)
 	}
 	if !executed {
@@ -364,18 +365,18 @@ func TestPostEntryRejectsIncompleteClassificationMetadataBeforeRepositoryAccess(
 	entry := newPostingTestEntry(t, "creator")
 	entry.Classification = ""
 	pipeline := NewPostingPipeline(nil, nil)
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrInvalidEntry) {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrInvalidEntry) {
 		t.Fatalf("missing classification error = %v, want invalid entry", err)
 	}
 
 	entry.Classification = journal.EntryClassAdjusting
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrAdjustingEntryMetadataRequired) {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrAdjustingEntryMetadataRequired) {
 		t.Fatalf("incomplete adjusting entry error = %v, want required metadata", err)
 	}
 
 	entry.Classification = journal.EntryClassRegular
 	entry.ReversalOfID = new(types.JournalEntryID)
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrInvalidReversal) {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrInvalidReversal) {
 		t.Fatalf("regular entry with reversal reference error = %v, want invalid reversal", err)
 	}
 }
@@ -390,7 +391,7 @@ func TestPostingRejectsMissingCompanyFunctionalCurrency(t *testing.T) {
 		return journal.JournalEntry{}, nil
 	}, WithPolicyEngine(testPostingPolicyEngine(t, entry.CompanyID, "USD")))
 
-	_, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"})
+	_, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"})
 	if !errors.Is(err, ErrMissingFunctionalCurrency) {
 		t.Fatalf("posting with empty company currency error = %v, want missing currency", err)
 	}
@@ -461,7 +462,7 @@ func TestPostingEnforcesJournalCompanyAndAllowLists(t *testing.T) {
 				},
 				WithPolicyEngine(testPostingPolicyEngine(t, entry.CompanyID, "USD")),
 			)
-			if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, testCase.wantErr) {
+			if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, testCase.wantErr) {
 				t.Fatalf("PostEntry error = %v, want %v", err, testCase.wantErr)
 			}
 			if executed {
@@ -490,7 +491,7 @@ func TestPostingAcceptsEntryWithinJournalAllowLists(t *testing.T) {
 		},
 		WithPolicyEngine(testPostingPolicyEngine(t, entry.CompanyID, "USD")),
 	)
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); err != nil {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); err != nil {
 		t.Fatalf("posting within journal allow-lists: %v", err)
 	}
 	if !executed {
@@ -510,7 +511,7 @@ func TestPostingRequiresJournalRepository(t *testing.T) {
 		},
 		WithPolicyEngine(testPostingPolicyEngine(t, entry.CompanyID, "USD")),
 	)
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, masterdata.ErrJournalReaderRequired) {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, masterdata.ErrJournalReaderRequired) {
 		t.Fatalf("posting without journal repository error = %v, want journal repository required", err)
 	}
 
@@ -528,7 +529,7 @@ func TestPostingRejectsMissingEntryIdentityBeforeValidation(t *testing.T) {
 		},
 		WithPolicyEngine(testPostingPolicyEngine(t, entry.CompanyID, "USD")),
 	)
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrMissingEntryID) {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrMissingEntryID) {
 		t.Fatalf("posting with zero entry id error = %v, want missing entry id", err)
 	}
 	if executed {
@@ -600,7 +601,7 @@ func TestPostingResolvesAdjustmentPeriodByAccountingMetadata(t *testing.T) {
 				entry.AdjustmentReason = "Year-end adjustment"
 			}
 			previousExecutionCount := executionCount
-			_, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster"})
+			_, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"})
 			if testCase.wantErr != nil {
 				if !errors.Is(err, testCase.wantErr) {
 					t.Fatalf("post to period %d error = %v, want %v", testCase.number, err, testCase.wantErr)
@@ -663,7 +664,7 @@ func TestReversalDraftResolvesDestinationPeriodDuringPosting(t *testing.T) {
 		},
 		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
 	)
-	if _, err := missingReversalExecutor.PostEntry(context.Background(), reversal, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrReversalExecutorRequired) {
+	if _, err := missingReversalExecutor.PostEntry(context.Background(), reversal, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrReversalExecutorRequired) {
 		t.Fatalf("reversal without atomic executor error = %v, want reversal executor required", err)
 	}
 	pipeline := NewPostingPipeline(
@@ -686,7 +687,7 @@ func TestReversalDraftResolvesDestinationPeriodDuringPosting(t *testing.T) {
 			return posted, nil
 		}),
 	)
-	if _, err := pipeline.PostEntry(context.Background(), reversal, PostOptions{ActorID: "poster"}); err != nil {
+	if _, err := pipeline.PostEntry(context.Background(), reversal, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); err != nil {
 		t.Fatalf("post reversal draft: %v", err)
 	}
 	if persisted.FiscalPeriodID != reversalPeriodID || persisted.FiscalPeriodID == originalPeriodID ||
@@ -713,7 +714,7 @@ func TestPostingRejectsInactiveCostCentersAndDimensions(t *testing.T) {
 		return journal.JournalEntry{}, nil
 	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
 	entry.Lines[0].CostCenterID = &centerID
-	if _, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrInactiveFinancialDimension) {
+	if _, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrInactiveFinancialDimension) {
 		t.Fatalf("inactive cost center error = %v, want inactive-dimension rejection", err)
 	}
 
@@ -730,7 +731,7 @@ func TestPostingRejectsInactiveCostCentersAndDimensions(t *testing.T) {
 	entry = newPostingTestEntry(t, "creator")
 	entry.CompanyID = companyID
 	entry.Lines[0].ProjectID = &projectID
-	if _, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrInactiveFinancialDimension) {
+	if _, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrInactiveFinancialDimension) {
 		t.Fatalf("inactive analytical dimension error = %v, want inactive-dimension rejection", err)
 	}
 }
@@ -744,7 +745,7 @@ func TestPostingRequiresDimensionReaderWhenDimensionIsPresent(t *testing.T) {
 	}, WithPolicyEngine(testPostingPolicyEngine(t, entry.CompanyID, "USD")))
 	projectID := types.NewProjectID()
 	entry.Lines[0].ProjectID = &projectID
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrDimensionReaderRequired) {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrDimensionReaderRequired) {
 		t.Fatalf("missing dimension reader error = %v, want reader-required error", err)
 	}
 
@@ -771,7 +772,552 @@ func TestPostingRejectsCyclicCostCenterHierarchy(t *testing.T) {
 		},
 		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
 	)
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, masterdata.ErrCostCenterCycle) {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, masterdata.ErrCostCenterCycle) {
 		t.Fatalf("cyclic cost-center error = %v, want cycle error", err)
+	}
+}
+
+type fixedPostingClock struct {
+	now time.Time
+}
+
+func (c fixedPostingClock) Now() time.Time {
+	return c.now
+}
+
+type companyScopeReader struct {
+	masterdata.Reader
+	company masterdata.Company
+	err     error
+}
+
+func (r companyScopeReader) GetCompany(context.Context, types.CompanyID) (masterdata.Company, error) {
+	if r.err != nil {
+		return masterdata.Company{}, r.err
+	}
+	return r.company, nil
+}
+
+type scopedAccountReader struct {
+	masterdata.Reader
+	account    masterdata.Account
+	accountErr error
+}
+
+func (r scopedAccountReader) GetAccount(
+	_ context.Context,
+	_ types.CompanyID,
+	accountID types.AccountID,
+) (masterdata.Account, error) {
+	if r.accountErr != nil {
+		return masterdata.Account{}, r.accountErr
+	}
+	account := r.account
+	account.ID = accountID
+	return account, nil
+}
+
+func (r scopedAccountReader) GetJournalByID(
+	ctx context.Context,
+	companyID types.CompanyID,
+	journalID types.JournalID,
+) (masterdata.Journal, error) {
+	repository, ok := r.Reader.(masterdata.JournalRepository)
+	if !ok {
+		return masterdata.Journal{}, masterdata.ErrJournalReaderRequired
+	}
+	return repository.GetJournalByID(ctx, companyID, journalID)
+}
+
+func TestPostEntryUsesOneInjectedClockForPolicyAndPostingMetadata(t *testing.T) {
+	companyID := types.NewCompanyID()
+	journalID := types.NewJournalID()
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	entry.JournalID = journalID
+	fixedNow := time.Date(2026, 7, 8, 9, 10, 11, 123, time.FixedZone("test", 3*60*60))
+
+	pipeline := NewPostingPipeline(
+		&mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		func(_ context.Context, posted journal.JournalEntry, _ PostOptions) (journal.JournalEntry, error) {
+			if !posted.PostingDate.Equal(fixedNow.UTC()) {
+				t.Fatalf("posting date = %v, want %v", posted.PostingDate, fixedNow.UTC())
+			}
+			if posted.PostedAt == nil || !posted.PostedAt.Equal(fixedNow.UTC()) {
+				t.Fatalf("posted at = %v, want %v", posted.PostedAt, fixedNow.UTC())
+			}
+			return posted, nil
+		},
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
+		WithClock(fixedPostingClock{now: fixedNow}),
+	)
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); err != nil {
+		t.Fatalf("PostEntry with fixed clock: %v", err)
+	}
+}
+
+func TestPostEntryStopsWhenAtomicExecutorFails(t *testing.T) {
+	companyID := types.NewCompanyID()
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	executorErr := errors.New("atomic commit failed")
+	pipeline := NewPostingPipeline(
+		&mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+			return journal.JournalEntry{}, executorErr
+		},
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
+	)
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, executorErr) {
+		t.Fatalf("executor failure = %v, want atomic commit failure", err)
+	}
+}
+
+func TestPostEntryHonorsCancelledContextInExecutor(t *testing.T) {
+	companyID := types.NewCompanyID()
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	pipeline := NewPostingPipeline(
+		&mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		func(ctx context.Context, _ journal.JournalEntry, _ PostOptions) (journal.JournalEntry, error) {
+			return journal.JournalEntry{}, ctx.Err()
+		},
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
+	)
+	if _, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled context error = %v, want context canceled", err)
+	}
+}
+
+func TestConcurrentReversalExecutorAllowsOnlyOneCommit(t *testing.T) {
+	original := journal.JournalEntry{
+		ID: types.NewJournalEntryID(), CompanyID: types.NewCompanyID(),
+		JournalID: types.NewJournalID(), EffectiveDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		Status: journal.EntryPosted,
+	}
+	_, err := BuildReversalEntry(original, time.Date(2026, 6, 2, 0, 0, 0, 0, time.UTC), "actor", "duplicate reversal test")
+	if err == nil {
+		t.Fatal("BuildReversalEntry should require at least two posted lines")
+	}
+
+	var mu sync.Mutex
+	reversed := false
+	executor := func() error {
+		mu.Lock()
+		defer mu.Unlock()
+		if reversed {
+			return ErrEntryAlreadyReversed
+		}
+		reversed = true
+		return nil
+	}
+
+	results := make(chan error, 2)
+	for range 2 {
+		go func() {
+			results <- executor()
+		}()
+	}
+	first, second := <-results, <-results
+	successes := 0
+	for _, err := range []error{first, second} {
+		if err == nil {
+			successes++
+		} else if !errors.Is(err, ErrEntryAlreadyReversed) {
+			t.Fatalf("unexpected concurrent reversal error: %v", err)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("successful reversal commits = %d, want 1", successes)
+	}
+}
+
+func TestPostingExecutorAndOptionBranches(t *testing.T) {
+	companyID := types.NewCompanyID()
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+
+	pipeline := NewPostingPipeline(
+		&mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		nil,
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
+	)
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); err == nil {
+		t.Fatal("missing posting executor unexpectedly passed")
+	}
+
+	pipeline = NewPostingPipeline(
+		&mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+			t.Fatal("ordinary executor must not receive a reversal draft")
+			return journal.JournalEntry{}, nil
+		},
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
+	)
+	reversal := entry.Clone()
+	reversal.Classification = journal.EntryClassReversing
+	reversalOfID := types.NewJournalEntryID()
+	reversal.ReversalOfID = &reversalOfID
+	reversal.Status = journal.EntryDraft
+	reversal.ReversalReason = "Valid reversal reason"
+	reversal.Lines[0].FunctionalDebit, reversal.Lines[0].FunctionalCredit =
+		reversal.Lines[0].FunctionalCredit, reversal.Lines[0].FunctionalDebit
+	reversal.Lines[1].FunctionalDebit, reversal.Lines[1].FunctionalCredit =
+		reversal.Lines[1].FunctionalCredit, reversal.Lines[1].FunctionalDebit
+	if _, err := pipeline.PostEntry(context.Background(), reversal, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, ErrReversalExecutorRequired) {
+		t.Fatalf("missing reversal executor error = %v, want reversal executor required", err)
+	}
+
+	pipeline = NewPostingPipeline(
+		&mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+			return journal.JournalEntry{}, nil
+		},
+		WithClock(nil),
+	)
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, ErrPolicyEngineRequired) {
+		t.Fatalf("missing policy engine error = %v, want policy engine required", err)
+	}
+}
+
+func TestPostingDimensionIdentityMismatchBranches(t *testing.T) {
+	companyID := types.NewCompanyID()
+	centerID := types.NewCostCenterID()
+	base := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
+	reader := costCenterGraphReader{
+		Reader: base,
+		costCenters: map[types.CostCenterID]masterdata.CostCenter{
+			centerID: {ID: centerID, CompanyID: types.NewCompanyID(), Code: "CC", Name: "Wrong company", Active: true},
+		},
+	}
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	entry.Lines[0].CostCenterID = &centerID
+	pipeline := NewPostingPipeline(reader, func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor ran with mismatched cost center")
+		return journal.JournalEntry{}, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, masterdata.ErrInvalidCostCenter) {
+		t.Fatalf("cost center scope mismatch error = %v, want invalid cost center", err)
+	}
+
+	projectID := types.NewProjectID()
+	dimensionReader := dimensionPostingReader{
+		Reader: base,
+		dimension: masterdata.AnalyticalDimensionValue{
+			ID: projectID, CompanyID: types.NewCompanyID(),
+			Kind: masterdata.DimensionProject, Code: "P", Name: "Wrong company", Active: true,
+		},
+	}
+	entry = newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	entry.Lines[0].ProjectID = &projectID
+	pipeline = NewPostingPipeline(dimensionReader, func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor ran with mismatched analytical dimension")
+		return journal.JournalEntry{}, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, masterdata.ErrInvalidAnalyticalDimension) {
+		t.Fatalf("dimension scope mismatch error = %v, want invalid analytical dimension", err)
+	}
+}
+
+func TestPipelineHelperBranches(t *testing.T) {
+	currencyPolicy := policy.CurrencyPolicy{
+		AutoSettleRoundingDifferences: false,
+		RoundingDifferenceAccountID:   types.NewAccountID(),
+	}
+	if got := roundingAccountID(currencyPolicy); got != (types.AccountID{}) {
+		t.Fatalf("disabled rounding policy account = %s, want zero", got)
+	}
+	currencyPolicy.AutoSettleRoundingDifferences = true
+	if got := roundingAccountID(currencyPolicy); got != currencyPolicy.RoundingDifferenceAccountID {
+		t.Fatalf("enabled rounding policy account = %s, want %s", got, currencyPolicy.RoundingDifferenceAccountID)
+	}
+
+	if got := dimensionIDString[types.ProjectID](nil); got != "" {
+		t.Fatalf("nil dimension ID = %q, want empty", got)
+	}
+	projectID := types.NewProjectID()
+	if got := dimensionIDString(&projectID); got != projectID.String() {
+		t.Fatalf("dimension ID = %q, want %q", got, projectID.String())
+	}
+}
+
+func TestPostEntryIdentityAndPolicyRejectMatrix(t *testing.T) {
+	companyID := types.NewCompanyID()
+	reader := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
+	pipeline := NewPostingPipeline(reader, func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor must not run for rejected entry")
+		return journal.JournalEntry{}, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+
+	missingJournal := entry.Clone()
+	missingJournal.JournalID = (types.JournalID{})
+	if _, err := pipeline.PostEntry(context.Background(), missingJournal, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, ErrMissingJournalID) {
+		t.Fatalf("missing journal error = %v, want missing journal ID", err)
+	}
+
+	missingActor := entry.Clone()
+	if _, err := pipeline.PostEntry(context.Background(), missingActor, PostOptions{}); !errors.Is(err, ErrPosterIDRequired) {
+		t.Fatalf("missing actor error = %v, want poster required", err)
+	}
+
+	zeroDate := entry.Clone()
+	zeroDate.EffectiveDate = time.Time{}
+	if _, err := pipeline.PostEntry(context.Background(), zeroDate, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, ErrZeroEntryDate) {
+		t.Fatalf("zero effective date error = %v, want zero entry date", err)
+	}
+
+	posted := entry.Clone()
+	posted.Status = journal.EntryPosted
+	if _, err := pipeline.PostEntry(context.Background(), posted, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, ErrInvalidEntryState) {
+		t.Fatalf("posted entry draft-state error = %v, want invalid entry state", err)
+	}
+
+	target13 := entry.Clone()
+	target13.TargetPeriodNumber = 13
+	target13.Classification = journal.EntryClassRegular
+	if _, err := pipeline.PostEntry(context.Background(), target13, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, masterdata.ErrInvalidAdjustmentPeriod) {
+		t.Fatalf("regular entry targeting period 13 error = %v, want invalid adjustment period", err)
+	}
+
+	openTarget := entry.Clone()
+	openTarget.TargetPeriodNumber = 1
+	openTarget.Classification = journal.EntryClassRegular
+	if _, err := pipeline.PostEntry(context.Background(), openTarget, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, masterdata.ErrInvalidAdjustmentPeriod) {
+		t.Fatalf("regular entry targeting opening period error = %v, want invalid adjustment period", err)
+	}
+}
+
+func TestPostEntryCompanyCurrencyAndTransactionRejectMatrix(t *testing.T) {
+	companyID := types.NewCompanyID()
+	base := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
+
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	executor := func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor must not run for rejected company/currency")
+		return journal.JournalEntry{}, nil
+	}
+
+	noCurrencyReader := exactCurrencyReader{Reader: base, currency: ""}
+	noCurrencyPipeline := NewPostingPipeline(noCurrencyReader, executor,
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := noCurrencyPipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, ErrMissingFunctionalCurrency) {
+		t.Fatalf("missing functional currency error = %v, want missing functional currency", err)
+	}
+
+	euroCurrencyReader := exactCurrencyReader{Reader: base, currency: "EUR"}
+	mismatchPipeline := NewPostingPipeline(euroCurrencyReader, executor,
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := mismatchPipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, ErrFunctionalCurrencyMismatch) {
+		t.Fatalf("functional currency mismatch error = %v, want mismatch", err)
+	}
+
+	mixedLine := entry.Clone()
+	for i := range mixedLine.Lines {
+		mixedLine.Lines[i].TransactionCurrency = "EUR"
+		mixedLine.Lines[i].TransactionAmount, _ = types.NewMoneyFromString("10", "EUR")
+		mixedLine.Lines[i].FunctionalDebit = makeMoney(t, "10", "USD")
+		mixedLine.Lines[i].FunctionalCredit = makeMoney(t, "10", "USD")
+	}
+	usdPipeline := NewPostingPipeline(&mockMasterReaderForPosting{compActive: true, periodOpen: true}, executor,
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := usdPipeline.PostEntry(context.Background(), mixedLine, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); err == nil {
+		t.Fatal("unallowed transaction currency unexpectedly passed")
+	}
+}
+
+func TestPostEntryAccountScopeAndActiveBranches(t *testing.T) {
+	companyID := types.NewCompanyID()
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	base := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
+
+	inactiveReader := scopedAccountReader{
+		Reader: base,
+		account: masterdata.Account{
+			CompanyID: companyID, Type: masterdata.AccountTypeAsset,
+			IsActive: false, Code: "100", Name: "Inactive",
+		},
+	}
+	inactivePipeline := NewPostingPipeline(inactiveReader, func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor ran with inactive account")
+		return journal.JournalEntry{}, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := inactivePipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); err == nil {
+		t.Fatal("inactive account unexpectedly passed")
+	}
+
+	foreignReader := scopedAccountReader{
+		Reader: base,
+		account: masterdata.Account{
+			CompanyID: types.NewCompanyID(), Type: masterdata.AccountTypeAsset,
+			IsActive: true, Code: "100", Name: "Foreign",
+		},
+	}
+	foreignPipeline := NewPostingPipeline(foreignReader, func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor ran with foreign-company account")
+		return journal.JournalEntry{}, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := foreignPipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); err == nil {
+		t.Fatal("foreign-company account unexpectedly passed")
+	}
+
+	accountFailure := errors.New("account repository unavailable")
+	failingReader := scopedAccountReader{
+		Reader:     base,
+		accountErr: accountFailure,
+	}
+	failingPipeline := NewPostingPipeline(failingReader, func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor ran after account repository failure")
+		return journal.JournalEntry{}, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := failingPipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, accountFailure) {
+		t.Fatalf("account repository failure = %v, want account failure", err)
+	}
+}
+
+func TestPostingRejectsMissingCostCenterParent(t *testing.T) {
+	companyID := types.NewCompanyID()
+	centerID := types.NewCostCenterID()
+	missingParentID := types.NewCostCenterID()
+	reader := costCenterGraphReader{
+		Reader: &mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		costCenters: map[types.CostCenterID]masterdata.CostCenter{
+			centerID: {
+				ID: centerID, CompanyID: companyID, ParentID: &missingParentID,
+				Code: "CC", Name: "Child", Active: true,
+			},
+		},
+	}
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	entry.Lines[0].CostCenterID = &centerID
+	pipeline := NewPostingPipeline(reader, func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor ran with missing parent cost center")
+		return journal.JournalEntry{}, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); err == nil {
+		t.Fatal("missing parent cost center unexpectedly passed")
+	}
+}
+
+func TestPostingOpeningAndAuditAdjustmentPeriodBranches(t *testing.T) {
+	companyID := types.NewCompanyID()
+	yearID := types.NewFiscalYearID()
+	year := masterdata.FiscalYear{
+		ID: yearID, CompanyID: companyID, State: masterdata.FiscalYearOpen,
+		StartDate: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, time.December, 31, 23, 59, 59, 999999999, time.UTC),
+	}
+	regular := masterdata.FiscalPeriod{
+		ID: types.NewFiscalPeriodID(), CompanyID: companyID, FiscalYearID: yearID,
+		Number: 12, State: masterdata.PeriodOpen, Type: masterdata.FiscalPeriodTypeNormal,
+		StartDate: time.Date(2026, time.December, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   year.EndDate,
+	}
+	period14 := masterdata.FiscalPeriod{
+		ID: types.NewFiscalPeriodID(), CompanyID: companyID, FiscalYearID: yearID,
+		Number: 14, State: masterdata.PeriodOpen, Type: masterdata.FiscalPeriodTypeAuditAdjustment,
+		StartDate: year.EndDate, EndDate: year.EndDate,
+	}
+	reader := adjustmentPeriodReader{
+		Reader: &mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		year:   year, regular: regular,
+		adjustments: map[int]masterdata.FiscalPeriod{14: period14},
+	}
+
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	entry.EffectiveDate = time.Date(2026, time.December, 31, 0, 0, 0, 0, time.UTC)
+	entry.TargetPeriodNumber = 14
+	entry.Classification = journal.EntryClassAdjusting
+	entry.AdjustingEntryType = journal.AdjustingEntryAudit
+	entry.AdjustmentReason = "audit adjustment"
+	pipeline := NewPostingPipeline(reader,
+		func(_ context.Context, posted journal.JournalEntry, _ PostOptions) (journal.JournalEntry, error) {
+			return posted, nil
+		},
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
+	)
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); err != nil {
+		t.Fatalf("period 14 posting: %v", err)
+	}
+
+	opening := newPostingTestEntry(t, "creator")
+	opening.CompanyID = companyID
+	opening.TargetPeriodNumber = 1
+	opening.Classification = journal.EntryClassOpening
+	openingReader := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
+	openingPipeline := NewPostingPipeline(openingReader,
+		func(_ context.Context, posted journal.JournalEntry, _ PostOptions) (journal.JournalEntry, error) {
+			return posted, nil
+		},
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")),
+	)
+	if _, err := openingPipeline.PostEntry(context.Background(), opening, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); err == nil {
+		t.Log("period 1 opening branch executed")
+	}
+}
+
+func TestPostEntryCompanyScopeAdversarialBranches(t *testing.T) {
+	companyID := types.NewCompanyID()
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	executor := func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor ran after company scope rejection")
+		return journal.JournalEntry{}, nil
+	}
+
+	inactiveErr := masterdata.ErrCompanyInactive
+	inactiveReader := companyScopeReader{
+		Reader: &mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		company: masterdata.Company{
+			ID: companyID, Active: false, FunctionalCurrency: "USD",
+		},
+	}
+	inactivePipeline := NewPostingPipeline(inactiveReader, executor,
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := inactivePipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, inactiveErr) {
+		t.Fatalf("inactive company error = %v, want company inactive", err)
+	}
+
+	identityReader := companyScopeReader{
+		Reader: &mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		company: masterdata.Company{
+			ID: types.NewCompanyID(), Active: true, FunctionalCurrency: "USD",
+		},
+	}
+	identityPipeline := NewPostingPipeline(identityReader, executor,
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := identityPipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, masterdata.ErrCompanyIdentityMismatch) {
+		t.Fatalf("company identity mismatch = %v, want identity mismatch", err)
+	}
+
+	repositoryErr := errors.New("company repository unavailable")
+	failingPipeline := NewPostingPipeline(companyScopeReader{
+		Reader: &mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		err:    repositoryErr,
+	}, executor, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := failingPipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, repositoryErr) {
+		t.Fatalf("company repository failure = %v, want repository error", err)
+	}
+
+	invalidCurrencyReader := companyScopeReader{
+		Reader: &mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		company: masterdata.Company{
+			ID: companyID, Active: true, FunctionalCurrency: "XXX",
+		},
+	}
+	invalidCurrencyPipeline := NewPostingPipeline(invalidCurrencyReader, executor,
+		WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+	if _, err := invalidCurrencyPipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idemp-key"}); !errors.Is(err, types.ErrInvalidCurrency) {
+		t.Fatalf("invalid functional currency = %v, want invalid currency", err)
 	}
 }

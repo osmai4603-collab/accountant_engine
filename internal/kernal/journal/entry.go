@@ -32,7 +32,8 @@ const (
 	AdjustingEntryDeferral          AdjustingEntryType = "deferral"
 	AdjustingEntryProvisionEstimate AdjustingEntryType = "provision_estimate"
 	AdjustingEntryReclassification  AdjustingEntryType = "reclassification"
-	AdjustingEntryAudit             AdjustingEntryType = "audit"
+	AdjustingEntryAudit             AdjustingEntryType = "audit_adjustment"
+	AdjustingEntryAuditLegacy       AdjustingEntryType = "audit"
 )
 
 type EntryLine struct {

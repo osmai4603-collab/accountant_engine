@@ -33,21 +33,22 @@ func (p FiscalPeriod) Contains(date time.Time) bool {
 
 // GenerateFiscalYear generates a standard 12-month fiscal year plus 2 adjustment periods.
 func GenerateFiscalYear(companyID types.CompanyID, start time.Time) (FiscalYear, []FiscalPeriod) {
-	start = time.Date(start.UTC().Year(), start.UTC().Month(), 1, 0, 0, 0, 0, time.UTC)
+	start = start.UTC()
+	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
 	fyID := types.NewFiscalYearID()
 	year := FiscalYear{
 		ID:        fyID,
 		CompanyID: companyID,
 		Name:      start.Format("2006"),
 		StartDate: start,
-		EndDate:   start.AddDate(1, 0, 0).Add(-time.Nanosecond),
+		EndDate:   addFiscalMonths(start, 12).Add(-time.Nanosecond),
 		State:     FiscalYearOpen,
 	}
 
 	var periods []FiscalPeriod
 	for i := 1; i <= 12; i++ {
-		pStart := start.AddDate(0, i-1, 0)
-		pEnd := pStart.AddDate(0, 1, 0).Add(-time.Nanosecond)
+		pStart := addFiscalMonths(start, i-1)
+		pEnd := addFiscalMonths(start, i).Add(-time.Nanosecond)
 		periods = append(periods, FiscalPeriod{
 			ID:           types.NewFiscalPeriodID(),
 			CompanyID:    companyID,
@@ -88,6 +89,78 @@ func GenerateFiscalYear(companyID types.CompanyID, start time.Time) (FiscalYear,
 	)
 
 	return year, periods
+}
+
+func addFiscalMonths(start time.Time, months int) time.Time {
+	start = start.UTC()
+	targetYear, targetMonth := start.Year(), int(start.Month())-1+months
+	targetYear += targetMonth / 12
+	targetMonth %= 12
+	if targetMonth < 0 {
+		targetYear--
+		targetMonth += 12
+	}
+	month := time.Month(targetMonth + 1)
+	lastDay := time.Date(targetYear, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	day := start.Day()
+	if day > lastDay {
+		day = lastDay
+	}
+	return time.Date(targetYear, month, day, 0, 0, 0, 0, time.UTC)
+}
+
+// ValidateFiscalYear validates that a fiscal year and its periods are contiguous, non-overlapping,
+// correctly ordered, and fully contained within the fiscal year boundaries.
+func ValidateFiscalYear(year FiscalYear, periods []FiscalPeriod) error {
+	if year.ID == (types.FiscalYearID{}) || year.CompanyID == (types.CompanyID{}) ||
+		year.StartDate.IsZero() || year.EndDate.IsZero() || year.EndDate.Before(year.StartDate) {
+		return ErrInvalidFiscalPeriod
+	}
+	if len(periods) != 12 && len(periods) != 14 {
+		return ErrInvalidFiscalPeriod
+	}
+	if !periods[0].StartDate.UTC().Equal(year.StartDate.UTC()) {
+		return ErrInvalidFiscalPeriod
+	}
+	if !periods[11].EndDate.UTC().Equal(year.EndDate.UTC()) {
+		return ErrInvalidFiscalPeriod
+	}
+	for i := 0; i < 12; i++ {
+		p := periods[i]
+		if p.ID == (types.FiscalPeriodID{}) || p.CompanyID != year.CompanyID || p.FiscalYearID != year.ID {
+			return ErrInvalidFiscalPeriod
+		}
+		if p.Number != i+1 || p.Type != FiscalPeriodTypeNormal {
+			return ErrInvalidFiscalPeriod
+		}
+		if p.StartDate.IsZero() || p.EndDate.IsZero() || p.EndDate.Before(p.StartDate) {
+			return ErrInvalidFiscalPeriod
+		}
+		if p.StartDate.UTC().Before(year.StartDate.UTC()) || p.EndDate.UTC().After(year.EndDate.UTC()) {
+			return ErrInvalidFiscalPeriod
+		}
+		if i > 0 {
+			expectedStart := periods[i-1].EndDate.UTC().Add(time.Nanosecond)
+			if !p.StartDate.UTC().Equal(expectedStart) {
+				return ErrInvalidFiscalPeriod
+			}
+		}
+	}
+	if len(periods) == 14 {
+		p13 := periods[12]
+		p14 := periods[13]
+		if p13.CompanyID != year.CompanyID || p13.FiscalYearID != year.ID || p13.Number != 13 ||
+			p13.Type != FiscalPeriodTypeYearEndAdjustment ||
+			!p13.StartDate.UTC().Equal(year.EndDate.UTC()) || !p13.EndDate.UTC().Equal(year.EndDate.UTC()) {
+			return ErrInvalidFiscalPeriod
+		}
+		if p14.CompanyID != year.CompanyID || p14.FiscalYearID != year.ID || p14.Number != 14 ||
+			p14.Type != FiscalPeriodTypeAuditAdjustment ||
+			!p14.StartDate.UTC().Equal(year.EndDate.UTC()) || !p14.EndDate.UTC().Equal(year.EndDate.UTC()) {
+			return ErrInvalidFiscalPeriod
+		}
+	}
+	return nil
 }
 
 // ValidatePeriodTransition verifies state transitions for fiscal periods.

@@ -180,6 +180,12 @@ func Convert(amount types.Money, toCurrency string, rate decimal.Decimal) (types
 	if !rate.IsPositive() {
 		return types.Money{}, ErrInvalidRate
 	}
+	toCurrency = strings.ToUpper(strings.TrimSpace(toCurrency))
+	if strings.ToUpper(strings.TrimSpace(amount.Currency())) == toCurrency {
+		if !rate.Equal(decimal.NewFromInt(1)) {
+			return types.Money{}, ErrInvalidRate
+		}
+	}
 	convertedAmount := amount.Amount().Mul(rate)
 	result, err := types.NewMoney(convertedAmount, toCurrency)
 	if err != nil {

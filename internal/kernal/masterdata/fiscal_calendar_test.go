@@ -453,3 +453,156 @@ func TestMasterDataEdgeCases(t *testing.T) {
 		t.Fatalf("FY reopen without actor should fail")
 	}
 }
+
+func TestGenerateFiscalYearPreservesCustomStartDay(t *testing.T) {
+	companyID := types.NewCompanyID()
+
+	for _, start := range []time.Time{
+		time.Date(2026, time.March, 15, 12, 30, 0, 0, time.FixedZone("test", 3*60*60)),
+		time.Date(2026, time.January, 31, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, time.February, 29, 0, 0, 0, 0, time.UTC),
+	} {
+		year, periods := GenerateFiscalYear(companyID, start)
+		if year.StartDate != periods[0].StartDate {
+			t.Fatalf("start mismatch: year=%v period=%v", year.StartDate, periods[0].StartDate)
+		}
+		if len(periods) != 14 {
+			t.Fatalf("period count = %d, want 14", len(periods))
+		}
+		if year.StartDate.Day() != start.UTC().Day() {
+			t.Fatalf("year start day = %d, want %d", year.StartDate.Day(), start.UTC().Day())
+		}
+		for i := 0; i < 11; i++ {
+			if !periods[i].EndDate.Before(periods[i+1].StartDate) {
+				t.Fatalf("period %d overlaps or gaps before period %d", i+1, i+2)
+			}
+		}
+		if !year.EndDate.Before(year.StartDate.AddDate(1, 0, 0)) {
+			t.Fatalf("fiscal year end %v is not before next anniversary", year.EndDate)
+		}
+		if err := ValidateFiscalYear(year, periods); err != nil {
+			t.Fatalf("ValidateFiscalYear failed: %v", err)
+		}
+	}
+}
+
+func TestValidateFiscalYear_RejectsInvalidStructures(t *testing.T) {
+	companyID := types.NewCompanyID()
+	year, periods := GenerateFiscalYear(companyID, time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC))
+
+	// Success case
+	if err := ValidateFiscalYear(year, periods); err != nil {
+		t.Fatalf("expected valid fiscal year, got %v", err)
+	}
+
+	// Gap introduced
+	tamperedPeriods := make([]FiscalPeriod, len(periods))
+	copy(tamperedPeriods, periods)
+	tamperedPeriods[1].StartDate = tamperedPeriods[1].StartDate.Add(time.Hour)
+	if err := ValidateFiscalYear(year, tamperedPeriods); !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("expected ErrInvalidFiscalPeriod on gap, got %v", err)
+	}
+
+	// Overlap introduced
+	copy(tamperedPeriods, periods)
+	tamperedPeriods[1].StartDate = tamperedPeriods[0].EndDate.Add(-time.Hour)
+	if err := ValidateFiscalYear(year, tamperedPeriods); !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("expected ErrInvalidFiscalPeriod on overlap, got %v", err)
+	}
+
+	// Wrong company ID on period
+	copy(tamperedPeriods, periods)
+	tamperedPeriods[2].CompanyID = types.NewCompanyID()
+	if err := ValidateFiscalYear(year, tamperedPeriods); !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("expected ErrInvalidFiscalPeriod on company mismatch, got %v", err)
+	}
+
+	// Wrong period count
+	if err := ValidateFiscalYear(year, periods[:10]); !errors.Is(err, ErrInvalidFiscalPeriod) {
+		t.Fatalf("expected ErrInvalidFiscalPeriod on wrong count, got %v", err)
+	}
+}
+
+func TestAdjustmentPeriodSoftCloseAndIdentityBranches(t *testing.T) {
+	ctx := context.Background()
+	companyID := types.NewCompanyID()
+	yearID := types.NewFiscalYearID()
+	year := FiscalYear{
+		ID: yearID, CompanyID: companyID, State: FiscalYearSoftClosed,
+		StartDate: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, time.December, 31, 23, 59, 59, 999999999, time.UTC),
+	}
+	regular := FiscalPeriod{
+		ID: types.NewFiscalPeriodID(), CompanyID: companyID, FiscalYearID: yearID,
+		Number: 12, State: PeriodSoftClosed, Type: FiscalPeriodTypeNormal,
+		StartDate: time.Date(2026, time.December, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   year.EndDate,
+	}
+	adjustment13 := FiscalPeriod{
+		ID: types.NewFiscalPeriodID(), CompanyID: companyID, FiscalYearID: yearID,
+		Number: 13, State: PeriodSoftClosed, Type: FiscalPeriodTypeYearEndAdjustment,
+		StartDate: year.EndDate, EndDate: year.EndDate,
+	}
+	reader := overrideFiscalReader{
+		year: year, regular: regular,
+		adjustments: map[int]FiscalPeriod{13: adjustment13},
+	}
+
+	if _, err := ValidateAdjustmentPeriodForPosting(ctx, reader, companyID, time.Date(2026, time.December, 31, 0, 0, 0, 0, time.UTC), 13); !errors.Is(err, ErrClosedFiscalYear) {
+		t.Fatalf("closed/soft-close policy error = %v, want closed fiscal year", err)
+	}
+	got, err := ValidateAdjustmentPeriodForPostingWithSoftClose(
+		ctx, reader, companyID, time.Date(2026, time.December, 31, 0, 0, 0, 0, time.UTC), 13, true,
+	)
+	if err != nil {
+		t.Fatalf("valid soft-close adjustment period: %v", err)
+	}
+	if got.ID != adjustment13.ID {
+		t.Fatalf("adjustment period ID = %s, want %s", got.ID, adjustment13.ID)
+	}
+
+	for _, test := range []struct {
+		number int
+		date   time.Time
+	}{
+		{12, time.Date(2026, time.December, 31, 0, 0, 0, 0, time.UTC)},
+		{13, time.Time{}},
+	} {
+		if _, err := ValidateAdjustmentPeriodForPosting(ctx, reader, companyID, test.date, test.number); err == nil {
+			t.Errorf("invalid adjustment request (%d, %v) unexpectedly passed", test.number, test.date)
+		}
+	}
+}
+
+func TestPeriodAndFiscalYearReopenValidation(t *testing.T) {
+	if err := ValidatePeriodReopen(PeriodSoftClosed, PeriodOpen, "actor", "reason"); err != nil {
+		t.Fatalf("valid period reopen: %v", err)
+	}
+	for _, test := range []struct {
+		from, to      PeriodState
+		actor, reason string
+	}{
+		{PeriodOpen, PeriodOpen, "actor", "reason"},
+		{PeriodSoftClosed, PeriodOpen, "", "reason"},
+		{PeriodHardClosed, PeriodOpen, "actor", ""},
+	} {
+		if err := ValidatePeriodReopen(test.from, test.to, test.actor, test.reason); err == nil {
+			t.Errorf("invalid period reopen unexpectedly passed: %+v", test)
+		}
+	}
+	if err := ValidateFiscalYearReopen(FiscalYearSoftClosed, FiscalYearOpen, "actor", "reason"); err != nil {
+		t.Fatalf("valid fiscal-year reopen: %v", err)
+	}
+	for _, test := range []struct {
+		from, to      FiscalYearState
+		actor, reason string
+	}{
+		{FiscalYearOpen, FiscalYearOpen, "actor", "reason"},
+		{FiscalYearHardClosed, FiscalYearOpen, "", "reason"},
+		{FiscalYearSoftClosed, FiscalYearOpen, "actor", ""},
+	} {
+		if err := ValidateFiscalYearReopen(test.from, test.to, test.actor, test.reason); err == nil {
+			t.Errorf("invalid fiscal-year reopen unexpectedly passed: %+v", test)
+		}
+	}
+}

@@ -70,7 +70,8 @@ func validAdjustingEntryType(t journal.AdjustingEntryType) bool {
 		journal.AdjustingEntryDeferral,
 		journal.AdjustingEntryProvisionEstimate,
 		journal.AdjustingEntryReclassification,
-		journal.AdjustingEntryAudit:
+		journal.AdjustingEntryAudit,
+		journal.AdjustingEntryAuditLegacy:
 		return true
 	default:
 		return false

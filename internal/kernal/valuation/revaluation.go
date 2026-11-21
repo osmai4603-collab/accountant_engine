@@ -170,8 +170,13 @@ type FXJournalAccounts struct {
 	UnrealizedLossID apiTypes.AccountID
 }
 
-// GenerateRevaluationEntry generates a strictly balanced double-entry for IAS 21 FX adjustments.
+// GenerateRevaluationEntry generates a strictly balanced double-entry for IAS 21 FX adjustments using current time.
 func GenerateRevaluationEntry(result FXResult, accounts FXJournalAccounts, date time.Time) (journal.JournalEntry, error) {
+	return GenerateRevaluationEntryAt(result, accounts, date, time.Now().UTC())
+}
+
+// GenerateRevaluationEntryAt generates a strictly balanced double-entry for IAS 21 FX adjustments with explicit timestamp.
+func GenerateRevaluationEntryAt(result FXResult, accounts FXJournalAccounts, date, now time.Time) (journal.JournalEntry, error) {
 	if result.Difference.Amount().IsZero() {
 		return journal.JournalEntry{}, ErrInvalidPosition
 	}
@@ -186,6 +191,7 @@ func GenerateRevaluationEntry(result FXResult, accounts FXJournalAccounts, date 
 		return journal.JournalEntry{}, err
 	}
 
+	now = now.UTC()
 	entry := journal.JournalEntry{
 		ID:                  apiTypes.NewJournalEntryID(),
 		CompanyID:           accounts.CompanyID,
@@ -200,8 +206,8 @@ func GenerateRevaluationEntry(result FXResult, accounts FXJournalAccounts, date 
 		TransactionCurrency: result.Difference.Currency(),
 		ExchangeRate:        decimal.NewFromInt(1),
 		CreatedBy:           "system-valuation",
-		CreatedAt:           time.Now().UTC(),
-		UpdatedAt:           time.Now().UTC(),
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 
 	var positionLine, pnlLine journal.EntryLine

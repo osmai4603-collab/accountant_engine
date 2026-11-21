@@ -193,14 +193,20 @@ func ValidateEntryClassificationMetadata(entry journal.JournalEntry) error {
 			return ErrAdjustingEntryMetadataRequired
 		}
 		switch entry.AdjustingEntryType {
-		case journal.AdjustingEntryAccrual, journal.AdjustingEntryDeferral, journal.AdjustingEntryProvisionEstimate, journal.AdjustingEntryReclassification, journal.AdjustingEntryAudit:
+		case journal.AdjustingEntryAccrual,
+			journal.AdjustingEntryDeferral,
+			journal.AdjustingEntryProvisionEstimate,
+			journal.AdjustingEntryReclassification,
+			journal.AdjustingEntryAudit,
+			journal.AdjustingEntryAuditLegacy:
 		default:
 			return ErrInvalidAdjustingEntryMetadata
 		}
-		if entry.AdjustingEntryType == journal.AdjustingEntryAudit && entry.TargetPeriodNumber != 14 {
+		isAudit := entry.AdjustingEntryType == journal.AdjustingEntryAudit || entry.AdjustingEntryType == journal.AdjustingEntryAuditLegacy
+		if isAudit && entry.TargetPeriodNumber != 14 {
 			return ErrInvalidAdjustingEntryPeriod
 		}
-		if entry.TargetPeriodNumber == 14 && entry.AdjustingEntryType != journal.AdjustingEntryAudit {
+		if entry.TargetPeriodNumber == 14 && !isAudit {
 			return ErrInvalidAdjustingEntryPeriod
 		}
 	} else if entry.AdjustingEntryType != "" || entry.AdjustmentReason != "" {
@@ -249,7 +255,7 @@ func EnsureImmutable(status journal.EntryStatus) error {
 	return nil
 }
 
-// Helper to create a new JournalEntry with defaults
+// Helper to create a new JournalEntry with defaults using system time
 func NewJournalEntry(
 	companyID apiTypes.CompanyID,
 	journalID apiTypes.JournalID,
@@ -257,12 +263,25 @@ func NewJournalEntry(
 	createdBy string,
 	lines []journal.EntryLine,
 ) (journal.JournalEntry, error) {
+	return NewJournalEntryAt(companyID, journalID, effectiveDate, createdBy, lines, time.Now().UTC())
+}
+
+// NewJournalEntryAt creates a new JournalEntry with defaults using an explicit timestamp.
+func NewJournalEntryAt(
+	companyID apiTypes.CompanyID,
+	journalID apiTypes.JournalID,
+	effectiveDate time.Time,
+	createdBy string,
+	lines []journal.EntryLine,
+	now time.Time,
+) (journal.JournalEntry, error) {
 	if journalID == (apiTypes.JournalID{}) {
 		return journal.JournalEntry{}, ErrMissingJournalID
 	}
 	if effectiveDate.IsZero() {
 		return journal.JournalEntry{}, ErrZeroEntryDate
 	}
+	now = now.UTC()
 	entry := journal.JournalEntry{
 		ID:             apiTypes.NewJournalEntryID(),
 		CompanyID:      companyID,
@@ -272,8 +291,8 @@ func NewJournalEntry(
 		Status:         journal.EntryDraft,
 		Classification: journal.EntryClassRegular,
 		CreatedBy:      createdBy,
-		CreatedAt:      time.Now().UTC(),
-		UpdatedAt:      time.Now().UTC(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 		Lines:          lines,
 	}
 	for i := range entry.Lines {

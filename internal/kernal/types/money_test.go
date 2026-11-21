@@ -54,10 +54,20 @@ func TestCurrencyMismatch(t *testing.T) {
 }
 
 func TestInvalidAmounts(t *testing.T) {
-	for _, value := range []string{"NaN", "Infinity", "-Infinity", "abc"} {
+	for _, value := range []string{"NaN", "Infinity", "-Infinity", "abc", "1e-100000", "1e999999", "1e-50", "1e50"} {
 		if _, err := NewMoneyFromString(value, "SAR"); err == nil {
 			t.Errorf("expected %q to be rejected", value)
 		}
+	}
+}
+
+func TestMoneyExactString(t *testing.T) {
+	m := mustMoney(t, "1.234567890123", "SAR")
+	if m.String() != "1.2346 SAR" {
+		t.Fatalf("String() = %q, want %q", m.String(), "1.2346 SAR")
+	}
+	if m.ExactString() != "1.234567890123 SAR" {
+		t.Fatalf("ExactString() = %q, want %q", m.ExactString(), "1.234567890123 SAR")
 	}
 }
 

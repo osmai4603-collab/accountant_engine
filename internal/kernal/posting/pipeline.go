@@ -18,6 +18,7 @@ var (
 	ErrInactiveFinancialDimension = errors.New("financial dimension is inactive")
 	ErrPolicyEngineRequired       = errors.New("posting policy engine is required")
 	ErrRoundingPolicyRequired     = errors.New("rounding differences are not allowed by currency policy")
+	ErrIdempotencyKeyRequired     = errors.New("idempotency key is required")
 )
 
 type PostOptions struct {
@@ -42,6 +43,16 @@ type PostingReversalExecutor func(
 
 type PipelineOption func(*PostingPipeline)
 
+type Clock interface {
+	Now() time.Time
+}
+
+type systemClock struct{}
+
+func (systemClock) Now() time.Time {
+	return time.Now().UTC()
+}
+
 func WithPolicyEngine(engine *policy.PolicyEngine) PipelineOption {
 	return func(p *PostingPipeline) {
 		p.policyEngine = engine
@@ -54,15 +65,24 @@ func WithReversalExecutor(execute PostingReversalExecutor) PipelineOption {
 	}
 }
 
+func WithClock(clock Clock) PipelineOption {
+	return func(p *PostingPipeline) {
+		if clock != nil {
+			p.clock = clock
+		}
+	}
+}
+
 type PostingPipeline struct {
 	reader          masterdata.Reader
 	execute         PostingExecutor
 	executeReversal PostingReversalExecutor
 	policyEngine    *policy.PolicyEngine
+	clock           Clock
 }
 
 func NewPostingPipeline(reader masterdata.Reader, execute PostingExecutor, opts ...PipelineOption) *PostingPipeline {
-	p := &PostingPipeline{reader: reader, execute: execute}
+	p := &PostingPipeline{reader: reader, execute: execute, clock: systemClock{}}
 	for _, opt := range opts {
 		opt(p)
 	}
@@ -86,6 +106,9 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	if strings.TrimSpace(opts.ActorID) == "" {
 		return journal.JournalEntry{}, ErrPosterIDRequired
 	}
+	if strings.TrimSpace(opts.IdempotencyKey) == "" {
+		return journal.JournalEntry{}, ErrIdempotencyKeyRequired
+	}
 	if err := EnsureImmutable(entry.Status); err != nil {
 		return journal.JournalEntry{}, err
 	}
@@ -93,6 +116,9 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 		return journal.JournalEntry{}, ErrZeroEntryDate
 	}
 	entry = entry.Clone()
+	if entry.AdjustingEntryType == journal.AdjustingEntryAuditLegacy {
+		entry.AdjustingEntryType = journal.AdjustingEntryAudit
+	}
 	company, err := masterdata.ValidateCompanyScope(ctx, p.reader, entry.CompanyID)
 	if err != nil {
 		return journal.JournalEntry{}, err
@@ -220,10 +246,14 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	if err := policy.CheckAccountEligibility(ctx, &entry, accounts); err != nil {
 		return journal.JournalEntry{}, err
 	}
-	if err := p.policyEngine.ValidatePostingPolicy(ctx, postingPolicy, &entry, accountTypes, time.Now().UTC()); err != nil {
+	clock := p.clock
+	if clock == nil {
+		clock = systemClock{}
+	}
+	now := clock.Now().UTC()
+	if err := p.policyEngine.ValidatePostingPolicy(ctx, postingPolicy, &entry, accountTypes, now); err != nil {
 		return journal.JournalEntry{}, err
 	}
-	now := time.Now().UTC()
 	entry.PostingDate = now
 	entry.PostedBy = opts.ActorID
 	entry.PostedAt = &now

@@ -115,12 +115,17 @@ func NewAuditChain(repo AuditLogRepository) *AuditChain {
 
 // Append appends an audit log into the cryptographic chain, ensuring link to previous hash.
 func (c *AuditChain) Append(ctx context.Context, log AuditLog) (AuditLog, error) {
+	return c.AppendAt(ctx, log, time.Now().UTC())
+}
+
+// AppendAt appends an audit log into the cryptographic chain using an explicit timestamp.
+func (c *AuditChain) AppendAt(ctx context.Context, log AuditLog, now time.Time) (AuditLog, error) {
 	repository, ok := c.repo.(AtomicAuditLogRepository)
 	if !ok {
 		return AuditLog{}, ErrAtomicAuditRepositoryRequired
 	}
 	if log.Timestamp.IsZero() {
-		log.Timestamp = time.Now().UTC()
+		log.Timestamp = now.UTC()
 	} else {
 		log.Timestamp = log.Timestamp.UTC()
 	}

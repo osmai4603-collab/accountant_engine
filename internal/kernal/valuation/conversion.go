@@ -34,6 +34,9 @@ func ConvertForDate(
 	if !rate.IsPositive() {
 		return types.Money{}, decimal.Zero, ErrInvalidRate
 	}
+	if from == to && !rate.Equal(decimal.NewFromInt(1)) {
+		return types.Money{}, decimal.Zero, ErrInvalidRate
+	}
 	converted, err := types.NewMoney(amount.Amount().Mul(rate), to)
 	if err != nil {
 		return types.Money{}, decimal.Zero, err

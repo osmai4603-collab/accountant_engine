@@ -10,7 +10,8 @@ const (
 	AccountTypeEquity    AccountType = "equity"
 	AccountTypeIncome    AccountType = "income"
 	AccountTypeExpense   AccountType = "expense"
-	AccountTypeRevenue   AccountType = "income"
+	// AccountTypeRevenue is a documented alias for AccountTypeIncome ("income") retained for compatibility.
+	AccountTypeRevenue AccountType = "income"
 )
 
 type NormalBalance string
