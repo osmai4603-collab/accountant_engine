@@ -81,11 +81,16 @@ func (j Journal) AllowsAccount(accountID types.AccountID) bool {
 }
 
 func (j Journal) AllowsCurrencyWithPolicy(currency string, allowedCurrencies []string) bool {
+	currencyInfo, ok := types.LookupCurrency(currency)
+	if !ok || currencyInfo.Code == types.XXX {
+		return false
+	}
 	if len(allowedCurrencies) == 0 {
 		return true
 	}
 	for _, allowed := range allowedCurrencies {
-		if strings.EqualFold(strings.TrimSpace(allowed), strings.TrimSpace(currency)) {
+		allowedInfo, exists := types.LookupCurrency(allowed)
+		if exists && allowedInfo.Code != types.XXX && allowedInfo.Code == currencyInfo.Code {
 			return true
 		}
 	}
@@ -109,19 +114,11 @@ func (j JournalType) Validate() error {
 		strings.TrimSpace(j.Code) == "" || strings.TrimSpace(j.Name) == "" {
 		return ErrInvalidJournal
 	}
-	return nil
+	return (Journal{ID: j.ID, CompanyID: j.CompanyID, Code: j.Code, Name: j.Name}).ValidateWithPolicy(j.AllowedCurrencies, j.AllowedAccountIDs)
 }
 
 func (j JournalType) AllowsCurrency(currency string) bool {
-	if len(j.AllowedCurrencies) == 0 {
-		return true
-	}
-	for _, allowed := range j.AllowedCurrencies {
-		if strings.EqualFold(strings.TrimSpace(allowed), strings.TrimSpace(currency)) {
-			return true
-		}
-	}
-	return false
+	return (Journal{AllowedCurrencies: j.AllowedCurrencies}).AllowsCurrency(currency)
 }
 
 func (j JournalType) AllowsAccount(accountID types.AccountID) bool {

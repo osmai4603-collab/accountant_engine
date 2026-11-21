@@ -160,8 +160,11 @@ func TestPostEntryNormalizesBothCurrenciesAndSettlesRounding(t *testing.T) {
 	}
 	reader := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
 	executed := false
-	pipeline := NewPostingPipeline(reader, func(_ context.Context, posted journal.JournalEntry, _ PostOptions) (journal.JournalEntry, error) {
+	pipeline := NewPostingPipeline(reader, func(_ context.Context, posted journal.JournalEntry, opts PostOptions) (journal.JournalEntry, error) {
 		executed = true
+		if opts.IdempotencyKey != "test-idempotency-key" {
+			t.Errorf("executor idempotency key = %q, want normalized key", opts.IdempotencyKey)
+		}
 		if len(posted.Lines) != 4 {
 			t.Fatalf("posted line count = %d, want 4 including rounding settlement", len(posted.Lines))
 		}
@@ -183,7 +186,7 @@ func TestPostEntryNormalizesBothCurrenciesAndSettlesRounding(t *testing.T) {
 		return posted, nil
 	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD", roundingID)))
 
-	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); err != nil {
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "  test-idempotency-key  "}); err != nil {
 		t.Fatalf("PostEntry rejected a normalizable entry: %v", err)
 	}
 	if !executed {
@@ -192,6 +195,42 @@ func TestPostEntryNormalizesBothCurrenciesAndSettlesRounding(t *testing.T) {
 	if entry.Lines[0].TransactionAmount.Amount().String() != "10.005" ||
 		entry.Lines[0].FunctionalDebit.Amount().String() != "10.005" {
 		t.Fatal("PostEntry mutated the caller's draft while normalizing its copy")
+	}
+}
+
+func TestPostEntryRejectsUninitializedPipelineDependencies(t *testing.T) {
+	entry := journal.JournalEntry{}
+	ctx := context.Background()
+
+	if _, err := (*PostingPipeline)(nil).PostEntry(ctx, entry, PostOptions{}); !errors.Is(err, ErrPostingPipelineRequired) {
+		t.Fatalf("nil pipeline error = %v, want ErrPostingPipelineRequired", err)
+	}
+	if _, err := NewPostingPipeline(nil, nil).PostEntry(ctx, entry, PostOptions{}); !errors.Is(err, ErrPostingReaderRequired) {
+		t.Fatalf("nil reader error = %v, want ErrPostingReaderRequired", err)
+	}
+	if _, err := NewPostingPipeline(&mockMasterReaderForPosting{}, nil).PostEntry(ctx, entry, PostOptions{}); !errors.Is(err, ErrPolicyEngineRequired) {
+		t.Fatalf("nil policy engine error = %v, want ErrPolicyEngineRequired", err)
+	}
+	clockless := &PostingPipeline{
+		reader:       &mockMasterReaderForPosting{},
+		policyEngine: policy.NewPolicyEngine(),
+		execute: func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+			return journal.JournalEntry{}, nil
+		},
+	}
+	if _, err := clockless.PostEntry(ctx, entry, PostOptions{}); !errors.Is(err, ErrPostingClockRequired) {
+		t.Fatalf("nil clock error = %v, want ErrPostingClockRequired", err)
+	}
+
+	pipeline := NewPostingPipeline(
+		&mockMasterReaderForPosting{},
+		func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+			return journal.JournalEntry{}, nil
+		},
+		WithPolicyEngine(policy.NewPolicyEngine()),
+	)
+	if _, err := pipeline.PostEntry(nil, entry, PostOptions{}); !errors.Is(err, ErrPostingContextRequired) {
+		t.Fatalf("nil context error = %v, want ErrPostingContextRequired", err)
 	}
 }
 
@@ -364,7 +403,19 @@ func newPostingTestEntry(t *testing.T, createdBy string) journal.JournalEntry {
 func TestPostEntryRejectsIncompleteClassificationMetadataBeforeRepositoryAccess(t *testing.T) {
 	entry := newPostingTestEntry(t, "creator")
 	entry.Classification = ""
-	pipeline := NewPostingPipeline(nil, nil)
+	reader := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
+	pipeline := NewPostingPipeline(
+		reader,
+		func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+			t.Fatal("executor must not be called for invalid classification metadata")
+			return journal.JournalEntry{}, nil
+		},
+		WithPolicyEngine(testPostingPolicyEngine(t, entry.CompanyID, "USD")),
+		WithReversalExecutor(func(context.Context, types.JournalEntryID, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+			t.Fatal("reversal executor must not be called for invalid classification metadata")
+			return journal.JournalEntry{}, nil
+		}),
+	)
 	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "test-idempotency-key"}); !errors.Is(err, ErrInvalidEntry) {
 		t.Fatalf("missing classification error = %v, want invalid entry", err)
 	}
@@ -1024,6 +1075,33 @@ func TestPostingDimensionIdentityMismatchBranches(t *testing.T) {
 }
 
 func TestPipelineHelperBranches(t *testing.T) {
+	// Nil receiver and missing dependencies checks
+	if _, err := (*PostingPipeline)(nil).PostEntry(context.Background(), journal.JournalEntry{}, PostOptions{}); !errors.Is(err, ErrPostingPipelineRequired) {
+		t.Fatalf("nil pipeline error = %v, want ErrPostingPipelineRequired", err)
+	}
+	if _, err := (&PostingPipeline{}).PostEntry(nil, journal.JournalEntry{}, PostOptions{}); !errors.Is(err, ErrPostingContextRequired) {
+		t.Fatalf("nil context error = %v, want ErrPostingContextRequired", err)
+	}
+	if _, err := (&PostingPipeline{}).PostEntry(context.Background(), journal.JournalEntry{}, PostOptions{}); !errors.Is(err, ErrPostingReaderRequired) {
+		t.Fatalf("nil reader error = %v, want ErrPostingReaderRequired", err)
+	}
+	dummyReader := &mockMasterReaderForPosting{}
+	if _, err := (&PostingPipeline{reader: dummyReader}).PostEntry(context.Background(), journal.JournalEntry{}, PostOptions{}); !errors.Is(err, ErrPolicyEngineRequired) {
+		t.Fatalf("nil policyEngine error = %v, want ErrPolicyEngineRequired", err)
+	}
+	pe := policy.NewPolicyEngine()
+	if _, err := (&PostingPipeline{reader: dummyReader, policyEngine: pe}).PostEntry(context.Background(), journal.JournalEntry{}, PostOptions{}); !errors.Is(err, ErrPostingClockRequired) {
+		t.Fatalf("nil clock error = %v, want ErrPostingClockRequired", err)
+	}
+	clk := fixedPostingClock{now: time.Now()}
+	if _, err := (&PostingPipeline{reader: dummyReader, policyEngine: pe, clock: clk}).PostEntry(context.Background(), journal.JournalEntry{}, PostOptions{}); !errors.Is(err, ErrPostingExecutorRequired) {
+		t.Fatalf("nil execute error = %v, want ErrPostingExecutorRequired", err)
+	}
+	origID := types.NewJournalEntryID()
+	if _, err := (&PostingPipeline{reader: dummyReader, policyEngine: pe, clock: clk}).PostEntry(context.Background(), journal.JournalEntry{ReversalOfID: &origID}, PostOptions{}); !errors.Is(err, ErrReversalExecutorRequired) {
+		t.Fatalf("nil executeReversal error = %v, want ErrReversalExecutorRequired", err)
+	}
+
 	currencyPolicy := policy.CurrencyPolicy{
 		AutoSettleRoundingDifferences: false,
 		RoundingDifferenceAccountID:   types.NewAccountID(),

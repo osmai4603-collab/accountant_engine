@@ -14,6 +14,10 @@ import (
 const GenesisHash = "0000000000000000000000000000000000000000000000000000000000000000"
 
 var (
+	ErrAuditChainRequired                = errors.New("audit chain is required")
+	ErrAuditRepositoryRequired           = errors.New("audit repository is required")
+	ErrAuditContextRequired              = errors.New("audit context is required")
+	ErrInvalidAuditCompany               = errors.New("audit company id is required")
 	ErrAuditChainBroken                  = errors.New("audit chain integrity violation: tampering or broken link detected")
 	ErrAtomicAuditRepositoryRequired     = errors.New("atomic audit repository is required")
 	ErrAuditSnapshotRepositoryRequired   = errors.New("consistent audit snapshot repository is required")
@@ -120,6 +124,18 @@ func (c *AuditChain) Append(ctx context.Context, log AuditLog) (AuditLog, error)
 
 // AppendAt appends an audit log into the cryptographic chain using an explicit timestamp.
 func (c *AuditChain) AppendAt(ctx context.Context, log AuditLog, now time.Time) (AuditLog, error) {
+	if c == nil {
+		return AuditLog{}, ErrAuditChainRequired
+	}
+	if ctx == nil {
+		return AuditLog{}, ErrAuditContextRequired
+	}
+	if log.CompanyID == (apiTypes.CompanyID{}) {
+		return AuditLog{}, ErrInvalidAuditCompany
+	}
+	if c.repo == nil {
+		return AuditLog{}, ErrAuditRepositoryRequired
+	}
 	repository, ok := c.repo.(AtomicAuditLogRepository)
 	if !ok {
 		return AuditLog{}, ErrAtomicAuditRepositoryRequired
@@ -135,6 +151,18 @@ func (c *AuditChain) AppendAt(ctx context.Context, log AuditLog, now time.Time) 
 // VerifyAuditIntegrity verifies that all audit records for a company form an unbroken hash chain
 // and that none of the payloads or metadata have been modified.
 func (c *AuditChain) VerifyAuditIntegrity(ctx context.Context, companyID apiTypes.CompanyID) (bool, error) {
+	if c == nil {
+		return false, ErrAuditChainRequired
+	}
+	if ctx == nil {
+		return false, ErrAuditContextRequired
+	}
+	if companyID == (apiTypes.CompanyID{}) {
+		return false, ErrInvalidAuditCompany
+	}
+	if c.repo == nil {
+		return false, ErrAuditRepositoryRequired
+	}
 	var expectedPrevHash = GenesisHash
 	var expectedSequence uint64
 	var logIndex int64
@@ -177,6 +205,18 @@ func (c *AuditChain) VerifyAuditIntegrityWithCheckpoint(
 	ctx context.Context,
 	companyID apiTypes.CompanyID,
 ) (bool, error) {
+	if c == nil {
+		return false, ErrAuditChainRequired
+	}
+	if ctx == nil {
+		return false, ErrAuditContextRequired
+	}
+	if companyID == (apiTypes.CompanyID{}) {
+		return false, ErrInvalidAuditCompany
+	}
+	if c.repo == nil {
+		return false, ErrAuditRepositoryRequired
+	}
 	repository, ok := c.repo.(AuditVerificationSnapshotRepository)
 	if !ok {
 		return false, ErrAuditSnapshotRepositoryRequired

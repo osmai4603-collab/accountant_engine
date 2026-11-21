@@ -16,7 +16,12 @@ import (
 var (
 	ErrDimensionReaderRequired    = errors.New("active financial dimension reader is required")
 	ErrInactiveFinancialDimension = errors.New("financial dimension is inactive")
+	ErrPostingPipelineRequired    = errors.New("posting pipeline is required")
+	ErrPostingContextRequired     = errors.New("posting context is required")
+	ErrPostingReaderRequired      = errors.New("posting master data reader is required")
 	ErrPolicyEngineRequired       = errors.New("posting policy engine is required")
+	ErrPostingClockRequired       = errors.New("posting clock is required")
+	ErrPostingExecutorRequired    = errors.New("posting executor is required")
 	ErrRoundingPolicyRequired     = errors.New("rounding differences are not allowed by currency policy")
 	ErrIdempotencyKeyRequired     = errors.New("idempotency key is required")
 )
@@ -91,6 +96,27 @@ func NewPostingPipeline(reader masterdata.Reader, execute PostingExecutor, opts 
 
 // PostEntry performs pure kernel validation and delegates persistence to the host.
 func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEntry, opts PostOptions) (journal.JournalEntry, error) {
+	if p == nil {
+		return journal.JournalEntry{}, ErrPostingPipelineRequired
+	}
+	if ctx == nil {
+		return journal.JournalEntry{}, ErrPostingContextRequired
+	}
+	if p.reader == nil {
+		return journal.JournalEntry{}, ErrPostingReaderRequired
+	}
+	if p.policyEngine == nil {
+		return journal.JournalEntry{}, ErrPolicyEngineRequired
+	}
+	if p.clock == nil {
+		return journal.JournalEntry{}, ErrPostingClockRequired
+	}
+	if entry.ReversalOfID == nil && p.execute == nil {
+		return journal.JournalEntry{}, ErrPostingExecutorRequired
+	}
+	if entry.ReversalOfID != nil && p.executeReversal == nil {
+		return journal.JournalEntry{}, ErrReversalExecutorRequired
+	}
 	if err := ValidateEntryIdentity(entry); err != nil {
 		return journal.JournalEntry{}, err
 	}
@@ -109,6 +135,7 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	if strings.TrimSpace(opts.IdempotencyKey) == "" {
 		return journal.JournalEntry{}, ErrIdempotencyKeyRequired
 	}
+	opts.IdempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
 	if err := EnsureImmutable(entry.Status); err != nil {
 		return journal.JournalEntry{}, err
 	}
@@ -122,9 +149,6 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	company, err := masterdata.ValidateCompanyScope(ctx, p.reader, entry.CompanyID)
 	if err != nil {
 		return journal.JournalEntry{}, err
-	}
-	if p.policyEngine == nil {
-		return journal.JournalEntry{}, ErrPolicyEngineRequired
 	}
 	if strings.TrimSpace(company.FunctionalCurrency) == "" {
 		return journal.JournalEntry{}, ErrMissingFunctionalCurrency
@@ -246,11 +270,7 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	if err := policy.CheckAccountEligibility(ctx, &entry, accounts); err != nil {
 		return journal.JournalEntry{}, err
 	}
-	clock := p.clock
-	if clock == nil {
-		clock = systemClock{}
-	}
-	now := clock.Now().UTC()
+	now := p.clock.Now().UTC()
 	if err := p.policyEngine.ValidatePostingPolicy(ctx, postingPolicy, &entry, accountTypes, now); err != nil {
 		return journal.JournalEntry{}, err
 	}
@@ -260,13 +280,7 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	entry.Status = journal.EntryPosted
 
 	if entry.ReversalOfID != nil {
-		if p.executeReversal == nil {
-			return journal.JournalEntry{}, ErrReversalExecutorRequired
-		}
 		return p.executeReversal(ctx, *entry.ReversalOfID, entry, opts)
-	}
-	if p.execute == nil {
-		return journal.JournalEntry{}, fmt.Errorf("posting executor is required")
 	}
 	return p.execute(ctx, entry, opts)
 }

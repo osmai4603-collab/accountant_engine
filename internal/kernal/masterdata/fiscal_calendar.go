@@ -113,12 +113,14 @@ func addFiscalMonths(start time.Time, months int) time.Time {
 // correctly ordered, and fully contained within the fiscal year boundaries.
 func ValidateFiscalYear(year FiscalYear, periods []FiscalPeriod) error {
 	if year.ID == (types.FiscalYearID{}) || year.CompanyID == (types.CompanyID{}) ||
-		year.StartDate.IsZero() || year.EndDate.IsZero() || year.EndDate.Before(year.StartDate) {
+		year.StartDate.IsZero() || year.EndDate.IsZero() || year.EndDate.Before(year.StartDate) ||
+		!validFiscalYearState(year.State) {
 		return ErrInvalidFiscalPeriod
 	}
 	if len(periods) != 12 && len(periods) != 14 {
 		return ErrInvalidFiscalPeriod
 	}
+	seenIDs := make(map[types.FiscalPeriodID]struct{}, len(periods))
 	if !periods[0].StartDate.UTC().Equal(year.StartDate.UTC()) {
 		return ErrInvalidFiscalPeriod
 	}
@@ -127,10 +129,13 @@ func ValidateFiscalYear(year FiscalYear, periods []FiscalPeriod) error {
 	}
 	for i := 0; i < 12; i++ {
 		p := periods[i]
-		if p.ID == (types.FiscalPeriodID{}) || p.CompanyID != year.CompanyID || p.FiscalYearID != year.ID {
+		if !validFiscalPeriodIdentity(p, year, seenIDs) {
 			return ErrInvalidFiscalPeriod
 		}
 		if p.Number != i+1 || p.Type != FiscalPeriodTypeNormal {
+			return ErrInvalidFiscalPeriod
+		}
+		if !validPeriodState(p.State) {
 			return ErrInvalidFiscalPeriod
 		}
 		if p.StartDate.IsZero() || p.EndDate.IsZero() || p.EndDate.Before(p.StartDate) {
@@ -149,18 +154,37 @@ func ValidateFiscalYear(year FiscalYear, periods []FiscalPeriod) error {
 	if len(periods) == 14 {
 		p13 := periods[12]
 		p14 := periods[13]
-		if p13.CompanyID != year.CompanyID || p13.FiscalYearID != year.ID || p13.Number != 13 ||
+		if !validFiscalPeriodIdentity(p13, year, seenIDs) ||
+			p13.Number != 13 ||
 			p13.Type != FiscalPeriodTypeYearEndAdjustment ||
+			!validPeriodState(p13.State) ||
 			!p13.StartDate.UTC().Equal(year.EndDate.UTC()) || !p13.EndDate.UTC().Equal(year.EndDate.UTC()) {
 			return ErrInvalidFiscalPeriod
 		}
-		if p14.CompanyID != year.CompanyID || p14.FiscalYearID != year.ID || p14.Number != 14 ||
+		if !validFiscalPeriodIdentity(p14, year, seenIDs) ||
+			p14.Number != 14 ||
 			p14.Type != FiscalPeriodTypeAuditAdjustment ||
+			!validPeriodState(p14.State) ||
 			!p14.StartDate.UTC().Equal(year.EndDate.UTC()) || !p14.EndDate.UTC().Equal(year.EndDate.UTC()) {
 			return ErrInvalidFiscalPeriod
 		}
 	}
 	return nil
+}
+
+func validFiscalPeriodIdentity(
+	period FiscalPeriod,
+	year FiscalYear,
+	seenIDs map[types.FiscalPeriodID]struct{},
+) bool {
+	if period.ID == (types.FiscalPeriodID{}) || period.CompanyID != year.CompanyID || period.FiscalYearID != year.ID {
+		return false
+	}
+	if _, exists := seenIDs[period.ID]; exists {
+		return false
+	}
+	seenIDs[period.ID] = struct{}{}
+	return true
 }
 
 // ValidatePeriodTransition verifies state transitions for fiscal periods.

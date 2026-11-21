@@ -51,11 +51,16 @@ func (p CurrencyPolicy) Validate() error {
 	if p.AutoSettleRoundingDifferences && p.RoundingDifferenceAccountID == (apiTypes.AccountID{}) {
 		return ErrInvalidPolicy
 	}
+	seenCurrencies := make(map[apiTypes.CurrencyCode]struct{}, len(p.AllowedCurrencies))
 	for _, code := range p.AllowedCurrencies {
-		currency, ok := apiTypes.LookupCurrency(strings.ToUpper(strings.TrimSpace(code)))
+		currency, ok := apiTypes.LookupCurrency(code)
 		if !ok || currency.Code == apiTypes.XXX {
 			return ErrInvalidPolicy
 		}
+		if _, exists := seenCurrencies[currency.Code]; exists {
+			return ErrInvalidPolicy
+		}
+		seenCurrencies[currency.Code] = struct{}{}
 	}
 	return nil
 }
@@ -73,6 +78,10 @@ func (p CurrencyPolicy) Round(amount apiTypes.Money) (apiTypes.Money, error) {
 }
 
 func (p CurrencyPolicy) AllowsCurrency(currency string) bool {
+	currencyInfo, ok := apiTypes.LookupCurrency(currency)
+	if !ok || currencyInfo.Code == apiTypes.XXX {
+		return false
+	}
 	currency = strings.ToUpper(strings.TrimSpace(currency))
 	if currency == strings.ToUpper(strings.TrimSpace(p.FunctionalCurrency)) {
 		return true
@@ -89,6 +98,7 @@ func (p CurrencyPolicy) AllowsCurrency(currency string) bool {
 }
 
 var (
+	ErrPolicyEngineRequired     = errors.New("policy engine is required")
 	ErrPolicyNotFound           = errors.New("accounting policy not found")
 	ErrInvalidPolicy            = errors.New("invalid accounting policy")
 	ErrAccountTypeNotFound      = errors.New("posting account type not found")
@@ -131,6 +141,9 @@ func NewPolicyEngine() *PolicyEngine {
 }
 
 func (e *PolicyEngine) SetPolicy(policy PostingPolicy) error {
+	if e == nil {
+		return ErrPolicyEngineRequired
+	}
 	if err := policy.Validate(); err != nil {
 		return err
 	}
@@ -146,6 +159,9 @@ func (e *PolicyEngine) SetPolicy(policy PostingPolicy) error {
 }
 
 func (e *PolicyEngine) SetCurrencyPolicy(policy CurrencyPolicy) error {
+	if e == nil {
+		return ErrPolicyEngineRequired
+	}
 	if err := policy.Validate(); err != nil {
 		return err
 	}
@@ -167,6 +183,9 @@ func (e *PolicyEngine) SetCurrencyPolicy(policy CurrencyPolicy) error {
 }
 
 func (e *PolicyEngine) PostingPolicyFor(companyID apiTypes.CompanyID, asOf time.Time) (PostingPolicy, error) {
+	if e == nil {
+		return PostingPolicy{}, ErrPolicyEngineRequired
+	}
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	var selected PostingPolicy
@@ -184,6 +203,9 @@ func (e *PolicyEngine) PostingPolicyFor(companyID apiTypes.CompanyID, asOf time.
 }
 
 func (e *PolicyEngine) CurrencyPolicyFor(companyID apiTypes.CompanyID, asOf time.Time) (CurrencyPolicy, error) {
+	if e == nil {
+		return CurrencyPolicy{}, ErrPolicyEngineRequired
+	}
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	var selected CurrencyPolicy

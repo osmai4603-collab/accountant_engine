@@ -9,17 +9,15 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Precision contract (Task 1.3):
+// Precision contract:
 //
-//   - Internal arithmetic and FX conversions keep InternalScale (12) decimal
-//     places so intermediate results are not truncated prematurely.
-//   - Amounts that are persisted -- posted move lines and materialized
-//     account balances -- are expressed in the currency's MinorUnit
-//     (integer minor units, e.g. cents for USD/SAR, fils for KWD).
-//   - Converting an amount to minor units must never silently drop a
-//     fraction. Callers either round explicitly (Rounded / RoundForPosting)
-//     or settle the residual returned by RoundingDifference on a dedicated
-//     rounding difference account.
+//   - FinancialScale is a display scale; it is not a currency's MinorUnit.
+//   - InternalScale is the scale used for intermediate division.
+//   - MaximumSignificantDigits counts coefficient digits after trailing zeros
+//     are removed. MaximumIntegerDigits counts decimal places left of the
+//     point. MaximumRepresentationalScale limits decimal places right of it.
+//   - Persisted posting amounts use the currency's MinorUnit. Conversion to
+//     int64 minor units can still fail for otherwise valid Money values.
 const (
 	FinancialScale               = 4
 	InternalScale                = 12
@@ -53,7 +51,8 @@ func NewMoneyFromString(value, currency string) (Money, error) {
 	if err != nil {
 		return Money{}, err
 	}
-	amount, err := decimal.NewFromString(strings.TrimSpace(value))
+	value = strings.TrimSpace(value)
+	amount, err := decimal.NewFromString(value)
 	if err != nil {
 		return Money{}, ErrInvalidAmount
 	}
@@ -73,6 +72,9 @@ func newMoney(amount decimal.Decimal, currency string) (Money, error) {
 		return Money{}, ErrAmountExceedsPrecision
 	}
 	if precisionDigits(amount) > MaximumSignificantDigits {
+		return Money{}, ErrAmountExceedsPrecision
+	}
+	if integerDigits(amount) > MaximumIntegerDigits {
 		return Money{}, ErrAmountExceedsPrecision
 	}
 	return Money{amount: amount, currency: currency}, nil
@@ -101,6 +103,18 @@ func precisionDigits(value decimal.Decimal) int {
 		return 1
 	}
 	return len(digits)
+}
+
+func integerDigits(value decimal.Decimal) int {
+	if value.IsZero() {
+		return 0
+	}
+	digits := len(strings.TrimLeft(value.Coefficient().String(), "-"))
+	count := digits + int(value.Exponent())
+	if count < 0 {
+		return 0
+	}
+	return count
 }
 
 func (m Money) Amount() decimal.Decimal {
@@ -195,10 +209,19 @@ func (m Money) Divide(scalar decimal.Decimal) (Money, error) {
 	return newMoney(m.amount.DivRound(scalar, InternalScale), m.currency)
 }
 
-// RoundForPosting rounds the amount to the currency's minor unit (banker's
-// rounding), the representation used by posted move lines and account
-// balances. Internal computations keep InternalScale precision until this
-// boundary.
+// RoundForPostingChecked rounds to the currency's minor unit and reports
+// invalid or unrepresentable Money instead of substituting a fallback scale.
+func (m Money) RoundForPostingChecked() (Money, error) {
+	if _, err := newMoney(m.amount, m.currency); err != nil {
+		return Money{}, err
+	}
+	return m.Rounded()
+}
+
+// RoundForPosting rounds to the currency's minor unit.
+//
+// Deprecated: use RoundForPostingChecked in new code. This compatibility
+// method retains the historical FinancialScale fallback on invalid Money.
 func (m Money) RoundForPosting() Money {
 	rounded, err := m.Rounded()
 	if err != nil {
@@ -241,6 +264,26 @@ func (m Money) ExactString() string {
 	return fmt.Sprintf("%s %s", m.amount.String(), m.currency)
 }
 
+// CurrencyMinorUnitChecked returns the registered currency minor unit.
+func CurrencyMinorUnitChecked(currency string) (int32, error) {
+	code, err := normalizeCurrency(currency)
+	if err != nil {
+		return 0, err
+	}
+	if CurrencyCode(code) == XXX {
+		return 0, ErrInvalidCurrency
+	}
+	c, ok := LookupCurrency(code)
+	if !ok {
+		return 0, ErrInvalidCurrency
+	}
+	return c.MinorUnit, nil
+}
+
+// CurrencyMinorUnit returns the registered minor unit, or FinancialScale for
+// an unknown currency to preserve the historical compatibility contract.
+//
+// Deprecated: use CurrencyMinorUnitChecked in new code.
 func CurrencyMinorUnit(currency string) int32 {
 	if c, ok := LookupCurrency(currency); ok {
 		return c.MinorUnit
@@ -252,6 +295,9 @@ func (m Money) MarshalJSON() ([]byte, error) {
 	if m.currency == "" {
 		return []byte("null"), nil
 	}
+	if _, err := newMoney(m.amount, m.currency); err != nil {
+		return nil, err
+	}
 	scale := int32(-m.amount.Exponent())
 	if scale < FinancialScale {
 		scale = FinancialScale
@@ -260,7 +306,7 @@ func (m Money) MarshalJSON() ([]byte, error) {
 		Amount   string `json:"amount"`
 		Currency string `json:"currency"`
 	}{
-		Amount:   m.amount.RoundBank(scale).StringFixed(scale),
+		Amount:   m.amount.StringFixed(scale),
 		Currency: m.currency,
 	})
 }

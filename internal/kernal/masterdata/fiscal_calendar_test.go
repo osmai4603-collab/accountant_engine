@@ -382,14 +382,13 @@ func TestMasterDataEdgeCases(t *testing.T) {
 		t.Fatalf("expected ErrCompanyNotFound, got %v", err)
 	}
 
-	// Tree with detached parent falling back to root
+	// A complete hierarchy snapshot cannot silently promote a child with a missing parent.
 	detachedParentID := types.NewAccountID()
 	accs := []Account{
 		{ID: types.NewAccountID(), Code: "2000", ParentID: &detachedParentID},
 	}
-	tree, err := BuildHierarchyTree(accs)
-	if err != nil || len(tree) != 1 {
-		t.Fatalf("expected fallback to root for missing parent in batch, got tree=%v, err=%v", tree, err)
+	if _, err := BuildHierarchyTree(accs); !errors.Is(err, ErrInvalidParent) {
+		t.Fatalf("missing hierarchy parent error = %v, want ErrInvalidParent", err)
 	}
 
 	// Test FiscalPeriod.Contains for normal vs adjustment periods
@@ -523,6 +522,80 @@ func TestValidateFiscalYear_RejectsInvalidStructures(t *testing.T) {
 	}
 }
 
+func TestValidateFiscalYearRejectsDuplicatePeriodIDsAndUnknownStates(t *testing.T) {
+	companyID := types.NewCompanyID()
+	year, periods := GenerateFiscalYear(companyID, time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC))
+
+	for _, test := range []struct {
+		name   string
+		mutate func(*FiscalYear, []FiscalPeriod)
+	}{
+		{
+			name: "duplicate normal period ids",
+			mutate: func(_ *FiscalYear, values []FiscalPeriod) {
+				values[1].ID = values[0].ID
+			},
+		},
+		{
+			name: "duplicate adjustment period ids",
+			mutate: func(_ *FiscalYear, values []FiscalPeriod) {
+				values[13].ID = values[12].ID
+			},
+		},
+		{
+			name: "unknown period state",
+			mutate: func(_ *FiscalYear, values []FiscalPeriod) {
+				values[13].State = "unknown"
+			},
+		},
+		{
+			name: "unknown fiscal year state",
+			mutate: func(value *FiscalYear, _ []FiscalPeriod) {
+				value.State = "unknown"
+			},
+		},
+		{
+			name: "period 0 start does not match year start",
+			mutate: func(_ *FiscalYear, values []FiscalPeriod) {
+				values[0].StartDate = values[0].StartDate.Add(time.Hour)
+			},
+		},
+		{
+			name: "period 11 end does not match year end",
+			mutate: func(_ *FiscalYear, values []FiscalPeriod) {
+				values[11].EndDate = values[11].EndDate.Add(-time.Hour)
+			},
+		},
+		{
+			name: "period start after end",
+			mutate: func(_ *FiscalYear, values []FiscalPeriod) {
+				values[0].EndDate = values[0].StartDate.Add(-time.Hour)
+			},
+		},
+		{
+			name: "period start before year start",
+			mutate: func(_ *FiscalYear, values []FiscalPeriod) {
+				values[0].StartDate = values[0].StartDate.Add(-24 * time.Hour)
+			},
+		},
+		{
+			name: "period 13 dates do not match year end",
+			mutate: func(_ *FiscalYear, values []FiscalPeriod) {
+				values[12].StartDate = values[12].StartDate.Add(-time.Hour)
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			changedYear := year
+			changedPeriods := append([]FiscalPeriod(nil), periods...)
+			test.mutate(&changedYear, changedPeriods)
+			if err := ValidateFiscalYear(changedYear, changedPeriods); !errors.Is(err, ErrInvalidFiscalPeriod) {
+				t.Fatalf("ValidateFiscalYear error = %v, want ErrInvalidFiscalPeriod", err)
+			}
+		})
+	}
+}
+
 func TestAdjustmentPeriodSoftCloseAndIdentityBranches(t *testing.T) {
 	ctx := context.Background()
 	companyID := types.NewCompanyID()
@@ -567,10 +640,31 @@ func TestAdjustmentPeriodSoftCloseAndIdentityBranches(t *testing.T) {
 	}{
 		{12, time.Date(2026, time.December, 31, 0, 0, 0, 0, time.UTC)},
 		{13, time.Time{}},
+		{15, time.Date(2026, time.December, 31, 0, 0, 0, 0, time.UTC)},
 	} {
 		if _, err := ValidateAdjustmentPeriodForPosting(ctx, reader, companyID, test.date, test.number); err == nil {
 			t.Errorf("invalid adjustment request (%d, %v) unexpectedly passed", test.number, test.date)
 		}
+	}
+
+	// Period 14 adjustment
+	adjustment14 := FiscalPeriod{
+		ID: types.NewFiscalPeriodID(), CompanyID: companyID, FiscalYearID: yearID,
+		Number: 14, State: PeriodOpen, Type: FiscalPeriodTypeAuditAdjustment,
+		StartDate: year.EndDate, EndDate: year.EndDate,
+	}
+	yearOpen := year
+	yearOpen.State = FiscalYearOpen
+	reader14 := overrideFiscalReader{
+		year: yearOpen, regular: regular,
+		adjustments: map[int]FiscalPeriod{14: adjustment14},
+	}
+	p14Got, err := ValidateAdjustmentPeriodForPosting(ctx, reader14, companyID, time.Date(2026, time.December, 31, 0, 0, 0, 0, time.UTC), 14)
+	if err != nil {
+		t.Fatalf("period 14 adjustment posting: %v", err)
+	}
+	if p14Got.ID != adjustment14.ID {
+		t.Fatalf("p14 ID = %s, want %s", p14Got.ID, adjustment14.ID)
 	}
 }
 

@@ -60,8 +60,33 @@ echo "-------------------------------------------------------------"
 network_pattern="$(import_pattern '(net/http(/[^"]*)?|google\.golang\.org/grpc(/[^"]*)?|google\.golang\.org/protobuf(/[^"]*)?)')"
 scan_imports "R1: internal/* free of net/http, grpc and protobuf" "$network_pattern" internal/
 
-# Rule 2: public contracts may adapt the kernel, but not bypass it.
-report_pass "R2: public contracts are allowed to depend on internal/kernal/*"
+# Rule 2: the sanctioned public bridge is pkg/api/v1 only (ADR P7-01).
+# R2a: pkg/spi/* must never import internal/* directly.
+internal_any_pattern="$(import_pattern '([^"]*/)?internal(/[^"]*)?')"
+scan_imports "R2a: pkg/spi/* free of internal/* imports" "$internal_any_pattern" pkg/spi/
+
+# R2b: pkg/api/* may import internal/kernal/* only, through the bridge.
+non_kernal_imports="$(go list -f '{{range .Imports}}{{$.ImportPath}} {{.}}{{"\n"}}{{end}}' ./pkg/api/... 2>/dev/null | awk '$2 ~ /(^|\/)internal(\/|$)/ && $2 !~ /\/internal\/kernal(\/|$)/ {print}' || true)"
+if [[ -n "$non_kernal_imports" ]]; then
+  report_failure "R2b: pkg/api/* internal imports limited to internal/kernal/*" "$non_kernal_imports"
+else
+  report_pass "R2b: pkg/api/* internal imports limited to internal/kernal/*"
+fi
+
+# R2c: exported signatures must not expose internal types unless they arrive
+# through the documented pkg/api/v1 re-export bridge (ADR P7-01). The bridge
+# packages are checked by R2b; R2c verifies every other public package.
+bridge_packages="$(go list ./pkg/api/v1/... 2>/dev/null | paste -sd, - || true)"
+public_packages=()
+while IFS= read -r package; do
+  [[ -n "$package" ]] && public_packages+=("$package")
+done < <(go list ./pkg/sdk/... ./pkg/spi/... ./storage/... 2>/dev/null || true)
+internalapi_output="$(go run ./scripts/internalapi "-bridge=${bridge_packages}" "${public_packages[@]}" 2>&1)"
+if [[ $? -eq 0 ]]; then
+  report_pass "R2c: exported API free of unbridged internal/* type exposure"
+else
+  report_failure "R2c: exported API free of unbridged internal/* type exposure" "$internalapi_output"
+fi
 
 # Rule 3: the kernal is independent of public contracts, orbitals and storage.
 orbit_pattern="$(import_pattern '([^"]*/)?internal/orbitals(/[^"]*)?')"

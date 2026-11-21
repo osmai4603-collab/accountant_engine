@@ -26,8 +26,8 @@ func TestJournalPolicyValidationUsesAllowedLists(t *testing.T) {
 	if err := journal.ValidateWithPolicy([]string{"USD"}, []types.AccountID{{}}); !errors.Is(err, ErrJournalAccount) {
 		t.Fatalf("empty allowed account error = %v, want ErrJournalAccount", err)
 	}
-	if !journal.AllowsCurrency("USD") || !journal.AllowsCurrency("") {
-		t.Fatal("journal without a configured currency policy should not restrict currencies")
+	if !journal.AllowsCurrency("USD") || journal.AllowsCurrency("") || journal.AllowsCurrency("UNKNOWN") {
+		t.Fatal("an empty journal currency allow-list should allow known currencies, but reject invalid codes")
 	}
 	if !journal.AllowsCurrencyWithPolicy("usd", []string{"USD"}) ||
 		journal.AllowsCurrencyWithPolicy("EUR", []string{"USD"}) {
@@ -36,6 +36,25 @@ func TestJournalPolicyValidationUsesAllowedLists(t *testing.T) {
 	if !journal.AllowsAccountWithPolicy(accountID, []types.AccountID{accountID}) ||
 		journal.AllowsAccountWithPolicy(types.NewAccountID(), []types.AccountID{accountID}) {
 		t.Fatal("journal account policy did not enforce its allow-list")
+	}
+}
+
+func TestJournalAllowListRejectsDuplicatesAndEmptyListIsUnrestricted(t *testing.T) {
+	journal := Journal{
+		ID: types.NewJournalID(), CompanyID: types.NewCompanyID(), Code: "GEN", Name: "General",
+	}
+	if err := journal.ValidateWithPolicy(nil, nil); err != nil {
+		t.Fatalf("empty allow-lists should be valid and unrestricted: %v", err)
+	}
+	if !journal.AllowsCurrency("EUR") || !journal.AllowsAccount(types.NewAccountID()) {
+		t.Fatal("empty allow-list semantics are inconsistent")
+	}
+	if err := journal.ValidateWithPolicy([]string{"usd", "USD"}, nil); !errors.Is(err, ErrJournalCurrency) {
+		t.Fatalf("duplicate currencies error = %v, want ErrJournalCurrency", err)
+	}
+	accountID := types.NewAccountID()
+	if err := journal.ValidateWithPolicy(nil, []types.AccountID{accountID, accountID}); !errors.Is(err, ErrJournalAccount) {
+		t.Fatalf("duplicate accounts error = %v, want ErrJournalAccount", err)
 	}
 }
 

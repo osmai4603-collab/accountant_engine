@@ -14,6 +14,7 @@ var (
 	ErrClosedPeriod              = types.ErrFiscalPeriodClosed
 	ErrAccountNotFound           = types.ErrAccountNotFound
 	ErrAccountCycle              = errors.New("account hierarchy contains a cycle")
+	ErrDuplicateAccountID        = errors.New("account hierarchy contains a duplicate account id")
 	ErrInvalidParent             = errors.New("invalid parent account")
 	ErrAccountNotCurrent         = errors.New("account is not valid on the posting date")
 	ErrAccountIdentityMismatch   = errors.New("account repository returned a different account or company")
@@ -30,6 +31,12 @@ type HierarchyNode struct {
 func DetectCyclicHierarchy(accounts []Account) error {
 	byID := make(map[types.AccountID]Account, len(accounts))
 	for _, acc := range accounts {
+		if acc.ID == (types.AccountID{}) {
+			return ErrInvalidParent
+		}
+		if _, exists := byID[acc.ID]; exists {
+			return fmt.Errorf("%w: %s", ErrDuplicateAccountID, acc.ID)
+		}
 		byID[acc.ID] = acc
 	}
 
@@ -112,14 +119,17 @@ func BuildHierarchyTree(accounts []Account) ([]*HierarchyNode, error) {
 	var roots []*HierarchyNode
 	for _, acc := range accounts {
 		node := nodeMap[acc.ID]
-		if acc.ParentID == nil || *acc.ParentID == (types.AccountID{}) {
+		if acc.ParentID == nil {
 			roots = append(roots, node)
 		} else {
+			if *acc.ParentID == (types.AccountID{}) {
+				return nil, fmt.Errorf("%w: account %s references a zero parent id", ErrInvalidParent, acc.ID)
+			}
 			parent, exists := nodeMap[*acc.ParentID]
 			if exists {
 				parent.Children = append(parent.Children, node)
 			} else {
-				roots = append(roots, node)
+				return nil, fmt.Errorf("%w: account %s references missing parent %s", ErrInvalidParent, acc.ID, *acc.ParentID)
 			}
 		}
 	}

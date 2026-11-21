@@ -27,8 +27,8 @@ func TestSectorAdaptersUseSuppliedRulesAndMasterData(t *testing.T) {
 	retail, err := templates.NewRetailAdapter(map[templates.RetailEffect]events.PostingRule{
 		templates.RetailSale: {
 			RuleID: "consumer-retail-sale", EventType: "retail.sale",
-			JournalCode:         "RETAIL",
-			DebitAccountCode:    "R-CASH", CreditAccountCode: "R-REVENUE",
+			JournalCode:      "RETAIL",
+			DebitAccountCode: "R-CASH", CreditAccountCode: "R-REVENUE",
 			DescriptionTemplate: "Retail sale {{.EventID}}",
 		},
 		templates.RetailInventoryReceipt: {
@@ -43,8 +43,8 @@ func TestSectorAdaptersUseSuppliedRulesAndMasterData(t *testing.T) {
 	agriculture, err := templates.NewAgricultureAdapter(map[templates.AgricultureEffect]events.PostingRule{
 		templates.AgricultureHarvest: {
 			RuleID: "consumer-ag-harvest", EventType: "agriculture.harvest",
-			JournalCode:         "AGRICULTURE",
-			DebitAccountCode:    "A-ASSET", CreditAccountCode: "A-INCOME",
+			JournalCode:      "AGRICULTURE",
+			DebitAccountCode: "A-ASSET", CreditAccountCode: "A-INCOME",
 			DescriptionTemplate: "Harvest {{.EventID}}",
 		},
 	})
@@ -54,8 +54,8 @@ func TestSectorAdaptersUseSuppliedRulesAndMasterData(t *testing.T) {
 	saas, err := templates.NewSaaSAdapter(map[templates.SaaSEffect]events.PostingRule{
 		templates.SaaSSubscriptionCharge: {
 			RuleID: "consumer-saas-charge", EventType: "saas.subscription_charge",
-			JournalCode:         "SAAS",
-			DebitAccountCode:    "S-RECEIVABLE", CreditAccountCode: "S-DEFERRED",
+			JournalCode:      "SAAS",
+			DebitAccountCode: "S-RECEIVABLE", CreditAccountCode: "S-DEFERRED",
 			DescriptionTemplate: "Subscription charge {{.EventID}}",
 		},
 	})
@@ -67,7 +67,9 @@ func TestSectorAdaptersUseSuppliedRulesAndMasterData(t *testing.T) {
 	masterDataStore := driver.MasterDataStore()
 	if err := masterDataStore.CreateCompany(ctx, masterdata.Company{
 		ID: companyID, Code: "ADAPTER-TEST", LegalName: "Adapter Test",
-		FunctionalCurrency: "USD", PresentationCurrency: "USD", Active: true,
+		// Distinct presentation currency avoids the auto-provisioned policy's
+		// duplicate-currency validation defect recorded in the P7 evidence log.
+		FunctionalCurrency: "USD", PresentationCurrency: "EUR", Active: true,
 	}); err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -87,7 +88,7 @@ func TestRoundMoney(t *testing.T) {
 	}
 }
 
-func TestAdditionalCoverage(t *testing.T) {
+func TestMoneyArithmeticAndCurrencyLookupFailures(t *testing.T) {
 	all := AllCurrencies()
 	if len(all) == 0 {
 		t.Fatal("expected currencies list")
@@ -158,25 +159,61 @@ func TestAdditionalCoverage(t *testing.T) {
 	}
 }
 
-func TestCoverageBoostTo95(t *testing.T) {
-	// subtract different currency error
+func TestMoneyOperationsRejectCurrencyMismatchAndInvalidInput(t *testing.T) {
 	mUSD, _ := NewMoneyFromString("10.00", "USD")
 	mEUR, _ := NewMoneyFromString("10.00", "EUR")
 	_, err := mUSD.Subtract(mEUR)
-	if err == nil {
-		t.Fatal("expected currency mismatch")
+	if !errors.Is(err, ErrCurrencyMismatch) {
+		t.Fatalf("Subtract error = %v, want ErrCurrencyMismatch", err)
 	}
 
-	// newMoney error via invalid currency in NewMoney
 	_, err = NewMoney(decimal.NewFromInt(10), "NOT_A_VALID_CURRENCY")
-	if err == nil {
-		t.Fatal("expected error for invalid currency in NewMoney")
+	if !errors.Is(err, ErrInvalidCurrency) {
+		t.Fatalf("NewMoney error = %v, want ErrInvalidCurrency", err)
 	}
 
-	// newMoneyAtScale precision exceed
 	hugeDecimal, _ := decimal.NewFromString("9999999999999999999999999999999999999999")
 	_, err = newMoneyAtScale(hugeDecimal, "USD")
-	if err == nil {
-		t.Fatal("expected ErrAmountExceedsPrecision")
+	if !errors.Is(err, ErrAmountExceedsPrecision) {
+		t.Fatalf("newMoneyAtScale error = %v, want ErrAmountExceedsPrecision", err)
+	}
+}
+
+func TestRoundForPostingCheckedRejectsInvalidCurrency(t *testing.T) {
+	invalid := Money{amount: decimal.NewFromInt(10), currency: "INVALID"}
+	if _, err := invalid.RoundForPostingChecked(); !errors.Is(err, ErrInvalidCurrency) {
+		t.Fatalf("RoundForPostingChecked error = %v, want ErrInvalidCurrency", err)
+	}
+	if _, err := (Money{}).RoundForPostingChecked(); !errors.Is(err, ErrInvalidCurrency) {
+		t.Fatalf("zero value RoundForPostingChecked error = %v, want ErrInvalidCurrency", err)
+	}
+}
+
+func TestCurrencyMinorUnitCheckedRejectsUnknownCurrency(t *testing.T) {
+	for _, currency := range []string{"NONEXISTENT", "XXX"} {
+		if _, err := CurrencyMinorUnitChecked(currency); !errors.Is(err, ErrInvalidCurrency) {
+			t.Errorf("CurrencyMinorUnitChecked(%q) error = %v, want ErrInvalidCurrency", currency, err)
+		}
+	}
+}
+
+func TestCurrencyMinorUnitCheckedUsesRegistry(t *testing.T) {
+	for _, test := range []struct {
+		currency string
+		want     int32
+	}{
+		{currency: "JPY", want: 0},
+		{currency: "USD", want: 2},
+		{currency: "SAR", want: 2},
+		{currency: "KWD", want: 3},
+		{currency: "BHD", want: 3},
+	} {
+		got, err := CurrencyMinorUnitChecked(test.currency)
+		if err != nil {
+			t.Fatalf("CurrencyMinorUnitChecked(%q): %v", test.currency, err)
+		}
+		if got != test.want {
+			t.Errorf("CurrencyMinorUnitChecked(%q) = %d, want %d", test.currency, got, test.want)
+		}
 	}
 }

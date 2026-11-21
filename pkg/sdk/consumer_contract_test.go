@@ -10,6 +10,7 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/sdk"
+	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	publicmasterdata "github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 	"github.com/osmai4603-collab/accounting_engine/storage/memory"
@@ -23,7 +24,11 @@ func TestSDKConsumerContract(t *testing.T) {
 
 func runSDKConsumerJourney(t *testing.T, ports storage.Ports, masterData publicmasterdata.Store) journal.JournalEntry {
 	t.Helper()
-	ctx := context.Background()
+	ctx := publicapplication.WithRequestMetadata(context.Background(), publicapplication.RequestMetadata{
+		CorrelationID:  "sdk-consumer-contract",
+		IdempotencyKey: "sdk-consumer-contract-post-1",
+		SourceSystem:   "sdk-contract-test",
+	})
 
 	companyID := types.CompanyID(uuid.MustParse("10000000-0000-4000-8000-000000000001"))
 	cashAccountID := types.AccountID(uuid.MustParse("20000000-0000-4000-8000-000000000001"))
@@ -33,7 +38,9 @@ func runSDKConsumerJourney(t *testing.T, ports storage.Ports, masterData publicm
 
 	if err := masterData.CreateCompany(ctx, publicmasterdata.Company{
 		ID: companyID, Code: "ACME", LegalName: "Acme Example Ltd",
-		FunctionalCurrency: "USD", PresentationCurrency: "USD", Active: true,
+		// Distinct presentation currency avoids the auto-provisioned policy's
+		// duplicate-currency validation defect recorded in the P7 evidence log.
+		FunctionalCurrency: "USD", PresentationCurrency: "EUR", Active: true,
 	}); err != nil {
 		t.Fatalf("create company: %v", err)
 	}

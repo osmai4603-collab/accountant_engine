@@ -16,6 +16,7 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/sdk"
+	"github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/storage/memory"
 	"github.com/shopspring/decimal"
@@ -44,6 +45,13 @@ func Example_publicConsumerJourney() {
 }
 
 func runJourney(ctx context.Context) (journal.JournalEntry, error) {
+	// Posting through the public SDK requires an explicit idempotency key.
+	ctx = application.WithRequestMetadata(ctx, application.RequestMetadata{
+		CorrelationID:  "external-consumer-journey",
+		IdempotencyKey: "external-consumer-journey-post",
+		SourceSystem:   "external-consumer-test",
+	})
+
 	driver := memory.New()
 	masterData := driver.MasterDataStore()
 	var _ masterdata.Store = masterData
@@ -51,7 +59,7 @@ func runJourney(ctx context.Context) (journal.JournalEntry, error) {
 	companyID := types.NewCompanyID()
 	if err := masterData.CreateCompany(ctx, masterdata.Company{
 		ID: companyID, Code: "ACME", LegalName: "Acme Example Ltd",
-		FunctionalCurrency: "USD", PresentationCurrency: "USD", Active: true,
+		FunctionalCurrency: "USD", PresentationCurrency: "EUR", Active: true,
 	}); err != nil {
 		return journal.JournalEntry{}, fmt.Errorf("create company: %w", err)
 	}

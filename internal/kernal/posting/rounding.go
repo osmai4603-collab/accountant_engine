@@ -64,6 +64,9 @@ func RoundEntryWithRoundingPolicy(
 		if roundedTransaction.Currency() != line.TransactionCurrency {
 			return types.ErrCurrencyMismatch
 		}
+		if _, err := roundedTransaction.MinorUnitsExact(); err != nil {
+			return err
+		}
 		expectedFunctional, err := types.NewMoney(
 			roundedTransaction.Amount().Mul(line.ExchangeRate),
 			currency,

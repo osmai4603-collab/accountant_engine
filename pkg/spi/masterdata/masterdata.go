@@ -7,7 +7,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	kernalMasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 )
 
@@ -30,37 +29,37 @@ var (
 	ErrDuplicateJournalID   = errors.New("journal id already exists")
 )
 
-type AccountType = kernalMasterdata.AccountType
+type AccountType = types.AccountType
 
 const (
-	AccountTypeAsset     = kernalMasterdata.AccountTypeAsset
-	AccountTypeLiability = kernalMasterdata.AccountTypeLiability
-	AccountTypeEquity    = kernalMasterdata.AccountTypeEquity
-	AccountTypeIncome    = kernalMasterdata.AccountTypeIncome
-	AccountTypeExpense   = kernalMasterdata.AccountTypeExpense
+	AccountTypeAsset     = types.AccountTypeAsset
+	AccountTypeLiability = types.AccountTypeLiability
+	AccountTypeEquity    = types.AccountTypeEquity
+	AccountTypeIncome    = types.AccountTypeIncome
+	AccountTypeExpense   = types.AccountTypeExpense
 )
 
-type NormalBalance = kernalMasterdata.NormalBalance
+type NormalBalance = types.NormalBalance
 
 const (
-	NormalBalanceDebit  = kernalMasterdata.NormalBalanceDebit
-	NormalBalanceCredit = kernalMasterdata.NormalBalanceCredit
+	NormalBalanceDebit  = types.NormalBalanceDebit
+	NormalBalanceCredit = types.NormalBalanceCredit
 )
 
-type FiscalYearState = kernalMasterdata.FiscalYearState
-type PeriodState = kernalMasterdata.PeriodState
-type FiscalPeriodType = kernalMasterdata.FiscalPeriodType
+type FiscalYearState = types.FiscalYearState
+type PeriodState = types.PeriodState
+type FiscalPeriodType = types.FiscalPeriodType
 
 const (
-	FiscalYearOpen                    = kernalMasterdata.FiscalYearOpen
-	FiscalYearSoftClosed              = kernalMasterdata.FiscalYearSoftClosed
-	FiscalYearHardClosed              = kernalMasterdata.FiscalYearHardClosed
-	PeriodOpen                        = kernalMasterdata.PeriodOpen
-	PeriodSoftClosed                  = kernalMasterdata.PeriodSoftClosed
-	PeriodHardClosed                  = kernalMasterdata.PeriodHardClosed
-	FiscalPeriodTypeNormal            = kernalMasterdata.FiscalPeriodTypeNormal
-	FiscalPeriodTypeYearEndAdjustment = kernalMasterdata.FiscalPeriodTypeYearEndAdjustment
-	FiscalPeriodTypeAuditAdjustment   = kernalMasterdata.FiscalPeriodTypeAuditAdjustment
+	FiscalYearOpen                    = types.FiscalYearOpen
+	FiscalYearSoftClosed              = types.FiscalYearSoftClosed
+	FiscalYearHardClosed              = types.FiscalYearHardClosed
+	PeriodOpen                        = types.PeriodOpen
+	PeriodSoftClosed                  = types.PeriodSoftClosed
+	PeriodHardClosed                  = types.PeriodHardClosed
+	FiscalPeriodTypeNormal            = types.FiscalPeriodTypeNormal
+	FiscalPeriodTypeYearEndAdjustment = types.FiscalPeriodTypeYearEndAdjustment
+	FiscalPeriodTypeAuditAdjustment   = types.FiscalPeriodTypeAuditAdjustment
 )
 
 type Company struct {
@@ -96,10 +95,10 @@ func (j Journal) Validate() error {
 	return nil
 }
 
-type Account = kernalMasterdata.Account
+type Account = types.Account
 
-type FiscalYear = kernalMasterdata.FiscalYear
-type FiscalPeriod = kernalMasterdata.FiscalPeriod
+type FiscalYear = types.FiscalYear
+type FiscalPeriod = types.FiscalPeriod
 
 // Store exposes company-scoped reads and typed creation of the minimum master
 // data required to prepare an accounting company for use.

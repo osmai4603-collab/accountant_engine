@@ -82,7 +82,7 @@ func TestP7_IndustryConsumersUseCanonicalAccounting(t *testing.T) {
 
 	if err := store.CreateCompany(ctx, masterdata.Company{
 		ID: companyID, Code: "P7-INDUSTRY", LegalName: "Industry Consumer Acceptance",
-		FunctionalCurrency: "USD", PresentationCurrency: "USD", Active: true,
+		FunctionalCurrency: "USD", PresentationCurrency: "EUR", Active: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -157,8 +157,9 @@ func TestP7_IndustryConsumersUseCanonicalAccounting(t *testing.T) {
 					ActorID:    consumer.actor,
 					CompanyIDs: []types.CompanyID{companyID},
 				},
-				CorrelationID: "corr-" + consumer.name,
-				SourceSystem:  consumer.name + "-backend",
+				CorrelationID:  "corr-" + consumer.name,
+				IdempotencyKey: "p7-industry-" + consumer.name,
+				SourceSystem:   consumer.name + "-backend",
 			}
 			amount, err := types.NewMoneyFromString(consumer.draft.amount, "USD")
 			if err != nil {
@@ -210,6 +211,7 @@ func TestP7_IndustryConsumersUseCanonicalAccounting(t *testing.T) {
 			reversed, err := app.Reverse(ctx, application.ReverseEntryCommand{
 				Context: commandContext, CompanyID: companyID, EntryID: posted.Entry.ID,
 				Reason: "P7 industry consumer acceptance", EffectiveDate: effectiveDate,
+				IdempotencyKey: "p7-industry-reverse-" + consumer.name,
 			})
 			if err != nil {
 				t.Fatalf("reverse canonical entry: %v", err)

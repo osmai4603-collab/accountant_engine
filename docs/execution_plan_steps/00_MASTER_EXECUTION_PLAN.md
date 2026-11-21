@@ -3,10 +3,10 @@ title: "الخطة التنفيذية الرئيسية لإعادة هيكلة �
 subtitle: "خطة تفكيك وإعادة بناء النواة المحاسبية القابلة للتضمين (Embeddable Kernal Engine)"
 document_code: "AE-PLAN-MASTER-001"
 plan_type: "reengineering_embeddable_core"
-version: "1.0.0"
+version: "1.1.0"
 date: "2026-11-20"
-last_updated: "2026-11-20"
-status: "معتمدة للتنفيذ"
+last_updated: "2026-11-21"
+status: "منفذة — غير معتمدة (NO-GO)"
 project: "accountant_engine"
 reference_repo: "accounting_engine"
 methodology: "execute-plan-lifecycle & execution-safety skills (PRINCE2 / BIS aligned)"
@@ -20,7 +20,7 @@ technical_terms: "en"
 - **الغرض:** تفكيك واقتطاع النواة المحاسبية من مشروع `accounting_engine` وإعادة بنائها داخل المشروع المستهدف `accountant_engine` كنواة نقية وقابلة للتضمين (Embeddable Library) خالية تماماً من بروتوكولات الشبكة (gRPC/HTTP) وخالية من إدارة الهويات والمصادقة، مع حصر ما يُنسخ وما يُعدل وما يُبنى من جديد.
 - **المرجع:** وثيقة بدء المشروع [PID_RESTRUCTURING_EMBEDDABLE_KERNAL.md](../PID_RESTRUCTURING_EMBEDDABLE_KERNAL.md) وميثاق المبادئ المعمارية [ARCHITECTURAL_PRINCIPLES_CHARTER.md](../ARCHITECTURAL_PRINCIPLES_CHARTER.md).
 - **تاريخ الإنشاء:** 2026-11-20
-- **آخر تحديث:** 2026-11-20
+- **آخر تحديث:** 2026-11-21
 
 ---
 
@@ -35,7 +35,7 @@ technical_terms: "en"
 | **`P4`** | **السطح البرمجي العام للمكتبة (SDK Public Surface):** بناء `sdk.Engine` والمنشئ الموحد واستيعاب الأحداث وإثبات التضمين الخارجي. | `P4-01`, `P4-02`, `P4-03`, `P4-04` | `P3` (اكتمال واعتماد المرحلة) | [05_PHASE_4_SDK_PUBLIC_SURFACE.md](05_PHASE_4_SDK_PUBLIC_SURFACE.md) |
 | **`P5`** | **المكونات المدارية الاختيارية (Orbital Components):** بناء الدفاتر المساعدة، محرك التقارير المالية، التسويات، وتوحيد القوائم. | `P5-01`, `P5-02`, `P5-03`, `P5-04` | `P4` (اكتمال واعتماد المرحلة) | [06_PHASE_5_ORBITAL_COMPONENTS.md](06_PHASE_5_ORBITAL_COMPONENTS.md) |
 | **`P6`** | **وحدات المعايير الدولية المتخصصة (IFRS/IAS Standards):** بناء وحدات IFRS 15, IFRS 16, IFRS 9, و IAS 12 المفصولة كإضافات SPI. | `P6-01`, `P6-02`, `P6-03`, `P6-04` | `P5` (اكتمال واعتماد المرحلة) | [07_PHASE_6_STANDARDS_MODULES.md](07_PHASE_6_STANDARDS_MODULES.md) |
-| **`P7`** | **التحصين والجودة والاعتماد النهائي (Hardening & Release):** فحوصات استقلالية النواة، اختبارات ACID والضغط، وتوقيع الجاهزية. | `P7-01`, `P7-02`, `P7-03` | `P6` (اكتمال واعتماد المرحلة) | [08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md](08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md) |
+| **`P7`** | **التحصين والجودة والاعتماد النهائي (Hardening & Release):** فحوصات استقلالية النواة، تثبيت العقد، الأدلة التشغيلية، ثم تنفيذ الاختبارات كخطوة أخيرة وتوقيع الجاهزية. | `P7-01`, `P7-02`, `P7-03`, `P7-04` | `P6` (اكتمال واعتماد المرحلة) | [08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md](08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md) + [09_PHASE_7_TEST_EXECUTION.md](09_PHASE_7_TEST_EXECUTION.md) |
 
 ---
 
@@ -72,9 +72,10 @@ technical_terms: "en"
 | `P6-02` | `P6` | معلقة | `P5` (اعتماد المرحلة) | — | — |
 | `P6-03` | `P6` | معلقة | `P5` (اعتماد المرحلة) | — | — |
 | `P6-04` | `P6` | معلقة | `P5` (اعتماد المرحلة) | — | — |
-| `P7-01` | `P7` | معلقة | `P6` (اعتماد المرحلة) | — | — |
-| `P7-02` | `P7` | معلقة | `P7-01` | — | — |
-| `P7-03` | `P7` | معلقة | `P7-01`, `P7-02` | — | — |
+| `P7-01` | `P7` | مكتملة | `P6` (اعتماد المرحلة) | حُسم تعارض الاستيراد عبر `ARD` وتقرير العزل؛ `verify_architecture.sh` PASS بالقواعد `R1`–`R6` | `../ard/P7_01_public_surface_decision.md` |
+| `P7-02` | `P7` | مكتملة | `P7-01` | `docs/api/v1.snapshot` مُولّد و`check_api_compat.sh` PASS؛ حُذفت `pkg/spi/legacy` من القائمة | — |
+| `P7-03` | `P7` | مكتملة | `P7-01`, `P7-02` | Runbooks و`p7_gate_definitions.md` و`check_coverage.sh` جاهزة قبل الاختبارات | — |
+| `P7-04` | `P7` | **منفذة — `NO-GO`** | `P7-01`, `P7-02`, `P7-03` | نُفّذ `T0`–`T7` بالترتيب؛ `G1`–`G4` و`G6` GO، لكن `G5` NO-GO (أداء + تغطية `52.7%`)؛ التفاصيل في `09_PHASE_7_TEST_EXECUTION.md` | — |
 
 ---
 
@@ -137,7 +138,8 @@ flowchart TD
 | `P4-01`..`04` | `pkg/sdk/*`, `test/external_consumer/*` | `internal/kernal/*`, `storage/*` |
 | `P5-01`..`04` | `internal/orbitals/*` | `pkg/sdk/*`, `internal/kernal/*` |
 | `P6-01`..`04` | `modules/*` | `pkg/spi/standards/*` |
-| `P7-01`..`03` | `test/*`, تقارير الاعتماد النهائية | كافة ملفات الكود (وضع قراءة واختبار) |
+| `P7-01`..`03` | `scripts/verify_architecture.sh`, `scripts/apisnapshot/*`, `scripts/check_api_compat.sh`, `scripts/check_coverage.sh`, `docs/api/*`, `docs/ard/*`, `docs/operations/runbooks/*`, قوالب التقارير | `pkg/**`, `internal/**`, `storage/**` (تعديل مشروط بقرار `P7-01` فقط) |
+| `P7-04` | `test/atomic/*`, `test/acid/*`, `test/concurrency/*`, `test/benchmark/*`, `test/dr/*`, `docs/performance_baseline_report.md`, `docs/reports/p7_gate_evidence.md`, `docs/release_signoff_v1.0.0.md` | كافة ملفات الكود (وضع قراءة فقط) |
 
 ---
 
@@ -146,26 +148,32 @@ flowchart TD
 ### 5.1 بوابات المراحل
 
 - **بوابة `P0`:** نجاح `go mod tidy` و `go vet ./...` على بيئة نظيفة.
-- **بوابة `P1`:** نجاح فحص استقلالية عقود `pkg/api` و `pkg/spi` وعدم استيراد أي `internal`.
+- **بوابة `P1` (صياغة مُعدَّلة في `P7-01`):** نجاح فحص استقلالية عقود `pkg/api` و `pkg/spi`؛ يُحظر على `pkg/spi` استيراد أي حزمة `internal`، مع استثناء موثّق ومقصور على جسر إعادة التصدير `pkg/api/v1`، مع خلوّ التوقيعات المُصدّرة من أنواع `internal` غير المُعادة تصديرها عبر ذلك الجسر. انظر [ARD P7-01](../ard/P7_01_public_surface_decision.md).
 - **بوابة `P2`:** اجتياز 100% من اختبارات القيد المزدوج والتحقق الرياضي والذرية بالذاكرة.
 - **بوابة `P3`:** اجتياز اختبارات تكافؤ التخزين (Storage SPI Contract Parity) واختبارات `masterdatacontract` بنسبة 100% بين الذاكرة و Postgres، وتطبيق وتراجع ترحيلات PostgreSQL وفق شجرة الاعتماديات، واجتياز فحوصات RLS لـ 42 جدولاً وفحوصات الحرمة WORM، مع التأكيد الصارم على حصر `storage/memory` في بيئات التطوير والاختبار.
 - **بوابة `P4`:** نجاح بناء وتشغيل مستهلك خارجي مستقل يستورد `pkg/sdk` فقط وينفذ قيوداً متوازنة.
 - **بوابة `P5`:** مطابقة دفاتر الأستاذ المساعدة مع حسابات الرقابة واجتياز اختبارات القوائم المالية.
 - **بوابة `P6`:** اجتياز اختبارات وحدات IFRS دون أي تسريب لداخليات النواة.
-- **بوابة `P7`:** اجتياز فحوصات الأداء ($P95 \le 50\,\text{ms}$) والتغطية ($\ge 80\%$) وثبات سلسلة التدقيق.
+- **بوابة `P7`:** اجتياز فحوصات الأداء ($P50 \le 15\,\text{ms}$ و$P95 \le 50\,\text{ms}$ تحت $1{,}000$ TPS) والتغطية ($\ge 80\%$) وصفر Data Races وصفر Partial Writes وثبات سلسلة التدقيق. النتيجة الفعلية: `NO-GO` بسبب `G5`.
 
 ### 5.2 سجل اعتماد المراحل
 
 | المرحلة | الحالة | تاريخ التحقق | الأدلة والنتائج | النواقص / المخاطر |
 | :---: | :---: | :---: | :---: | :---: |
 | `P0` | معتمدة | 2026-11-20 | `go mod tidy` و `go vet ./...` و `go mod verify` ناجحة (all modules verified)؛ 4 تبعيات مباشرة؛ 45 حزمة بملف `doc.go`؛ `verify_architecture.sh` و `verify_integrity.sh`: PASS | مسار الموديول مُبقى على `github.com/osmai4603-collab/accounting_engine` وفق `NEW_PROJECT_STRUCTURE.md` لضمان نسخ الكود دون تعديل مسارات الاستيراد |
-| `P1` | معتمدة | 2026-11-20 | `go build ./pkg/api/v1/...` و `go build ./pkg/spi/...` و اختبارات P1 ناجحة؛ `verify_architecture.sh` و `verify_integrity.sh` PASS | لا توجد نواقص حالية |
+| `P1` | معتمدة | 2026-11-21 | `go build ./pkg/api/v1/...` و `go build ./pkg/spi/...` واختبارات P1 ناجحة؛ `verify_architecture.sh` (R1–R6) و`verify_integrity.sh` PASS؛ حُسمت صياغة البوابة في `P7-01` عبر [ARD](../ard/P7_01_public_surface_decision.md) و[تقرير نقاء](../reports/architecture_purity_report.md) | لا توجد نواقص حالية؛ استثناء `pkg/api/v1` موثّق ومُطبَّق آلياً عبر `R2a`–`R2c` |
 | `P2` | غير معتمدة | — | — | بانتظار اكتمال P1 |
 | `P3` | غير معتمدة | — | — | بانتظار اكتمال P2 |
 | `P4` | غير معتمدة | — | — | بانتظار اكتمال P3 |
 | `P5` | غير معتمدة | — | — | بانتظار اكتمال P4 |
 | `P6` | غير معتمدة | — | — | بانتظار اكتمال P5 |
-| `P7` | غير معتمدة | — | — | بانتظار اكتمال P6 |
+| `P7` | **منفذة — غير معتمدة (`NO-GO`)** | 2026-11-21 | نُفّذت `P7-01`–`P7-04` بالترتيب؛ `T0`–`T4` و`T7` PASS؛ `G1`–`G4` و`G6` GO. انظر [سجل الأدلة](../reports/p7_gate_evidence.md) و[تقرير الاعتماد](../release_signoff_v1.0.0.md) | `G5` NO-GO: `P50 238.74–257.63 ms`، `P95 337.71–441.33 ms`، `57–63 TPS`، تغطية `52.7%`. يعود إلى المالك ثم إعادة `P7-04` من `T0`. |
+
+> **ملاحظة مراجعة 2026-11-21 (انظر [سجل الفجوات في خطة P7](08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md#1-مراجعة-الخطة-الرئيسية-وسجل-الفجوات)):**
+> 1. يوجد تعارض بين حالة مهام `P2`/`P3` في جدول المهام (مكتملة) وسجل البوابات أعلاه (غير معتمدة)؛ يجب حسمه قبل إعلان اكتمال `P6` وبدء `P7`.
+> 2. كود `P4`–`P6` موجود فعلياً (`pkg/sdk`, `internal/orbitals`, `modules/*`) لكن بواباته غير موثقة في هذا السجل؛ المطلوب إغلاق توثيقي قبل اعتماد `P7`.
+> 3. أُضيفت المهمة `P7-04` لتكون حزمة الاختبارات **الخطوة الأخيرة**، وتفاصيلها في ملف مستقل `09_PHASE_7_TEST_EXECUTION.md`.
+> 4. نُفّذت `P7-04` بالكامل (`T0`–`T7`) في 2026-11-21؛ رغم نجاح `G1`–`G4` و`G6`، فشلت `G5` في الأداء والتغطية، لذا سُجّل قرار `NO-GO` ولم يُعتمد الإصدار. لا تُغلق الفجوتان 1 و2 أعلاه تلقائياً بهذا التنفيذ.
 
 ---
 
@@ -180,4 +188,5 @@ flowchart TD
 5. [05_PHASE_4_SDK_PUBLIC_SURFACE.md](05_PHASE_4_SDK_PUBLIC_SURFACE.md) — مهام السطح البرمجي العام للمكتبة SDK.
 6. [06_PHASE_5_ORBITAL_COMPONENTS.md](06_PHASE_5_ORBITAL_COMPONENTS.md) — مهام المكونات المدارية حول النواة.
 7. [07_PHASE_6_STANDARDS_MODULES.md](07_PHASE_6_STANDARDS_MODULES.md) — مهام وحدات المعايير الدولية المتخصصة.
-8. [08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md](08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md) — مهام التحصين والجودة والاعتماد النهائي.
+8. [08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md](08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md) — مهام التحصين والجودة والاعتماد النهائي (الاختبارات في نهايتها).
+9. [09_PHASE_7_TEST_EXECUTION.md](09_PHASE_7_TEST_EXECUTION.md) — التفاصيل المستقلة لتنفيذ حزمة الاختبارات `P7-04` كخطوة أخيرة.

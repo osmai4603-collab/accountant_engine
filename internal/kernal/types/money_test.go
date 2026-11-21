@@ -193,6 +193,90 @@ func TestRoundingPreservesRepresentableLargeAmounts(t *testing.T) {
 	}
 }
 
+func TestMoneyIntegerDigitBoundary(t *testing.T) {
+	for _, value := range []string{
+		"1e27",
+		"9999999999999999999999999999",
+		"0.0000000000000000000000000001",
+		"1.230000",
+		"0",
+		"-0",
+	} {
+		if _, err := NewMoneyFromString(value, "USD"); err != nil {
+			t.Errorf("NewMoneyFromString(%q) unexpectedly failed: %v", value, err)
+		}
+	}
+}
+
+func TestMoneyRejectsIntegerDigitOverflow(t *testing.T) {
+	for _, value := range []string{
+		"1e28",
+		"10000000000000000000000000000",
+		"-1e28",
+	} {
+		if _, err := NewMoneyFromString(value, "USD"); !errors.Is(err, ErrAmountExceedsPrecision) {
+			t.Errorf("NewMoneyFromString(%q) error = %v, want ErrAmountExceedsPrecision", value, err)
+		}
+	}
+}
+
+func TestMoneyRepresentationalScaleBoundary(t *testing.T) {
+	if _, err := NewMoneyFromString("0.0000000000000000000000000001", "USD"); err != nil {
+		t.Fatalf("scale %d should be accepted: %v", MaximumRepresentationalScale, err)
+	}
+	if _, err := NewMoneyFromString("1e-29", "USD"); !errors.Is(err, ErrAmountExceedsPrecision) {
+		t.Fatalf("scale %d error = %v, want ErrAmountExceedsPrecision", MaximumRepresentationalScale+1, err)
+	}
+}
+
+func TestMoneySignificantDigitsBoundary(t *testing.T) {
+	if _, err := NewMoneyFromString("1234567890123456789012345678", "USD"); err != nil {
+		t.Fatalf("28 significant digits should be accepted: %v", err)
+	}
+	if _, err := NewMoneyFromString("12345678901234567890123456789", "USD"); !errors.Is(err, ErrAmountExceedsPrecision) {
+		t.Fatalf("29 significant digits error = %v, want ErrAmountExceedsPrecision", err)
+	}
+}
+
+func TestMoneyMinorUnitsInt64Overflow(t *testing.T) {
+	value := mustMoney(t, "92233720368547758.08", "USD")
+	if _, err := value.MinorUnits(); !errors.Is(err, ErrAmountExceedsPrecision) {
+		t.Fatalf("MinorUnits overflow error = %v, want ErrAmountExceedsPrecision", err)
+	}
+	if _, err := value.MinorUnitsExact(); !errors.Is(err, ErrAmountExceedsPrecision) {
+		t.Fatalf("MinorUnitsExact overflow error = %v, want ErrAmountExceedsPrecision", err)
+	}
+}
+
+func TestMoneyJSONRoundTripAtPrecisionBoundaries(t *testing.T) {
+	for _, value := range []string{
+		"1e27",
+		"0.0000000000000000000000000001",
+		"1.230000",
+	} {
+		money := mustMoney(t, value, "USD")
+		encoded, err := json.Marshal(money)
+		if err != nil {
+			t.Fatalf("MarshalJSON(%q): %v", value, err)
+		}
+		var decoded Money
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatalf("UnmarshalJSON(%q): %v", encoded, err)
+		}
+		if !decoded.Equal(money) {
+			t.Errorf("JSON round trip changed %q to %q", value, decoded.Amount())
+		}
+	}
+}
+
+func TestMoneyRejectsHugeExponentWithoutPanic(t *testing.T) {
+	for _, value := range []string{"1e999999999999999999999999", "1e-999999999999999999999999"} {
+		if _, err := NewMoneyFromString(value, "USD"); err == nil {
+			t.Errorf("NewMoneyFromString(%q) unexpectedly succeeded", value)
+		}
+	}
+}
+
 func TestBigNumber(t *testing.T) {
 	value := "999999999999999999999999.9999"
 	money := mustMoney(t, value, "SAR")
@@ -241,6 +325,13 @@ func TestMoneyJSONPreservesInternalPrecision(t *testing.T) {
 func TestMoneyRejectsNoCurrencyCode(t *testing.T) {
 	if _, err := NewMoneyFromString("1", "XXX"); !errors.Is(err, ErrInvalidCurrency) {
 		t.Fatalf("XXX money error = %v, want invalid currency", err)
+	}
+}
+
+func TestMoneyJSONRejectsInvalidNonZeroValue(t *testing.T) {
+	invalid := Money{amount: decimal.NewFromInt(1), currency: "INVALID"}
+	if _, err := json.Marshal(invalid); !errors.Is(err, ErrInvalidCurrency) {
+		t.Fatalf("MarshalJSON error = %v, want ErrInvalidCurrency", err)
 	}
 }
 

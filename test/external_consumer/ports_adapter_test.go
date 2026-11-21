@@ -10,6 +10,7 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/sdk"
+	"github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 
@@ -141,7 +142,11 @@ func cloneEntry(entry journal.JournalEntry) journal.JournalEntry {
 }
 
 func TestExternalPortsAdapterJourney(t *testing.T) {
-	ctx := context.Background()
+	ctx := application.WithRequestMetadata(context.Background(), application.RequestMetadata{
+		CorrelationID:  "external-ports-adapter",
+		IdempotencyKey: "external-ports-adapter-post",
+		SourceSystem:   "external-consumer-test",
+	})
 
 	companyID := types.NewCompanyID()
 	cashID := types.NewAccountID()
@@ -154,7 +159,7 @@ func TestExternalPortsAdapterJourney(t *testing.T) {
 	adapter := &externalPortsAdapter{
 		company: masterdata.Company{
 			ID: companyID, Code: "EXT", LegalName: "External Adapter Ltd",
-			FunctionalCurrency: "USD", PresentationCurrency: "USD", Active: true,
+			FunctionalCurrency: "USD", PresentationCurrency: "EUR", Active: true,
 		},
 		journal: masterdata.Journal{
 			ID: masterdata.JournalID(journalID), CompanyID: companyID, Code: "GEN", Name: "General Journal",

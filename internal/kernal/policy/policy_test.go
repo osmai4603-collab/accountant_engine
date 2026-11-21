@@ -164,6 +164,48 @@ func TestPolicyEngineResolvesLatestEffectivePostingAndCurrencyPolicies(t *testin
 	}
 }
 
+func TestPolicyEngineCopiesCurrencyAllowListsAndRejectsNilReceiver(t *testing.T) {
+	companyID := apiTypes.NewCompanyID()
+	effectiveDate := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	allowed := []string{"USD", "EUR"}
+	policy := CurrencyPolicy{
+		CompanyID: companyID, FunctionalCurrency: "USD",
+		AllowedCurrencies: allowed, EffectiveDate: effectiveDate,
+	}
+	engine := NewPolicyEngine()
+	if err := engine.SetCurrencyPolicy(policy); err != nil {
+		t.Fatal(err)
+	}
+	allowed[0] = "GBP"
+
+	resolved, err := engine.CurrencyPolicyFor(companyID, effectiveDate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.AllowedCurrencies[0] != "USD" {
+		t.Fatalf("mutating input allow-list changed stored policy: %v", resolved.AllowedCurrencies)
+	}
+	resolved.AllowedCurrencies[0] = "GBP"
+	again, err := engine.CurrencyPolicyFor(companyID, effectiveDate)
+	if err != nil || again.AllowedCurrencies[0] != "USD" {
+		t.Fatalf("mutating resolved allow-list changed stored policy: %v, %v", again.AllowedCurrencies, err)
+	}
+
+	var nilEngine *PolicyEngine
+	if err := nilEngine.SetPolicy(PostingPolicy{}); !errors.Is(err, ErrPolicyEngineRequired) {
+		t.Fatalf("nil engine SetPolicy error = %v, want ErrPolicyEngineRequired", err)
+	}
+	if err := nilEngine.SetCurrencyPolicy(CurrencyPolicy{}); !errors.Is(err, ErrPolicyEngineRequired) {
+		t.Fatalf("nil engine SetCurrencyPolicy error = %v, want ErrPolicyEngineRequired", err)
+	}
+	if _, err := nilEngine.PostingPolicyFor(companyID, effectiveDate); !errors.Is(err, ErrPolicyEngineRequired) {
+		t.Fatalf("nil engine PostingPolicyFor error = %v, want ErrPolicyEngineRequired", err)
+	}
+	if _, err := nilEngine.CurrencyPolicyFor(companyID, effectiveDate); !errors.Is(err, ErrPolicyEngineRequired) {
+		t.Fatalf("nil engine CurrencyPolicyFor error = %v, want ErrPolicyEngineRequired", err)
+	}
+}
+
 func TestCurrencyPolicyRoundingAndAllowedCurrency(t *testing.T) {
 	pol := CurrencyPolicy{
 		FunctionalCurrency: "USD", AllowedCurrencies: []string{"EUR"},
@@ -179,6 +221,15 @@ func TestCurrencyPolicyRoundingAndAllowedCurrency(t *testing.T) {
 	}
 	if !pol.AllowsCurrency(" usd ") || !pol.AllowsCurrency("eur") || pol.AllowsCurrency("GBP") {
 		t.Fatal("currency policy allowed an unconfigured currency or rejected a configured one")
+	}
+	if pol.AllowsCurrency("XXX") || pol.AllowsCurrency("UNKNOWN") {
+		t.Fatal("currency policy must reject XXX and unknown currencies")
+	}
+	if err := (CurrencyPolicy{
+		CompanyID: apiTypes.NewCompanyID(), FunctionalCurrency: "USD",
+		AllowedCurrencies: []string{"usd", "USD"}, EffectiveDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	}).Validate(); !errors.Is(err, ErrInvalidPolicy) {
+		t.Fatalf("duplicate allowed currencies error = %v, want ErrInvalidPolicy", err)
 	}
 }
 
