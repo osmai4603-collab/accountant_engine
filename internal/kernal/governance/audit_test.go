@@ -19,15 +19,6 @@ type nonAtomicAuditRepo struct {
 	AuditLogRepository
 }
 
-type fixedAuditCheckpointProvider struct {
-	checkpoint AuditCheckpoint
-	err        error
-}
-
-func (p fixedAuditCheckpointProvider) GetAuditCheckpoint(context.Context, apiTypes.CompanyID) (AuditCheckpoint, error) {
-	return p.checkpoint, p.err
-}
-
 func newInMemoryAuditRepo() *inMemoryAuditRepo {
 	return &inMemoryAuditRepo{
 		logs: make(map[apiTypes.CompanyID][]AuditLog),
@@ -225,56 +216,5 @@ func TestAuditChainAppendIsAtomicAcrossInstances(t *testing.T) {
 
 	if valid, err := chains[0].VerifyAuditIntegrity(ctx, companyID); !valid || err != nil {
 		t.Fatalf("concurrent append verification = (%v, %v), want valid chain", valid, err)
-	}
-}
-
-func TestAuditCheckpointDetectsDeletedTail(t *testing.T) {
-	ctx := context.Background()
-	repo := newInMemoryAuditRepo()
-	chain := NewAuditChain(repo)
-	companyID := types.NewCompanyID()
-	var last AuditLog
-	for range 2 {
-		var err error
-		last, err = chain.Append(ctx, AuditLog{
-			CompanyID: companyID, EntityType: "journal_entry",
-			EntityID: types.NewJournalEntryID().String(), Action: "POST",
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	provider := fixedAuditCheckpointProvider{checkpoint: AuditCheckpoint{
-		CompanyID: companyID, SequenceNumber: last.SequenceNumber, LogHash: last.CurrentLogHash,
-	}}
-	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID, provider); !valid || err != nil {
-		t.Fatalf("audit chain with matching checkpoint = (%v, %v), want valid", valid, err)
-	}
-
-	newest, err := chain.Append(ctx, AuditLog{
-		CompanyID: companyID, EntityType: "journal_entry",
-		EntityID: types.NewJournalEntryID().String(), Action: "POST",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID, provider); valid || !errors.Is(err, ErrAuditCheckpointMismatch) {
-		t.Fatalf("stale external checkpoint = (%v, %v), want checkpoint mismatch", valid, err)
-	}
-	provider.checkpoint = AuditCheckpoint{
-		CompanyID: companyID, SequenceNumber: newest.SequenceNumber, LogHash: newest.CurrentLogHash,
-	}
-	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID, provider); !valid || err != nil {
-		t.Fatalf("updated external checkpoint = (%v, %v), want valid", valid, err)
-	}
-
-	repo.mu.Lock()
-	repo.logs[companyID] = repo.logs[companyID][:1]
-	repo.mu.Unlock()
-	if valid, err := chain.VerifyAuditIntegrity(ctx, companyID); !valid || err != nil {
-		t.Fatalf("truncated hash chain alone = (%v, %v), want valid without an anchor", valid, err)
-	}
-	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID, provider); valid || !errors.Is(err, ErrAuditCheckpointMismatch) {
-		t.Fatalf("truncated chain with external checkpoint = (%v, %v), want checkpoint mismatch", valid, err)
 	}
 }

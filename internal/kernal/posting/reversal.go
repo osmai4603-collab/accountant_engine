@@ -27,6 +27,10 @@ func BuildReversalEntry(original journal.JournalEntry, reversalDate time.Time, a
 	if actorID == "" {
 		return journal.JournalEntry{}, ErrReversalActorRequired
 	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return journal.JournalEntry{}, ErrReversalReasonRequired
+	}
 	original = original.Clone()
 
 	if reversalDate.IsZero() {
@@ -60,7 +64,7 @@ func BuildReversalEntry(original journal.JournalEntry, reversalDate time.Time, a
 		CreatedAt:           now,
 		UpdatedAt:           now,
 		ReversalOfID:        &originalID,
-		ReversalReason:      strings.TrimSpace(reason),
+		ReversalReason:      reason,
 		Lines:               make([]journal.EntryLine, len(original.Lines)),
 	}
 

@@ -168,6 +168,21 @@ func TestRoundForPostingUsesCurrencyMinorUnits(t *testing.T) {
 	}
 }
 
+func TestRoundingPreservesRepresentableLargeAmounts(t *testing.T) {
+	value := mustMoney(t, "100000000000000000000000000", "USD")
+	rounded, err := value.Rounded()
+	if err != nil {
+		t.Fatalf("rounding an exactly representable large amount: %v", err)
+	}
+	if !rounded.Amount().Equal(value.Amount()) {
+		t.Fatalf("rounded amount = %s, want unchanged %s", rounded.Amount(), value.Amount())
+	}
+
+	if _, err := NewMoneyFromString("12345678901234567890123456789", "USD"); !errors.Is(err, ErrAmountExceedsPrecision) {
+		t.Fatalf("29 significant digits error = %v, want ErrAmountExceedsPrecision", err)
+	}
+}
+
 func TestBigNumber(t *testing.T) {
 	value := "999999999999999999999999.9999"
 	money := mustMoney(t, value, "SAR")

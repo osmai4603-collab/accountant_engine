@@ -24,6 +24,8 @@ const (
 	FinancialScale = 4
 	InternalScale  = 12
 )
+
+// maximumPrecision limits significant coefficient digits, not representational trailing zeros.
 const maximumPrecision = 28
 
 type Money struct {
@@ -87,12 +89,12 @@ func newMoneyAtScale(amount decimal.Decimal, currency string) (Money, error) {
 }
 
 func precisionDigits(value decimal.Decimal) int {
-	coefficient := value.Coefficient()
-	digits := len(coefficient.String())
-	if digits == 0 {
+	digits := strings.TrimLeft(value.Coefficient().String(), "-")
+	digits = strings.TrimRight(digits, "0")
+	if digits == "" {
 		return 1
 	}
-	return digits
+	return len(digits)
 }
 
 func (m Money) Amount() decimal.Decimal {

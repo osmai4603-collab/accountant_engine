@@ -1,23 +1,23 @@
 # Storage SPI Contract Parity Report — P3-04
 
-- **Generated (UTC):** 2026-11-20T23:44:25Z
+- **Generated (UTC):** 2026-11-21T00:25:01Z
 - **Engine version:** (devel)
 - **Adapters:** Memory (Dev/Test only), PostgreSQL (Production standard).
 
 | Engine | Scenario | Adapter | Result | Semantic differences | Duration |
 | :--- | :--- | :--- | :---: | :--- | ---: |
 | (devel) | AuditWriter | memory | PASS | none; storage contract assertions passed | 0s |
-| (devel) | AuditWriter | postgres | PASS | none; storage contract assertions passed | 981ms |
+| (devel) | AuditWriter | postgres | PASS | none; storage contract assertions passed | 565ms |
 | (devel) | CommitPostingAndBalance | memory | PASS | none; storage contract assertions passed | 0s |
-| (devel) | CommitPostingAndBalance | postgres | PASS | none; storage contract assertions passed | 719ms |
+| (devel) | CommitPostingAndBalance | postgres | PASS | none; storage contract assertions passed | 509ms |
 | (devel) | DraftStore | memory | PASS | none; storage contract assertions passed | 0s |
-| (devel) | DraftStore | postgres | PASS | none; storage contract assertions passed | 653ms |
+| (devel) | DraftStore | postgres | PASS | none; storage contract assertions passed | 676ms |
 | (devel) | IdempotencyLifecycle | memory | PASS | none; storage contract assertions passed | 0s |
-| (devel) | IdempotencyLifecycle | postgres | PASS | none; storage contract assertions passed | 595ms |
+| (devel) | IdempotencyLifecycle | postgres | PASS | none; storage contract assertions passed | 462ms |
 | (devel) | RollbackAtomicity | memory | PASS | none; storage contract assertions passed | 0s |
-| (devel) | RollbackAtomicity | postgres | PASS | none; storage contract assertions passed | 539ms |
+| (devel) | RollbackAtomicity | postgres | PASS | none; storage contract assertions passed | 575ms |
 | (devel) | SequenceAllocator | memory | PASS | none; storage contract assertions passed | 0s |
-| (devel) | SequenceAllocator | postgres | PASS | none; storage contract assertions passed | 706ms |
+| (devel) | SequenceAllocator | postgres | PASS | none; storage contract assertions passed | 492ms |
 
 - **Totals:** 12 passed, 0 failed, 0 skipped.
 

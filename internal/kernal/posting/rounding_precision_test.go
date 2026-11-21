@@ -14,11 +14,12 @@ func TestRoundEntryToMinorUnitsRoundsBeforeSettlingResidual(t *testing.T) {
 	credit := makeMoney(t, "100.000", "USD")
 	zero := makeMoney(t, "0", "USD")
 	entry := journal.JournalEntry{
-		ID:            types.NewJournalEntryID(),
-		CompanyID:     types.NewCompanyID(),
-		JournalID:     types.NewJournalID(),
-		Status:        journal.EntryDraft,
-		EffectiveDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		ID:             types.NewJournalEntryID(),
+		CompanyID:      types.NewCompanyID(),
+		JournalID:      types.NewJournalID(),
+		Classification: journal.EntryClassRegular,
+		Status:         journal.EntryDraft,
+		EffectiveDate:  time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 		Lines: []journal.EntryLine{
 			{
 				ID: types.NewJournalEntryLineID(), AccountID: types.NewAccountID(),
@@ -64,11 +65,12 @@ func TestRoundBalancedEntrySettlesRoundedFunctionalDifference(t *testing.T) {
 	credit := makeMoney(t, "20.010", "USD")
 	zero := makeMoney(t, "0", "USD")
 	entry := journal.JournalEntry{
-		ID:            types.NewJournalEntryID(),
-		CompanyID:     types.NewCompanyID(),
-		JournalID:     types.NewJournalID(),
-		Status:        journal.EntryDraft,
-		EffectiveDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		ID:             types.NewJournalEntryID(),
+		CompanyID:      types.NewCompanyID(),
+		JournalID:      types.NewJournalID(),
+		Classification: journal.EntryClassRegular,
+		Status:         journal.EntryDraft,
+		EffectiveDate:  time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 		Lines: []journal.EntryLine{
 			{
 				ID: types.NewJournalEntryLineID(), AccountID: types.NewAccountID(),

@@ -145,7 +145,8 @@ func TestPostEntryNormalizesBothCurrenciesAndSettlesRounding(t *testing.T) {
 	roundingID := types.NewAccountID()
 	entry := journal.JournalEntry{
 		ID: types.NewJournalEntryID(), CompanyID: companyID, JournalID: journalID,
-		EffectiveDate: time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC), Status: journal.EntryDraft,
+		Classification: journal.EntryClassRegular,
+		EffectiveDate:  time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC), Status: journal.EntryDraft,
 		CreatedBy: "creator",
 		Lines: []journal.EntryLine{
 			{ID: types.NewJournalEntryLineID(), AccountID: types.NewAccountID(), TransactionAmount: debitA, TransactionCurrency: "USD",
@@ -200,7 +201,8 @@ func TestPostEntryNormalizesTransactionAndFunctionalCurrenciesIndependently(t *t
 	zero := makeMoney(t, "0", "USD")
 	entry := journal.JournalEntry{
 		ID: types.NewJournalEntryID(), CompanyID: companyID, JournalID: journalID,
-		EffectiveDate: time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC), Status: journal.EntryDraft,
+		Classification: journal.EntryClassRegular,
+		EffectiveDate:  time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC), Status: journal.EntryDraft,
 		Lines: []journal.EntryLine{
 			{ID: types.NewJournalEntryLineID(), AccountID: types.NewAccountID(), TransactionAmount: transactionAmount,
 				TransactionCurrency: "EUR", ExchangeRate: decimal.RequireFromString("1.2"),
@@ -360,8 +362,13 @@ func newPostingTestEntry(t *testing.T, createdBy string) journal.JournalEntry {
 
 func TestPostEntryRejectsIncompleteClassificationMetadataBeforeRepositoryAccess(t *testing.T) {
 	entry := newPostingTestEntry(t, "creator")
-	entry.Classification = journal.EntryClassAdjusting
+	entry.Classification = ""
 	pipeline := NewPostingPipeline(nil, nil)
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrInvalidEntry) {
+		t.Fatalf("missing classification error = %v, want invalid entry", err)
+	}
+
+	entry.Classification = journal.EntryClassAdjusting
 	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster"}); !errors.Is(err, ErrAdjustingEntryMetadataRequired) {
 		t.Fatalf("incomplete adjusting entry error = %v, want required metadata", err)
 	}
@@ -559,42 +566,60 @@ func TestPostingResolvesAdjustmentPeriodByAccountingMetadata(t *testing.T) {
 		},
 	}
 	var persistedPeriod types.FiscalPeriodID
+	executionCount := 0
 	pipeline := NewPostingPipeline(reader, func(_ context.Context, entry journal.JournalEntry, _ PostOptions) (journal.JournalEntry, error) {
+		executionCount++
 		persistedPeriod = entry.FiscalPeriodID
 		return entry, nil
 	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
 
 	for _, testCase := range []struct {
-		number int
-		class  journal.EntryClassification
-		want   types.FiscalPeriodID
+		name    string
+		number  int
+		class   journal.EntryClassification
+		typeOf  journal.AdjustingEntryType
+		wantErr error
+		want    types.FiscalPeriodID
 	}{
-		{number: 13, class: journal.EntryClassClosing, want: period13ID},
-		{number: 14, class: journal.EntryClassAdjusting, want: period14ID},
+		{name: "closing period 13", number: 13, class: journal.EntryClassClosing, want: period13ID},
+		{name: "accrual period 13", number: 13, class: journal.EntryClassAdjusting, typeOf: journal.AdjustingEntryAccrual, want: period13ID},
+		{name: "audit adjustment period 14", number: 14, class: journal.EntryClassAdjusting, typeOf: journal.AdjustingEntryAudit, want: period14ID},
+		{name: "audit adjustment period 13", number: 13, class: journal.EntryClassAdjusting, typeOf: journal.AdjustingEntryAudit, wantErr: ErrInvalidAdjustingEntryPeriod},
+		{name: "accrual period 14", number: 14, class: journal.EntryClassAdjusting, typeOf: journal.AdjustingEntryAccrual, wantErr: ErrInvalidAdjustingEntryPeriod},
+		{name: "regular period 14", number: 14, class: journal.EntryClassRegular, wantErr: masterdata.ErrInvalidAdjustmentPeriod},
+		{name: "audit adjustment normal period", number: 12, class: journal.EntryClassAdjusting, typeOf: journal.AdjustingEntryAudit, wantErr: ErrInvalidAdjustingEntryPeriod},
 	} {
-		entry := newPostingTestEntry(t, "creator")
-		entry.CompanyID = companyID
-		entry.EffectiveDate = time.Date(2026, 12, 30, 0, 0, 0, 0, time.UTC)
-		entry.TargetPeriodNumber = testCase.number
-		entry.Classification = testCase.class
-		if testCase.class == journal.EntryClassAdjusting {
-			entry.AdjustingEntryType = journal.AdjustingEntryAccrual
-			entry.AdjustmentReason = "Year-end adjustment"
-		}
-		if _, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster"}); err != nil {
-			t.Fatalf("post to period %d: %v", testCase.number, err)
-		}
-		if persistedPeriod != testCase.want {
-			t.Errorf("period %d resolved to %s, want %s", testCase.number, persistedPeriod, testCase.want)
-		}
-	}
-
-	entry := newPostingTestEntry(t, "creator")
-	entry.CompanyID = companyID
-	entry.TargetPeriodNumber = 13
-	entry.Classification = journal.EntryClassRegular
-	if _, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster"}); !errors.Is(err, masterdata.ErrInvalidAdjustmentPeriod) {
-		t.Fatalf("regular entry target period 13 error = %v, want invalid adjustment period", err)
+		t.Run(testCase.name, func(t *testing.T) {
+			entry := newPostingTestEntry(t, "creator")
+			entry.CompanyID = companyID
+			entry.EffectiveDate = time.Date(2026, 12, 30, 0, 0, 0, 0, time.UTC)
+			entry.TargetPeriodNumber = testCase.number
+			entry.Classification = testCase.class
+			if testCase.class == journal.EntryClassAdjusting {
+				entry.AdjustingEntryType = testCase.typeOf
+				entry.AdjustmentReason = "Year-end adjustment"
+			}
+			previousExecutionCount := executionCount
+			_, err := pipeline.PostEntry(ctx, entry, PostOptions{ActorID: "poster"})
+			if testCase.wantErr != nil {
+				if !errors.Is(err, testCase.wantErr) {
+					t.Fatalf("post to period %d error = %v, want %v", testCase.number, err, testCase.wantErr)
+				}
+				if executionCount != previousExecutionCount {
+					t.Fatalf("executor ran for rejected target period %d", testCase.number)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("post to period %d: %v", testCase.number, err)
+			}
+			if persistedPeriod != testCase.want {
+				t.Errorf("period %d resolved to %s, want %s", testCase.number, persistedPeriod, testCase.want)
+			}
+			if executionCount != previousExecutionCount+1 {
+				t.Fatalf("executor calls = %d, want %d", executionCount, previousExecutionCount+1)
+			}
+		})
 	}
 }
 

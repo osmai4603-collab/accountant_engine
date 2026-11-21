@@ -14,12 +14,17 @@ import (
 const GenesisHash = "0000000000000000000000000000000000000000000000000000000000000000"
 
 var (
-	ErrAuditChainBroken                = errors.New("audit chain integrity violation: tampering or broken link detected")
-	ErrAtomicAuditRepositoryRequired   = errors.New("atomic audit repository is required")
-	ErrAuditCheckpointProviderRequired = errors.New("external audit checkpoint provider is required")
-	ErrInvalidAuditCheckpoint          = errors.New("external audit checkpoint is invalid")
-	ErrAuditCheckpointMismatch         = errors.New("audit chain does not match external checkpoint")
+	ErrAuditChainBroken                  = errors.New("audit chain integrity violation: tampering or broken link detected")
+	ErrAtomicAuditRepositoryRequired     = errors.New("atomic audit repository is required")
+	ErrAuditSnapshotRepositoryRequired   = errors.New("consistent audit snapshot repository is required")
+	ErrAuditSnapshotConflict             = errors.New("audit verification snapshot changed while being read")
+	ErrAuditSnapshotConsistencyRetryable = errors.New("audit verification snapshot could not be stabilized; retry")
+	ErrInvalidAuditSnapshot              = errors.New("audit verification snapshot is invalid")
+	ErrInvalidAuditCheckpoint            = errors.New("external audit checkpoint is invalid")
+	ErrAuditCheckpointMismatch           = errors.New("audit chain does not match external checkpoint")
 )
+
+const maxAuditSnapshotAttempts = 3
 
 // AuditLog represents a cryptographically hashed immutable audit entry.
 type AuditLog struct {
@@ -76,16 +81,28 @@ type AtomicAuditLogRepository interface {
 	AppendAuditLogAtomic(ctx context.Context, log AuditLog) (AuditLog, error)
 }
 
-// AuditCheckpoint records a chain position retained outside the mutable audit log.
+// AuditCheckpoint records a versioned chain position retained outside the mutable audit log.
 type AuditCheckpoint struct {
 	CompanyID      apiTypes.CompanyID
 	SequenceNumber uint64
+	Version        uint64
 	LogHash        string
 }
 
-// AuditCheckpointProvider supplies a trusted, externally retained chain checkpoint.
-type AuditCheckpointProvider interface {
-	GetAuditCheckpoint(ctx context.Context, companyID apiTypes.CompanyID) (AuditCheckpoint, error)
+// AuditVerificationSnapshot binds the logs and external checkpoint to one
+// stable read. Logs must contain every record through SnapshotSequence.
+type AuditVerificationSnapshot struct {
+	CompanyID        apiTypes.CompanyID
+	SnapshotSequence uint64
+	Checkpoint       AuditCheckpoint
+	Logs             []AuditLog
+}
+
+// AuditVerificationSnapshotRepository returns logs and their trusted external
+// checkpoint from one consistent snapshot. If the checkpoint or log boundary
+// changes while reading, it must return ErrAuditSnapshotConflict.
+type AuditVerificationSnapshotRepository interface {
+	GetAuditVerificationSnapshot(ctx context.Context, companyID apiTypes.CompanyID) (AuditVerificationSnapshot, error)
 }
 
 type AuditChain struct {
@@ -120,6 +137,9 @@ func (c *AuditChain) VerifyAuditIntegrity(ctx context.Context, companyID apiType
 	err := c.repo.IterateAuditLogs(ctx, companyID, func(log AuditLog) error {
 		logIndex++
 		expectedSequence++
+		if log.CompanyID != companyID {
+			return fmt.Errorf("%w: at log %d, company id does not match requested company", ErrAuditChainBroken, log.ID)
+		}
 		if log.SequenceNumber != expectedSequence {
 			return fmt.Errorf("%w: at log %d, expected sequence %d, got %d",
 				ErrAuditChainBroken, log.ID, expectedSequence, log.SequenceNumber)
@@ -145,49 +165,82 @@ func (c *AuditChain) VerifyAuditIntegrity(ctx context.Context, companyID apiType
 	return true, nil
 }
 
-// VerifyAuditIntegrityWithCheckpoint also verifies the externally retained chain position.
+// VerifyAuditIntegrityWithCheckpoint verifies one stable log snapshot against
+// its external checkpoint. Only snapshot acquisition conflicts are retried;
+// mismatches returned in a stable snapshot are integrity failures.
 func (c *AuditChain) VerifyAuditIntegrityWithCheckpoint(
 	ctx context.Context,
 	companyID apiTypes.CompanyID,
-	provider AuditCheckpointProvider,
 ) (bool, error) {
-	if provider == nil {
-		return false, ErrAuditCheckpointProviderRequired
-	}
-	checkpoint, err := provider.GetAuditCheckpoint(ctx, companyID)
-	if err != nil {
-		return false, err
-	}
-	if checkpoint.CompanyID != companyID ||
-		(checkpoint.SequenceNumber == 0 && checkpoint.LogHash != GenesisHash) ||
-		(checkpoint.SequenceNumber > 0 && checkpoint.LogHash == "") {
-		return false, ErrInvalidAuditCheckpoint
-	}
-	valid, err := c.VerifyAuditIntegrity(ctx, companyID)
-	if err != nil || !valid {
-		return valid, err
+	repository, ok := c.repo.(AuditVerificationSnapshotRepository)
+	if !ok {
+		return false, ErrAuditSnapshotRepositoryRequired
 	}
 
-	var latest AuditLog
-	foundCheckpoint := checkpoint.SequenceNumber == 0
-	err = c.repo.IterateAuditLogs(ctx, companyID, func(log AuditLog) error {
-		latest = log
-		if log.SequenceNumber == checkpoint.SequenceNumber {
-			foundCheckpoint = true
-			if log.CurrentLogHash != checkpoint.LogHash {
-				return ErrAuditCheckpointMismatch
-			}
+	for attempt := 0; attempt < maxAuditSnapshotAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return false, err
 		}
-		return nil
-	})
-	if err != nil {
+		snapshot, err := repository.GetAuditVerificationSnapshot(ctx, companyID)
+		if errors.Is(err, ErrAuditSnapshotConflict) {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return false, ctxErr
+			}
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		if err := verifyAuditSnapshot(companyID, snapshot); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	if !foundCheckpoint || latest.SequenceNumber != checkpoint.SequenceNumber {
-		return false, ErrAuditCheckpointMismatch
+	return false, fmt.Errorf("%w: %w", ErrAuditSnapshotConsistencyRetryable, ErrAuditSnapshotConflict)
+}
+
+func verifyAuditSnapshot(companyID apiTypes.CompanyID, snapshot AuditVerificationSnapshot) error {
+	if snapshot.CompanyID != companyID || snapshot.Checkpoint.CompanyID != companyID {
+		return ErrInvalidAuditSnapshot
 	}
-	if checkpoint.SequenceNumber == 0 && checkpoint.LogHash != GenesisHash {
-		return false, ErrAuditCheckpointMismatch
+	checkpoint := snapshot.Checkpoint
+	if (checkpoint.SequenceNumber == 0 && (checkpoint.LogHash != GenesisHash || checkpoint.Version != 0)) ||
+		(checkpoint.SequenceNumber > 0 && (checkpoint.LogHash == "" || checkpoint.Version == 0)) {
+		return ErrInvalidAuditCheckpoint
 	}
-	return true, nil
+	if snapshot.SnapshotSequence != checkpoint.SequenceNumber {
+		return ErrAuditCheckpointMismatch
+	}
+	if uint64(len(snapshot.Logs)) != snapshot.SnapshotSequence {
+		return ErrAuditCheckpointMismatch
+	}
+
+	expectedPrevHash := GenesisHash
+	for index, log := range snapshot.Logs {
+		expectedSequence := uint64(index + 1)
+		if log.CompanyID != companyID {
+			return fmt.Errorf("%w: at log %d, company id does not match snapshot", ErrAuditChainBroken, log.ID)
+		}
+		if log.SequenceNumber != expectedSequence {
+			return fmt.Errorf("%w: at log %d, expected sequence %d, got %d",
+				ErrAuditChainBroken, log.ID, expectedSequence, log.SequenceNumber)
+		}
+		if log.PreviousLogHash != expectedPrevHash {
+			return fmt.Errorf("%w: at log %d, expected prev hash %s, got %s",
+				ErrAuditChainBroken, log.ID, expectedPrevHash, log.PreviousLogHash)
+		}
+		if computedHash := CalculateHash(log); computedHash != log.CurrentLogHash {
+			return fmt.Errorf("%w: at log %d (tampered content), computed %s != stored %s",
+				ErrAuditChainBroken, log.ID, computedHash, log.CurrentLogHash)
+		}
+		expectedPrevHash = log.CurrentLogHash
+	}
+
+	if expectedPrevHash != checkpoint.LogHash {
+		return ErrAuditCheckpointMismatch
+	}
+	return nil
 }

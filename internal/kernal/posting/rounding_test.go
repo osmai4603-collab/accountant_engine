@@ -15,11 +15,12 @@ func TestRoundEntryRoundsSubMinorDifferenceBeforeSettling(t *testing.T) {
 	credit, _ := types.NewMoneyFromString("100.000", "USD")
 	zero, _ := types.Zero("USD")
 	entry := journal.JournalEntry{
-		ID:            types.NewJournalEntryID(),
-		CompanyID:     types.NewCompanyID(),
-		JournalID:     types.NewJournalID(),
-		Status:        journal.EntryDraft,
-		EffectiveDate: time.Now().UTC(),
+		ID:             types.NewJournalEntryID(),
+		CompanyID:      types.NewCompanyID(),
+		JournalID:      types.NewJournalID(),
+		Classification: journal.EntryClassRegular,
+		Status:         journal.EntryDraft,
+		EffectiveDate:  time.Now().UTC(),
 		Lines: []journal.EntryLine{
 			{
 				ID:                  types.NewJournalEntryLineID(),
@@ -100,10 +101,11 @@ func TestRoundingSettlementIDIsStableForSameEntry(t *testing.T) {
 		credit := makeMoney(t, "20.010", "USD")
 		zero := makeMoney(t, "0", "USD")
 		return journal.JournalEntry{
-			ID:            types.NewJournalEntryID(),
-			CompanyID:     types.NewCompanyID(),
-			JournalID:     types.NewJournalID(),
-			EffectiveDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+			ID:             types.NewJournalEntryID(),
+			CompanyID:      types.NewCompanyID(),
+			JournalID:      types.NewJournalID(),
+			Classification: journal.EntryClassRegular,
+			EffectiveDate:  time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 			Lines: []journal.EntryLine{
 				{ID: types.NewJournalEntryLineID(), AccountID: types.NewAccountID(), TransactionAmount: debitA,
 					TransactionCurrency: "USD", ExchangeRate: decimal.NewFromInt(1), FunctionalDebit: debitA, FunctionalCredit: zero},
@@ -135,7 +137,8 @@ func TestRoundingFailureDoesNotPartiallyMutateEntry(t *testing.T) {
 	secondDebit := makeMoney(t, "10.005", "USD")
 	entry := journal.JournalEntry{
 		ID: types.NewJournalEntryID(), CompanyID: types.NewCompanyID(), JournalID: types.NewJournalID(),
-		EffectiveDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		Classification: journal.EntryClassRegular,
+		EffectiveDate:  time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 		Lines: []journal.EntryLine{
 			{ID: types.NewJournalEntryLineID(), AccountID: types.NewAccountID(), TransactionAmount: debit,
 				TransactionCurrency: "USD", ExchangeRate: decimal.NewFromInt(1), FunctionalDebit: debit, FunctionalCredit: zero},

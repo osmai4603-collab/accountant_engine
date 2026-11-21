@@ -30,6 +30,7 @@ var (
 	ErrFunctionalBalanceMismatch      = errors.New("functional debit and credit totals must balance")
 	ErrInvalidAdjustingEntryMetadata  = errors.New("invalid adjusting entry metadata")
 	ErrAdjustingEntryMetadataRequired = errors.New("adjusting entry metadata is required")
+	ErrInvalidAdjustingEntryPeriod    = errors.New("adjusting entry type does not match target period")
 	ErrEntryAlreadyReversed           = errors.New("journal entry already reversed")
 	ErrReversalExecutorRequired       = errors.New("atomic reversal executor is required")
 	ErrEntryNotPosted                 = errors.New("journal entry is not posted")
@@ -37,6 +38,7 @@ var (
 	ErrCannotModifyPostedMove         = apiTypes.ErrCannotModifyPostedMove
 	ErrReversalDateBeforeOriginal     = errors.New("reversal effective date is before the original entry effective date")
 	ErrReversalActorRequired          = errors.New("reversal actor is required")
+	ErrReversalReasonRequired         = errors.New("reversal reason is required")
 	ErrInvalidReversal                = errors.New("invalid reversal entry")
 	ErrInvalidDimensionReference      = errors.New("dimension reference cannot be empty/nil")
 	ErrRoundingAccountRequired        = errors.New("rounding difference account is required to settle sub-minor-unit amounts")
@@ -180,12 +182,10 @@ func ValidateEntryDoubleEntry(entry *journal.JournalEntry, round func(apiTypes.M
 // ValidateEntryClassificationMetadata enforces the metadata invariants for
 // adjusting and reversing entries before any posting-side effects are attempted.
 func ValidateEntryClassificationMetadata(entry journal.JournalEntry) error {
-	if entry.Classification != "" {
-		switch entry.Classification {
-		case journal.EntryClassRegular, journal.EntryClassAdjusting, journal.EntryClassClosing, journal.EntryClassOpening, journal.EntryClassReversing:
-		default:
-			return ErrInvalidEntry
-		}
+	switch entry.Classification {
+	case journal.EntryClassRegular, journal.EntryClassAdjusting, journal.EntryClassClosing, journal.EntryClassOpening, journal.EntryClassReversing:
+	default:
+		return ErrInvalidEntry
 	}
 
 	if entry.Classification == journal.EntryClassAdjusting {
@@ -193,9 +193,15 @@ func ValidateEntryClassificationMetadata(entry journal.JournalEntry) error {
 			return ErrAdjustingEntryMetadataRequired
 		}
 		switch entry.AdjustingEntryType {
-		case journal.AdjustingEntryAccrual, journal.AdjustingEntryDeferral, journal.AdjustingEntryProvisionEstimate, journal.AdjustingEntryReclassification:
+		case journal.AdjustingEntryAccrual, journal.AdjustingEntryDeferral, journal.AdjustingEntryProvisionEstimate, journal.AdjustingEntryReclassification, journal.AdjustingEntryAudit:
 		default:
 			return ErrInvalidAdjustingEntryMetadata
+		}
+		if entry.AdjustingEntryType == journal.AdjustingEntryAudit && entry.TargetPeriodNumber != 14 {
+			return ErrInvalidAdjustingEntryPeriod
+		}
+		if entry.TargetPeriodNumber == 14 && entry.AdjustingEntryType != journal.AdjustingEntryAudit {
+			return ErrInvalidAdjustingEntryPeriod
 		}
 	} else if entry.AdjustingEntryType != "" || entry.AdjustmentReason != "" {
 		return ErrInvalidAdjustingEntryMetadata
@@ -205,6 +211,13 @@ func ValidateEntryClassificationMetadata(entry journal.JournalEntry) error {
 	}
 	if entry.ReversalOfID != nil &&
 		(*entry.ReversalOfID == (apiTypes.JournalEntryID{}) || *entry.ReversalOfID == entry.ID) {
+		return ErrInvalidReversal
+	}
+	if entry.Classification == journal.EntryClassReversing {
+		if strings.TrimSpace(entry.ReversalReason) == "" {
+			return ErrReversalReasonRequired
+		}
+	} else if strings.TrimSpace(entry.ReversalReason) != "" {
 		return ErrInvalidReversal
 	}
 	return nil
