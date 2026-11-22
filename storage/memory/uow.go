@@ -55,6 +55,8 @@ func (u *memoryUnitOfWork) Balance() storage.BalanceReader {
 func (d *Driver) Capabilities() storage.AdapterCapabilities {
 	return storage.AdapterCapabilities{
 		AdapterName:            "memory",
+		ContractVersion:        storage.StorageContractVersion,
+		AdapterVersion:         "memory/dev",
 		SupportsRepeatableRead: true,
 		SupportsSerializable:   true,
 		EnforcesForeignKeys:    false,
@@ -138,4 +140,3 @@ func (d *Driver) ExecuteWithOptions(ctx context.Context, opts storage.TxOptions,
 	}
 	return nil
 }
-

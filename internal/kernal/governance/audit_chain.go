@@ -61,7 +61,7 @@ func CalculateHash(log AuditLog) string {
 	writeAuditHashField(h, log.ActorID)
 	writeAuditHashField(h, log.Reason)
 	writeAuditHashField(h, log.CorrelationID)
-	writeAuditHashField(h, fmt.Sprint(log.Timestamp.UTC().UnixNano()))
+	writeAuditHashField(h, fmt.Sprint(log.Timestamp.UTC().Truncate(time.Microsecond).UnixNano()))
 	writeAuditHashField(h, payloadHash)
 	writeAuditHashField(h, log.PreviousLogHash)
 	sum := h.Sum(nil)
@@ -93,13 +93,39 @@ type AuditCheckpoint struct {
 	LogHash        string
 }
 
+// ValidateCheckpoint enforces the shared shape rules for an external audit
+// checkpoint. Both adapters must apply the same rules before persisting one.
+func ValidateCheckpoint(checkpoint AuditCheckpoint) error {
+	if checkpoint.CompanyID == (apiTypes.CompanyID{}) {
+		return ErrInvalidAuditCheckpoint
+	}
+	decoded, err := hex.DecodeString(checkpoint.LogHash)
+	if err != nil || len(decoded) != sha256.Size {
+		return ErrInvalidAuditCheckpoint
+	}
+	if checkpoint.SequenceNumber == 0 {
+		if checkpoint.LogHash != GenesisHash {
+			return ErrInvalidAuditCheckpoint
+		}
+		return nil
+	}
+	if checkpoint.Version == 0 {
+		return ErrInvalidAuditCheckpoint
+	}
+	return nil
+}
+
 // AuditVerificationSnapshot binds the logs and external checkpoint to one
-// stable read. Logs must contain every record through SnapshotSequence.
+// stable read. Logs must contain exactly SnapshotSequence records. The
+// checkpoint is trusted custody from outside the mutable log; when no trusted
+// checkpoint exists, CheckpointPresent must be false and checkpoint-based
+// verification must fail closed instead of silently accepting an empty anchor.
 type AuditVerificationSnapshot struct {
-	CompanyID        apiTypes.CompanyID
-	SnapshotSequence uint64
-	Checkpoint       AuditCheckpoint
-	Logs             []AuditLog
+	CompanyID         apiTypes.CompanyID
+	SnapshotSequence  uint64
+	Checkpoint        AuditCheckpoint
+	CheckpointPresent bool
+	Logs              []AuditLog
 }
 
 // AuditVerificationSnapshotRepository returns logs and their trusted external
@@ -251,10 +277,12 @@ func verifyAuditSnapshot(companyID apiTypes.CompanyID, snapshot AuditVerificatio
 	if snapshot.CompanyID != companyID || snapshot.Checkpoint.CompanyID != companyID {
 		return ErrInvalidAuditSnapshot
 	}
+	if !snapshot.CheckpointPresent {
+		return ErrAuditCheckpointMismatch
+	}
 	checkpoint := snapshot.Checkpoint
-	if (checkpoint.SequenceNumber == 0 && (checkpoint.LogHash != GenesisHash || checkpoint.Version != 0)) ||
-		(checkpoint.SequenceNumber > 0 && (checkpoint.LogHash == "" || checkpoint.Version == 0)) {
-		return ErrInvalidAuditCheckpoint
+	if err := ValidateCheckpoint(checkpoint); err != nil {
+		return err
 	}
 	if snapshot.SnapshotSequence != checkpoint.SequenceNumber {
 		return ErrAuditCheckpointMismatch

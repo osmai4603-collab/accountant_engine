@@ -17,6 +17,31 @@ type Reader interface {
 	GetPeriodForDate(ctx context.Context, companyID types.CompanyID, date time.Time) (FiscalPeriod, error)
 }
 
+// EffectiveAccountReader supplies the account version that was effective at a
+// posting date. A reader that does not implement it falls back to GetAccount;
+// the kernel then fails closed if the returned record is not current on the
+// posting date. Adapters must keep effective-dated versions so a later master
+// data edit cannot silently reinterpret an already posted entry.
+type EffectiveAccountReader interface {
+	GetAccountAsOf(
+		ctx context.Context,
+		companyID types.CompanyID,
+		accountID types.AccountID,
+		asOf time.Time,
+	) (Account, error)
+}
+
+// Clock abstracts wall time for domain helpers that need a "current" date.
+// Posting pipelines must pass an injected clock; callers that need an explicit
+// date should use the *AsOf variants instead.
+type Clock interface {
+	Now() time.Time
+}
+
+type SystemClock struct{}
+
+func (SystemClock) Now() time.Time { return time.Now().UTC() }
+
 // AdjustmentPeriodReader resolves a period 13 or 14 within a fiscal year.
 // Adapters should implement this alongside Reader to enable adjustment posting.
 type AdjustmentPeriodReader interface {

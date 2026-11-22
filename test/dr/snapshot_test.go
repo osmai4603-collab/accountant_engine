@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 )
 
@@ -54,15 +56,15 @@ func captureSnapshot(t *testing.T, ctx context.Context, pool *pgxpool.Pool, comp
 	return snap
 }
 
-// verifyPostgresAuditChain verifies the v1 SHA-256 hash-chain format written by
-// storage/postgres.AppendAudit. The kernel governance verifier uses a v2 format
-// and is therefore not applicable to rows written by this adapter; the gap is
-// recorded in the P7 evidence log.
-func verifyPostgresAuditChain(t *testing.T, ctx context.Context, pool *pgxpool.Pool, companyID types.CompanyID) {
+// verifyPostgresAuditChain verifies the canonical v2 audit chain after backup
+// restore. When expectCheckpoint is true, the trusted external checkpoint must
+// have survived the restore and match the final chain hash; a missing row is a
+// failure, not a reason to skip the comparison.
+func verifyPostgresAuditChain(t *testing.T, ctx context.Context, pool *pgxpool.Pool, companyID types.CompanyID, expectCheckpoint bool) {
 	t.Helper()
-	rows, err := pool.Query(ctx, `SELECT entity_type, entity_id::text, action, actor_id::text,
-		coalesce(payload_after::text, 'null'), timestamp, previous_log_hash, current_log_hash
-		FROM financial_audit_logs WHERE company_id=$1 ORDER BY id`, companyID)
+	rows, err := pool.Query(ctx, `SELECT sequence_number, entity_type, entity_id, action, actor_id,
+		reason, correlation_id, payload_after, timestamp, previous_log_hash, current_log_hash
+		FROM financial_audit_logs WHERE company_id=$1 ORDER BY sequence_number, id`, companyID)
 	if err != nil {
 		t.Fatalf("query audit chain: %v", err)
 	}
@@ -70,37 +72,32 @@ func verifyPostgresAuditChain(t *testing.T, ctx context.Context, pool *pgxpool.P
 
 	previous := auditGenesisHash
 	count := 0
+	lastHash := auditGenesisHash
 	for rows.Next() {
-		var entityType, entityID, action, actorID, payload, previousHash, currentHash string
+		var sequence int64
+		var entityType, entityID, action, actorID, reason, correlationID, previousHash, currentHash string
+		var payload []byte
 		var timestamp time.Time
-		if err := rows.Scan(&entityType, &entityID, &action, &actorID, &payload, &timestamp, &previousHash, &currentHash); err != nil {
+		if err := rows.Scan(&sequence, &entityType, &entityID, &action, &actorID, &reason,
+			&correlationID, &payload, &timestamp, &previousHash, &currentHash); err != nil {
 			t.Fatalf("scan audit row: %v", err)
 		}
 		if previousHash != previous {
 			t.Fatalf("audit chain link %d broken: previous=%s want %s", count+1, previousHash, previous)
 		}
-		// pgx may return jsonb as a hex-escaped byte string. Decode it back to
-		// the raw JSON bytes that storage/postgres.AppendAudit hashed.
-		hashPayload := []byte(payload)
-		if strings.HasPrefix(payload, `\x`) {
-			decoded, err := hex.DecodeString(strings.TrimPrefix(payload, `\x`))
-			if err != nil {
-				t.Fatalf("decode audit payload %q: %v", payload, err)
-			}
-			hashPayload = decoded
+		log := kernalgovernance.AuditLog{
+			SequenceNumber: uint64(sequence), CompanyID: companyID,
+			EntityType: entityType, EntityID: entityID, Action: action, ActorID: actorID,
+			Reason: reason, CorrelationID: correlationID, Payload: payload,
+			Timestamp: timestamp, PreviousLogHash: previousHash,
 		}
-
-		h := sha256.New()
-		for _, field := range []string{previousHash, companyID.String(), entityType, entityID, action, actorID} {
-			_, _ = h.Write([]byte(field))
-		}
-		_, _ = h.Write(hashPayload)
-		expected := hex.EncodeToString(h.Sum(nil))
+		expected := kernalgovernance.CalculateHash(log)
 		if currentHash != expected {
-			t.Fatalf("audit row %d hash mismatch: stored=%s computed=%s (previous=%s company=%s entity=%s/%s action=%s actor=%s payload=%s)",
-				count+1, currentHash, expected, previousHash, companyID, entityType, entityID, action, actorID, payload)
+			t.Fatalf("audit row %d hash mismatch: stored=%s computed=%s (sequence=%d previous=%s company=%s entity=%s/%s action=%s actor=%s reason=%s correlation=%s timestamp_ns=%d payload=%x)",
+				count+1, currentHash, expected, sequence, previousHash, companyID, entityType, entityID, action, actorID, reason, correlationID, timestamp.UTC().UnixNano(), payload)
 		}
 		previous = currentHash
+		lastHash = currentHash
 		count++
 	}
 	if err := rows.Err(); err != nil {
@@ -108,6 +105,22 @@ func verifyPostgresAuditChain(t *testing.T, ctx context.Context, pool *pgxpool.P
 	}
 	if count == 0 {
 		t.Fatal("no audit records found for company")
+	}
+	var checkpointSequence int64
+	var checkpointHash string
+	err = pool.QueryRow(ctx, `SELECT sequence_number, log_hash
+		FROM external_audit_checkpoints WHERE company_id=$1`, companyID).
+		Scan(&checkpointSequence, &checkpointHash)
+	if err == nil {
+		if checkpointSequence != int64(count) || checkpointHash != lastHash {
+			t.Fatalf("restored external checkpoint mismatch: sequence=%d hash=%s, want sequence=%d hash=%s",
+				checkpointSequence, checkpointHash, count, lastHash)
+		}
+		t.Logf("restored external checkpoint matched: sequence=%d hash=%s", checkpointSequence, checkpointHash)
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("query restored external checkpoint: %v", err)
+	} else if expectCheckpoint {
+		t.Fatal("external checkpoint created before backup was lost after restore")
 	}
 	t.Logf("verified %d audit-chain records for company %s", count, companyID)
 }

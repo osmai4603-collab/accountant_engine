@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -14,9 +15,41 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
+	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 )
 
 var _ masterdata.Store = (*Driver)(nil)
+var _ masterdata.EffectiveAccountReader = (*Driver)(nil)
+var _ masterdata.AccountVersionWriter = (*Driver)(nil)
+
+// primaryCompanyIDs binds context-less administrative reads to the first
+// company successfully created through an adapter instance. Hosts operating on
+// a second tenant must attach storage.WithCompanyContext; RLS alone cannot
+// distinguish a caller that names a tenant from one that is entitled to it.
+var primaryCompanyIDs sync.Map
+
+func (d *Driver) primaryCompanyID() types.CompanyID {
+	if value, ok := primaryCompanyIDs.Load(d); ok {
+		if id, valid := value.(types.CompanyID); valid {
+			return id
+		}
+	}
+	return types.CompanyID{}
+}
+
+// assertReadScope rejects reads that name a company other than the active
+// tenant. The active tenant is the explicit storage company context when
+// present, otherwise the first company created on this adapter.
+func (d *Driver) assertReadScope(ctx context.Context, companyID types.CompanyID, notFound error) error {
+	active := d.primaryCompanyID()
+	if fromContext, ok := storage.CompanyFromContext(ctx); ok && fromContext != (types.CompanyID{}) {
+		active = fromContext
+	}
+	if active != (types.CompanyID{}) && companyID != active {
+		return notFound
+	}
+	return nil
+}
 
 func (d *Driver) CreateCompany(ctx context.Context, company masterdata.Company) error {
 	company.Code = strings.ToUpper(strings.TrimSpace(company.Code))
@@ -25,7 +58,7 @@ func (d *Driver) CreateCompany(ctx context.Context, company masterdata.Company) 
 	if company.ID == (types.CompanyID{}) || company.Code == "" {
 		return masterdata.ErrInvalidCompany
 	}
-	return d.WithCompanyTx(ctx, uuid.UUID(company.ID), func(tx pgx.Tx) error {
+	if err := d.WithCompanyTx(ctx, uuid.UUID(company.ID), func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO companies(id, code, legal_name, functional_currency, presentation_currency, is_active)
 			VALUES($1,$2,$3,$4,$5,$6)
 			ON CONFLICT(id) DO UPDATE SET code=EXCLUDED.code, legal_name=EXCLUDED.legal_name,
@@ -41,11 +74,18 @@ func (d *Driver) CreateCompany(ctx context.Context, company masterdata.Company) 
 			return err
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	primaryCompanyIDs.LoadOrStore(d, company.ID)
+	return nil
 }
 
 func (d *Driver) GetCompany(ctx context.Context, id types.CompanyID) (masterdata.Company, error) {
 	var company masterdata.Company
+	if err := d.assertReadScope(ctx, id, masterdata.ErrCompanyNotFound); err != nil {
+		return company, err
+	}
 	err := d.WithCompanyTx(ctx, uuid.UUID(id), func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx,
 			`SELECT id, code, legal_name, functional_currency, presentation_currency, is_active
@@ -96,6 +136,9 @@ func (d *Driver) CreateJournal(ctx context.Context, journal masterdata.Journal) 
 func (d *Driver) GetJournalByCode(ctx context.Context, companyID types.CompanyID, code string) (masterdata.Journal, error) {
 	if companyID == (types.CompanyID{}) || strings.TrimSpace(code) == "" || utf8.RuneCountInString(code) > 32 {
 		return masterdata.Journal{}, masterdata.ErrInvalidJournal
+	}
+	if err := d.assertReadScope(ctx, companyID, masterdata.ErrJournalNotFound); err != nil {
+		return masterdata.Journal{}, err
 	}
 	var journal masterdata.Journal
 	err := d.WithCompanyTx(ctx, uuid.UUID(companyID), func(tx pgx.Tx) error {
@@ -199,6 +242,9 @@ func (d *Driver) GetAccount(ctx context.Context, companyID types.CompanyID, acco
 
 func (d *Driver) GetAccountByCode(ctx context.Context, companyID types.CompanyID, code string) (masterdata.Account, error) {
 	var account masterdata.Account
+	if err := d.assertReadScope(ctx, companyID, masterdata.ErrAccountNotFound); err != nil {
+		return account, err
+	}
 	err := d.WithCompanyTx(ctx, uuid.UUID(companyID), func(tx pgx.Tx) error {
 		var aID, cID uuid.UUID
 		var parentID *uuid.UUID
@@ -342,6 +388,9 @@ func (d *Driver) GetFiscalPeriod(ctx context.Context, companyID types.CompanyID,
 
 func (d *Driver) GetPeriodForDate(ctx context.Context, companyID types.CompanyID, date time.Time) (masterdata.FiscalPeriod, error) {
 	var period masterdata.FiscalPeriod
+	if err := d.assertReadScope(ctx, companyID, masterdata.ErrPeriodNotFound); err != nil {
+		return period, err
+	}
 	date = date.UTC().Truncate(time.Microsecond)
 	err := d.WithCompanyTx(ctx, uuid.UUID(companyID), func(tx pgx.Tx) error {
 		var pID, cID, yID uuid.UUID
@@ -365,4 +414,173 @@ func (d *Driver) GetPeriodForDate(ctx context.Context, companyID types.CompanyID
 		return nil
 	})
 	return period, err
+}
+
+// Effective-dated account versions (G-019). Both bounds are inclusive UTC
+// calendar days; the date columns keep the windows stable across adapters while
+// the DTO exposes IsCurrent-compatible end-of-day timestamps.
+const phase11DateDay = 24 * time.Hour
+
+func phase11DateUTC(value time.Time) time.Time {
+	return value.UTC().Truncate(phase11DateDay)
+}
+
+func phase11DateEndUTC(value time.Time) time.Time {
+	return phase11DateUTC(value).Add(phase11DateDay).Add(-time.Nanosecond)
+}
+
+const accountVersionColumns = `company_id, account_id, name, account_type, ifrs_category,
+	effective_from, effective_to, code, normal_balance, currency_id, parent_id,
+	is_reconcilable, is_control_account, is_contra_account, is_active, requires_cost_center,
+	is_cash_equivalent, is_non_cash_adjustment, cash_flow_activity, sub_classification, display_order`
+
+func (d *Driver) SaveAccountVersion(ctx context.Context, account masterdata.Account) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if account.ID == (types.AccountID{}) || account.CompanyID == (types.CompanyID{}) {
+		return masterdata.ErrInvalidAccount
+	}
+	if account.EffectiveFrom.IsZero() {
+		return masterdata.ErrInvalidEffectiveRange
+	}
+	from := phase11DateUTC(account.EffectiveFrom)
+	to := from
+	if account.EffectiveTo != nil {
+		to = phase11DateUTC(*account.EffectiveTo)
+		if to.Before(from) {
+			return masterdata.ErrInvalidEffectiveRange
+		}
+	}
+	companyID := uuid.UUID(account.CompanyID)
+	accountID := uuid.UUID(account.ID)
+	var parentID *uuid.UUID
+	if account.ParentID != nil {
+		value := uuid.UUID(*account.ParentID)
+		parentID = &value
+	}
+	return d.WithCompanyTx(ctx, companyID, func(tx pgx.Tx) error {
+		var exists bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM accounts WHERE company_id=$1 AND id=$2)`,
+			companyID, accountID).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return masterdata.ErrAccountNotFound
+		}
+		var overlaps bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM account_versions
+			WHERE company_id=$1 AND account_id=$2 AND effective_from <= $3::date
+			  AND (effective_to IS NULL OR effective_to >= $4::date)
+		)`, companyID, accountID, to, from).Scan(&overlaps); err != nil {
+			return err
+		}
+		if overlaps {
+			return masterdata.ErrAccountVersionOverlap
+		}
+		var effectiveTo any
+		if account.EffectiveTo != nil {
+			effectiveTo = to
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO account_versions (`+accountVersionColumns+`)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+			companyID, accountID, account.Name, string(account.Type),
+			nullableString(account.IFRSCategory, "unclassified"), from, effectiveTo,
+			account.Code, string(account.NormalBalance), nullableString(account.Currency, "USD"), parentID,
+			account.IsReconcilable, account.IsControlAccount, account.IsContraAccount, account.IsActive,
+			account.RequiresCostCenter, account.IsCashEquivalent, account.IsNonCashAdjustment,
+			nullableString(account.CashFlowActivity, "unclassified"),
+			nullableString(account.SubClassification, "unclassified"), account.DisplayOrder)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return masterdata.ErrAccountVersionOverlap
+			}
+			return err
+		}
+		// The newest snapshot refreshes the base row; older versions stay frozen.
+		var newest time.Time
+		if err := tx.QueryRow(ctx, `SELECT effective_from FROM account_versions
+			WHERE company_id=$1 AND account_id=$2 ORDER BY effective_from DESC LIMIT 1`,
+			companyID, accountID).Scan(&newest); err != nil {
+			return err
+		}
+		if !phase11DateUTC(newest).Equal(from) {
+			return nil
+		}
+		_, err = tx.Exec(ctx, `UPDATE accounts SET
+			code=$3, name=$4, account_type=$5, normal_balance=$6, currency_id=$7, parent_id=$8,
+			is_reconcilable=$9, is_control_account=$10, is_contra_account=$11, is_active=$12,
+			requires_cost_center=$13, is_cash_equivalent=$14, is_non_cash_adjustment=$15,
+			cash_flow_activity=$16, sub_classification=$17, ifrs_category=$18, display_order=$19,
+			updated_at=NOW()
+			WHERE company_id=$1 AND id=$2`,
+			companyID, accountID, account.Code, account.Name, string(account.Type),
+			string(account.NormalBalance), nullableString(account.Currency, "USD"), parentID,
+			account.IsReconcilable, account.IsControlAccount, account.IsContraAccount, account.IsActive,
+			account.RequiresCostCenter, account.IsCashEquivalent, account.IsNonCashAdjustment,
+			nullableString(account.CashFlowActivity, "unclassified"),
+			nullableString(account.SubClassification, "unclassified"),
+			nullableString(account.IFRSCategory, "unclassified"), account.DisplayOrder)
+		return err
+	})
+}
+
+func (d *Driver) GetAccountAsOf(ctx context.Context, companyID types.CompanyID, accountID types.AccountID, asOf time.Time) (masterdata.Account, error) {
+	if err := ctx.Err(); err != nil {
+		return masterdata.Account{}, err
+	}
+	if err := d.assertReadScope(ctx, companyID, masterdata.ErrAccountNotFound); err != nil {
+		return masterdata.Account{}, err
+	}
+	var account masterdata.Account
+	asOfDate := phase11DateUTC(asOf)
+	err := d.WithCompanyTx(ctx, uuid.UUID(companyID), func(tx pgx.Tx) error {
+		var parentID *uuid.UUID
+		var from time.Time
+		var toDate *time.Time
+		var aType, nBal string
+		err := tx.QueryRow(ctx, `SELECT name, code, account_type, normal_balance, currency_id, parent_id,
+			is_reconcilable, is_control_account, is_contra_account, is_active, requires_cost_center,
+			is_cash_equivalent, is_non_cash_adjustment, cash_flow_activity, sub_classification,
+			ifrs_category, display_order, effective_from, effective_to
+			FROM account_versions
+			WHERE company_id=$1 AND account_id=$2 AND effective_from <= $3::date
+			  AND (effective_to IS NULL OR effective_to >= $3::date)
+			ORDER BY effective_from DESC LIMIT 1`,
+			uuid.UUID(companyID), uuid.UUID(accountID), asOfDate).Scan(
+			&account.Name, &account.Code, &aType, &nBal, &account.Currency, &parentID,
+			&account.IsReconcilable, &account.IsControlAccount, &account.IsContraAccount,
+			&account.IsActive, &account.RequiresCostCenter, &account.IsCashEquivalent,
+			&account.IsNonCashAdjustment, &account.CashFlowActivity, &account.SubClassification,
+			&account.IFRSCategory, &account.DisplayOrder, &from, &toDate)
+		if errors.Is(err, pgx.ErrNoRows) {
+			// No stored version: preserve the pre-versioning read path.
+			base, getErr := d.GetAccount(ctx, companyID, accountID)
+			if getErr != nil {
+				return getErr
+			}
+			account = base
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		account.ID = accountID
+		account.CompanyID = companyID
+		account.Type = masterdata.AccountType(aType)
+		account.NormalBalance = masterdata.NormalBalance(nBal)
+		if parentID != nil {
+			pid := types.AccountID(*parentID)
+			account.ParentID = &pid
+		}
+		account.EffectiveFrom = phase11DateUTC(from)
+		if toDate != nil {
+			end := phase11DateEndUTC(*toDate)
+			account.EffectiveTo = &end
+		}
+		return nil
+	})
+	return account, err
 }

@@ -201,6 +201,16 @@ func (a testPayloadHashIdempotency) Fail(ctx context.Context, companyID types.Co
 	return a.IdempotencyStore.Fail(ctx, companyID, key, payloadHash, status)
 }
 
+// Lookup preserves the optional side-effect-free read required for replay
+// after an unknown outcome. The embedded store alone does not expose it.
+func (a testPayloadHashIdempotency) Lookup(ctx context.Context, companyID types.CompanyID, key string) (storage.IdempotencyRecord, bool, error) {
+	lookup, ok := a.IdempotencyStore.(storage.IdempotencyLookup)
+	if !ok {
+		return storage.IdempotencyRecord{}, false, nil
+	}
+	return lookup.Lookup(ctx, companyID, key)
+}
+
 func backupFilePath(t *testing.T, env *drillEnvironment) string {
 	t.Helper()
 	return filepath.Join(env.backupDir, "p7_dr_backup.dump")

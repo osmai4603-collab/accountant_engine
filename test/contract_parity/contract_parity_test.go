@@ -2,6 +2,7 @@ package contract_parity
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"testing"
@@ -16,6 +17,20 @@ import (
 
 func TestMain(m *testing.M) {
 	code := m.Run()
+
+	// A filtered run sees only part of the suite; writing the report from it
+	// would silently erase evidence from scenarios that were not executed.
+	runFlag := flag.Lookup("test.run")
+	if runFlag != nil {
+		pattern := runFlag.Value.String()
+		if pattern != "" && pattern != ".*" {
+			fmt.Fprintln(os.Stderr, "contract parity report not written: filtered test run")
+			os.Exit(code)
+		}
+	}
+	if os.Getenv("CONTRACT_PARITY_SKIP_REPORT") == "1" {
+		os.Exit(code)
+	}
 
 	for _, path := range []string{"parity_report.md", "../../docs/reports/contract_parity_report.md"} {
 		if err := GlobalReporter.WriteReportToFile(path); err != nil {

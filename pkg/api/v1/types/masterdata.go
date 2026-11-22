@@ -43,3 +43,15 @@ const (
 type Account = kernalMasterdata.Account
 type FiscalYear = kernalMasterdata.FiscalYear
 type FiscalPeriod = kernalMasterdata.FiscalPeriod
+
+// Public re-exports of the company-scoped analytical master data vocabulary
+// (ADR P11-02). They remain aliases so callers never import internal/*.
+type CostCenter = kernalMasterdata.CostCenter
+type AnalyticalDimensionValue = kernalMasterdata.AnalyticalDimensionValue
+type AnalyticalDimensionKind = kernalMasterdata.AnalyticalDimensionKind
+
+const (
+	DimensionProject      = kernalMasterdata.DimensionProject
+	DimensionSegment      = kernalMasterdata.DimensionSegment
+	DimensionBusinessUnit = kernalMasterdata.DimensionBusinessUnit
+)

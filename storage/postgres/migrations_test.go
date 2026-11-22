@@ -14,8 +14,10 @@ func TestEveryMigrationHasRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(migrations) != 32 {
-		t.Fatalf("expected 32 migrations in dependency chain, got %d", len(migrations))
+	// Phase 10 established 34 migrations; later phases may append more, but the
+	// chain must never shrink below the audited Phase 10 baseline.
+	if len(migrations) < 34 {
+		t.Fatalf("expected at least 34 migrations in dependency chain, got %d", len(migrations))
 	}
 	for _, migration := range migrations {
 		if migration.downPath == "" {
@@ -29,4 +31,3 @@ func TestEveryMigrationHasRollback(t *testing.T) {
 		}
 	}
 }
-

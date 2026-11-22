@@ -52,16 +52,102 @@ func (d *Driver) NextSequence(ctx context.Context, companyID types.CompanyID, jo
 	return seq, err
 }
 
-// CommitPosting commits a journal entry atomically.
+// CommitPosting commits a journal entry atomically. The driver owns the real
+// transaction boundary: if the transaction commits and the response is then
+// lost, FaultAfterCommit models the unknown-outcome window that idempotency
+// replay resolves.
 func (d *Driver) CommitPosting(ctx context.Context, commit storage.PostingCommit) (journal.JournalEntry, error) {
 	var result journal.JournalEntry
-	err := d.WithCompanyTx(ctx, uuid.UUID(commit.Entry.CompanyID), func(tx pgx.Tx) error {
-		uow := &postgresUnitOfWork{driver: d, tx: tx}
+	if commit.Idempotency != nil {
+		if err := commit.Idempotency.Validate(); err != nil {
+			return journal.JournalEntry{}, err
+		}
+	}
+	if err := storage.InjectFault(ctx, storage.FaultBeforeIdempotencyClaim); err != nil {
+		return journal.JournalEntry{}, err
+	}
+	companyCtx := storage.WithCompanyContext(ctx, commit.Entry.CompanyID)
+	err := d.ExecuteWithOptions(companyCtx, storage.TxOptions{}, func(txCtx context.Context, uow storage.UnitOfWork) error {
 		var postErr error
-		result, postErr = uow.CommitPosting(ctx, commit)
+		// The transaction-aware context must reach CommitPosting: ordered
+		// advisory locks are acquired through the active transaction.
+		result, postErr = uow.Posting().CommitPosting(txCtx, commit)
 		return postErr
 	})
-	return result, err
+	if err != nil {
+		return journal.JournalEntry{}, err
+	}
+	if err := storage.InjectFault(ctx, storage.FaultAfterCommit); err != nil {
+		return journal.JournalEntry{}, err
+	}
+	return result, nil
+}
+
+// marshalEntryForStorage emits the public entry plus the two legacy link keys
+// checked by the WORM trigger when a posted move is frozen by its reversal.
+// The kernel fields remain authoritative; these aliases only satisfy the
+// database's immutability proof.
+func marshalEntryForStorage(entry journal.JournalEntry) ([]byte, error) {
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return nil, err
+	}
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(data, &object); err != nil {
+		return nil, err
+	}
+	// The database enforces the original-side link through ReversedEntryID and
+	// the reversed_move_id column. Keeping ReversedByID out of the stored JSON
+	// lets the WORM trigger prove that no other posted fact changed.
+	delete(object, "ReversedByID")
+	if entry.Status == journal.EntryReversed && entry.ReversedByID != nil {
+		alias, err := json.Marshal(entry.ReversedByID.String())
+		if err != nil {
+			return nil, err
+		}
+		object["ReversedEntryID"] = alias
+	}
+	if entry.ReversalOfID != nil {
+		alias, err := json.Marshal(entry.ReversalOfID.String())
+		if err != nil {
+			return nil, err
+		}
+		object["OriginalEntryID"] = alias
+	}
+	return json.Marshal(object)
+}
+
+// unmarshalEntryFromStorage restores the kernel entry from its durable JSON,
+// including the legacy reversal link aliases used by the WORM trigger.
+func unmarshalEntryFromStorage(data []byte) (journal.JournalEntry, error) {
+	var entry journal.JournalEntry
+	if err := json.Unmarshal(data, &entry); err != nil {
+		return journal.JournalEntry{}, err
+	}
+	var aliases struct {
+		ReversedEntryID *string `json:"ReversedEntryID"`
+		OriginalEntryID *string `json:"OriginalEntryID"`
+	}
+	if err := json.Unmarshal(data, &aliases); err != nil {
+		return journal.JournalEntry{}, err
+	}
+	if entry.ReversedByID == nil && aliases.ReversedEntryID != nil {
+		parsed, err := uuid.Parse(*aliases.ReversedEntryID)
+		if err != nil {
+			return journal.JournalEntry{}, err
+		}
+		id := types.JournalEntryID(parsed)
+		entry.ReversedByID = &id
+	}
+	if entry.ReversalOfID == nil && aliases.OriginalEntryID != nil {
+		parsed, err := uuid.Parse(*aliases.OriginalEntryID)
+		if err != nil {
+			return journal.JournalEntry{}, err
+		}
+		id := types.JournalEntryID(parsed)
+		entry.ReversalOfID = &id
+	}
+	return entry, nil
 }
 
 func saveEntryTx(ctx context.Context, tx pgx.Tx, entry journal.JournalEntry) error {
@@ -84,7 +170,7 @@ func saveEntryTx(ctx context.Context, tx pgx.Tx, entry journal.JournalEntry) err
 		}
 	}
 
-	data, err := json.Marshal(entry)
+	data, err := marshalEntryForStorage(entry)
 	if err != nil {
 		return err
 	}

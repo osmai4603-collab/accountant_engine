@@ -13,7 +13,7 @@
 // Without a trusted checkpoint beyond a deleted suffix, a valid remaining
 // prefix cannot prove that the suffix ever existed.
 //
-// Import charter: May import only sibling internal/kernal/* modules, uuid and decimal.
+// Import charter: Go standard library, sibling internal/kernal/* modules, uuid and decimal only.
 //
 // Baseline: AE-PLAN-STEP-P0 / P0-02, NEW_PROJECT_STRUCTURE.md,
 // ARCHITECTURAL_PRINCIPLES_CHARTER.md.

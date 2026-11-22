@@ -3,6 +3,7 @@ package governance
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -109,10 +110,11 @@ func (r *snapshotAuditRepo) GetAuditVerificationSnapshot(
 		checkpoint = AuditCheckpoint{CompanyID: companyID, LogHash: GenesisHash}
 	}
 	return AuditVerificationSnapshot{
-		CompanyID:        companyID,
-		SnapshotSequence: uint64(len(logs)),
-		Checkpoint:       checkpoint,
-		Logs:             logs,
+		CompanyID:         companyID,
+		SnapshotSequence:  uint64(len(logs)),
+		Checkpoint:        checkpoint,
+		CheckpointPresent: ok,
+		Logs:              logs,
 	}, nil
 }
 
@@ -358,6 +360,62 @@ func TestAuditSnapshotVerificationDetectsTampering(t *testing.T) {
 	}
 }
 
+func TestAuditSnapshotVerificationDetectsReorderedLogs(t *testing.T) {
+	ctx := context.Background()
+	repo := newSnapshotAuditRepo()
+	chain := NewAuditChain(repo)
+	companyID := types.NewCompanyID()
+	for _, payload := range []string{"first", "second"} {
+		if _, err := chain.Append(ctx, AuditLog{
+			CompanyID: companyID, EntityType: "journal_entry",
+			EntityID: types.NewJournalEntryID().String(), Action: "POST",
+			Payload: []byte(payload),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Simulate an attacker with write access swapping two stored records while
+	// leaving each record's own hash intact. The boundary still matches the
+	// checkpoint, so the verifier must catch the broken sequence/links.
+	repo.mu.Lock()
+	repo.logs[companyID][0], repo.logs[companyID][1] = repo.logs[companyID][1], repo.logs[companyID][0]
+	repo.mu.Unlock()
+
+	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID); valid || !errors.Is(err, ErrAuditChainBroken) {
+		t.Fatalf("reordered snapshot = (%v, %v), want broken chain", valid, err)
+	}
+}
+
+func TestAuditSnapshotVerificationDetectsMiddleDeletion(t *testing.T) {
+	ctx := context.Background()
+	repo := newSnapshotAuditRepo()
+	chain := NewAuditChain(repo)
+	companyID := types.NewCompanyID()
+	for _, payload := range []string{"first", "middle", "last"} {
+		if _, err := chain.Append(ctx, AuditLog{
+			CompanyID: companyID, EntityType: "journal_entry",
+			EntityID: types.NewJournalEntryID().String(), Action: "POST",
+			Payload: []byte(payload),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	repo.mu.Lock()
+	logs := repo.logs[companyID]
+	repo.logs[companyID] = append(logs[:1], logs[2:]...)
+	repo.mu.Unlock()
+
+	if valid, err := chain.VerifyAuditIntegrity(ctx, companyID); valid || !errors.Is(err, ErrAuditChainBroken) {
+		t.Fatalf("middle deletion, chain verification = (%v, %v), want broken chain", valid, err)
+	}
+	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID); valid ||
+		!errors.Is(err, ErrAuditCheckpointMismatch) {
+		t.Fatalf("middle deletion, checkpoint verification = (%v, %v), want checkpoint mismatch", valid, err)
+	}
+}
+
 func TestAuditSnapshotRejectsCheckpointHashMismatch(t *testing.T) {
 	ctx := context.Background()
 	repo := newSnapshotAuditRepo()
@@ -373,7 +431,7 @@ func TestAuditSnapshotRejectsCheckpointHashMismatch(t *testing.T) {
 	checkpoint := repo.checkpoints[companyID]
 	repo.checkpoints[companyID] = AuditCheckpoint{
 		CompanyID: checkpoint.CompanyID, SequenceNumber: checkpoint.SequenceNumber,
-		Version: checkpoint.Version, LogHash: "unexpected-checkpoint-hash",
+		Version: checkpoint.Version, LogHash: strings.Repeat("b", 64),
 	}
 	repo.mu.Unlock()
 
@@ -388,6 +446,13 @@ func TestAuditSnapshotVerificationIsSafeDuringConcurrentAppends(t *testing.T) {
 	repo := newSnapshotAuditRepo()
 	chain := NewAuditChain(repo)
 	companyID := types.NewCompanyID()
+	// Establish the initial trusted checkpoint before concurrent verification
+	// begins; without one the verifier must fail closed.
+	if _, err := chain.Append(ctx, AuditLog{
+		CompanyID: companyID, EntityType: "journal_entry", Action: "POST",
+	}); err != nil {
+		t.Fatal(err)
+	}
 	start := make(chan struct{})
 	appendErr := make(chan error, 1)
 	verifyErr := make(chan error, 1)
@@ -469,6 +534,34 @@ func FuzzAuditSnapshotDetectsPayloadTampering(f *testing.F) {
 			t.Fatalf("tampered payload verification = (%v, %v), want broken chain", valid, err)
 		}
 	})
+}
+
+func TestCheckpointVerificationFailsClosedWithoutTrustedCheckpoint(t *testing.T) {
+	ctx := context.Background()
+	companyID := types.NewCompanyID()
+	repo := newSnapshotAuditRepo()
+	chain := NewAuditChain(repo)
+
+	// An empty chain without a checkpoint must not be reported as verified.
+	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID); valid ||
+		!errors.Is(err, ErrAuditCheckpointMismatch) {
+		t.Fatalf("empty chain without checkpoint = (%v, %v), want checkpoint mismatch", valid, err)
+	}
+
+	if _, err := chain.Append(ctx, AuditLog{
+		CompanyID: companyID, EntityType: "journal_entry", Action: "POST",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// The in-memory fake advances a checkpoint on every append; simulate a
+	// host that never persisted one outside the log.
+	repo.mu.Lock()
+	delete(repo.checkpoints, companyID)
+	repo.mu.Unlock()
+	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, companyID); valid ||
+		!errors.Is(err, ErrAuditCheckpointMismatch) {
+		t.Fatalf("non-empty chain without checkpoint = (%v, %v), want checkpoint mismatch", valid, err)
+	}
 }
 
 func TestCheckpointVerificationRequiresSnapshotRepository(t *testing.T) {

@@ -106,6 +106,8 @@ func seedCurrencyRegistry(ctx context.Context, pool *pgxpool.Pool) error {
 func (d *Driver) Capabilities() storage.AdapterCapabilities {
 	return storage.AdapterCapabilities{
 		AdapterName:            "postgres",
+		ContractVersion:        storage.StorageContractVersion,
+		AdapterVersion:         "postgres/production",
 		SupportsRepeatableRead: true,
 		SupportsSerializable:   true,
 		EnforcesForeignKeys:    true,

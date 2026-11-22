@@ -21,6 +21,7 @@ packages=(
   "github.com/osmai4603-collab/accounting_engine/pkg/api"
   "github.com/osmai4603-collab/accounting_engine/pkg/api/v1"
   "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/events"
+  "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance"
   "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
   "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
   "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/reporting"

@@ -2,6 +2,8 @@
 
 ## (Kernel Hardening & Comprehensive Gap Completion Plan)
 
+> **Superseded (متجاوزة):** هذه الوثيقة سجل تاريخي لخطة التثبيت السابقة، وليست المصدر المعتمد للحالة الحالية أو بوابات المرحلة 1. المرجع الحالي: [خطة المعالجة](./KERNEL_REMEDIATION_EXECUTION_PLAN.md) و[سجل الفجوات](./KERNEL_REMEDIATION_GAP_REGISTER.md).
+
 - **كود الوثيقة:** `AE-PLAN-KERNEL-HARDENING`
 - **الإصدار:** `1.0.0`
 - **التاريخ:** 2026-11-20

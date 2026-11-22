@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -30,12 +32,16 @@ func (d *Driver) SaveDraft(ctx context.Context, entry journal.JournalEntry) erro
 		return ErrReadOnlyTransaction
 	}
 
-	entry.Status = journal.EntryDraft
 	eMap, ok := d.entries[entry.CompanyID]
 	if !ok {
 		eMap = make(map[types.JournalEntryID]journal.JournalEntry)
 		d.entries[entry.CompanyID] = eMap
 	}
+	if existing, exists := eMap[entry.ID]; exists && existing.Status != journal.EntryDraft {
+		return fmt.Errorf("memory: cannot modify non-draft journal entry %s with status %s", entry.ID, existing.Status)
+	}
+
+	entry.Status = journal.EntryDraft
 	eMap[entry.ID] = cloneEntry(entry)
 	return nil
 }
@@ -73,19 +79,144 @@ func (d *Driver) NextSequence(ctx context.Context, companyID types.CompanyID, jo
 	return d.journalSequences[key], nil
 }
 
-// PostingWriter implementation
+// postingSnapshot captures the complete state touched by one commit. It is the
+// memory adapter's equivalent of a database transaction snapshot: any failure
+// before the commit boundary restores it exactly, leaving no partial effect.
+type postingSnapshot struct {
+	entries             map[types.CompanyID]map[types.JournalEntryID]journal.JournalEntry
+	balances            map[accountBalanceKey]decimal.Decimal
+	auditRecords        []storage.AuditRecord
+	auditLastHash       string
+	governanceAuditLogs map[types.CompanyID][]kernalgovernance.AuditLog
+}
+
+func (d *Driver) snapshotPostingState() postingSnapshot {
+	snapshot := postingSnapshot{
+		entries:             make(map[types.CompanyID]map[types.JournalEntryID]journal.JournalEntry, len(d.entries)),
+		balances:            make(map[accountBalanceKey]decimal.Decimal, len(d.balances)),
+		auditRecords:        append([]storage.AuditRecord(nil), d.auditRecords...),
+		auditLastHash:       d.auditLastHash,
+		governanceAuditLogs: make(map[types.CompanyID][]kernalgovernance.AuditLog, len(d.governanceAuditLogs)),
+	}
+	for companyID, logs := range d.governanceAuditLogs {
+		copied := make([]kernalgovernance.AuditLog, len(logs))
+		for i, log := range logs {
+			copied[i] = cloneAuditLog(log)
+		}
+		snapshot.governanceAuditLogs[companyID] = copied
+	}
+	for companyID, companyEntries := range d.entries {
+		copied := make(map[types.JournalEntryID]journal.JournalEntry, len(companyEntries))
+		for entryID, entry := range companyEntries {
+			copied[entryID] = cloneEntry(entry)
+		}
+		snapshot.entries[companyID] = copied
+	}
+	for key, balance := range d.balances {
+		snapshot.balances[key] = balance
+	}
+	return snapshot
+}
+
+func (d *Driver) restorePostingState(snapshot postingSnapshot) {
+	d.entries = snapshot.entries
+	d.balances = snapshot.balances
+	d.auditRecords = snapshot.auditRecords
+	d.auditLastHash = snapshot.auditLastHash
+	d.governanceAuditLogs = snapshot.governanceAuditLogs
+}
+
+// acquireNamedLock is the memory adapter's real lock primitive. It is
+// context-aware so an adversarial ordering cannot block a caller forever.
+func (d *Driver) acquireNamedLock(ctx context.Context, target storage.LockTarget) (func(), error) {
+	raw, _ := d.postingLocks.LoadOrStore(target.Canonical(), make(chan struct{}, 1))
+	gate := raw.(chan struct{})
+	select {
+	case gate <- struct{}{}:
+		return func() { <-gate }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// PostingWriter implementation. The entry, its balances, its audit effect and
+// the idempotency record are committed as one in-process unit. Phase 8 adds
+// canonical, company-scoped lock acquisition before that unit; the kernel only
+// orders the keys and never acquires a lock itself.
 func (d *Driver) CommitPosting(ctx context.Context, commit storage.PostingCommit) (journal.JournalEntry, error) {
 	if err := ctx.Err(); err != nil {
 		return journal.JournalEntry{}, err
 	}
+	if err := storage.ValidateIdempotencyScope(commit.Entry.CompanyID, commit.Operation, commit.Idempotency); err != nil {
+		return journal.JournalEntry{}, err
+	}
+
+	var result journal.JournalEntry
+	err := storage.WithOrderedLocks(ctx, storage.PostingLockTargets(commit), d.acquireNamedLock, func() error {
+		var err error
+		result, err = d.commitPostingLocked(ctx, commit)
+		return err
+	})
+	return result, err
+}
+
+func (d *Driver) commitPostingLocked(ctx context.Context, commit storage.PostingCommit) (journal.JournalEntry, error) {
 	entry := commit.Entry
 	if entry.ID == (types.JournalEntryID{}) || entry.CompanyID == (types.CompanyID{}) {
 		return journal.JournalEntry{}, ErrInvalidEntry
+	}
+	if err := storage.InjectFault(ctx, storage.FaultBeforeIdempotencyClaim); err != nil {
+		return journal.JournalEntry{}, err
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.readOnly {
 		return journal.JournalEntry{}, ErrReadOnlyTransaction
+	}
+
+	var idempotencyRecordKey idempotencyKey
+	if commit.Idempotency != nil {
+		if err := commit.Idempotency.Validate(); err != nil {
+			return journal.JournalEntry{}, err
+		}
+		idempotencyRecordKey = idempotencyKey{
+			companyID: entry.CompanyID,
+			key:       commit.Idempotency.Key,
+			scope:     commit.Idempotency.Scope,
+		}
+		if existing, ok := d.idempotency[idempotencyRecordKey]; ok {
+			if existing.PayloadHash != commit.Idempotency.PayloadHash {
+				return journal.JournalEntry{}, storage.ErrIdempotencyPayloadConflict
+			}
+			if existing.Status == storage.IdempotencyCompleted && existing.EntryID != nil {
+				stored, ok := d.entries[entry.CompanyID][*existing.EntryID]
+				if !ok {
+					return journal.JournalEntry{}, storage.ErrAtomicCommitFailed
+				}
+				return cloneEntry(stored), nil
+			}
+			return journal.JournalEntry{}, storage.ErrIdempotencyInProgress
+		}
+		now := time.Now().UTC()
+		d.idempotency[idempotencyRecordKey] = storage.IdempotencyRecord{
+			CompanyID:   entry.CompanyID,
+			Key:         commit.Idempotency.Key,
+			Operation:   string(commit.Operation),
+			Scope:       commit.Idempotency.Scope,
+			PayloadHash: commit.Idempotency.PayloadHash,
+			Status:      storage.IdempotencyStarted,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+	}
+
+	snapshot := d.snapshotPostingState()
+	fail := func(err error) (journal.JournalEntry, error) {
+		d.restorePostingState(snapshot)
+		if commit.Idempotency != nil {
+			delete(d.idempotency, idempotencyRecordKey)
+		}
+		return journal.JournalEntry{}, err
 	}
 
 	eMap, ok := d.entries[entry.CompanyID]
@@ -97,28 +228,40 @@ func (d *Driver) CommitPosting(ctx context.Context, commit storage.PostingCommit
 	// If reversal operation
 	if commit.Operation == storage.OperationReverse {
 		if commit.OriginalEntryID == nil {
-			return journal.JournalEntry{}, errors.New("memory: original entry id required for reversal")
+			return fail(errors.New("memory: original entry id required for reversal"))
 		}
 		orig, ok := eMap[*commit.OriginalEntryID]
 		if !ok {
-			return journal.JournalEntry{}, fmt.Errorf("memory: original entry %s not found", commit.OriginalEntryID.String())
+			return fail(fmt.Errorf("memory: original entry %s not found", commit.OriginalEntryID.String()))
+		}
+		if orig.Status == journal.EntryReversed || orig.ReversedByID != nil {
+			return fail(storage.ErrEntryAlreadyReversed)
 		}
 		if orig.Status != journal.EntryPosted {
-			return journal.JournalEntry{}, fmt.Errorf("memory: original entry not in posted state")
+			return fail(errors.New("memory: original entry not in posted state"))
 		}
-		// Link reversal
+		// Link reversal and freeze the original in the same unit.
 		orig.ReversedByID = &entry.ID
 		orig.Status = journal.EntryReversed
 		eMap[orig.ID] = orig
 
 		entry.ReversalOfID = commit.OriginalEntryID
 		entry.Classification = journal.EntryClassReversing
+	} else if existing, exists := eMap[entry.ID]; exists && existing.Status != journal.EntryDraft {
+		return fail(fmt.Errorf("memory: cannot modify non-draft journal entry %s with status %s", entry.ID, existing.Status))
 	}
 
+	// Kernel-stamped dates are authoritative. Only legacy callers that did not
+	// stamp a posting time get an adapter-generated fallback.
 	now := time.Now().UTC()
+	if entry.PostingDate.IsZero() {
+		entry.PostingDate = now
+	}
+	if entry.PostedAt == nil {
+		stamped := entry.PostingDate
+		entry.PostedAt = &stamped
+	}
 	entry.Status = journal.EntryPosted
-	entry.PostingDate = now
-	entry.PostedAt = &now
 	if commit.ActorID != "" {
 		entry.PostedBy = commit.ActorID
 	}
@@ -142,7 +285,9 @@ func (d *Driver) CommitPosting(ctx context.Context, commit storage.PostingCommit
 		d.balances[key] = current.Add(netEffect)
 	}
 
-	// Record audit entry
+	if err := storage.InjectFault(ctx, storage.FaultBeforeAudit); err != nil {
+		return fail(err)
+	}
 	auditRec := storage.AuditRecord{
 		CompanyID:     entry.CompanyID,
 		EntityType:    "journal_entry",
@@ -152,10 +297,44 @@ func (d *Driver) CommitPosting(ctx context.Context, commit storage.PostingCommit
 		Reason:        commit.Reason,
 		CorrelationID: commit.CorrelationID,
 		Payload:       []byte(fmt.Sprintf(`{"entry_id":"%s","sequence":%d}`, entry.ID.String(), entry.SequenceNumber)),
-		OccurredAt:    now,
+		OccurredAt:    entry.PostingDate,
 	}
 	d.appendAuditInternal(auditRec)
+	// The verifiable v2 chain is part of the same commit: a posting must never
+	// leave a posted movement without hash-chained audit evidence, and a failed
+	// audit append must roll back the whole posting (Phase 7 contract).
+	if _, err := d.appendAuditLogAtomicLocked(kernalgovernance.AuditLog{
+		CompanyID:     auditRec.CompanyID,
+		EntityType:    auditRec.EntityType,
+		EntityID:      auditRec.EntityID,
+		Action:        auditRec.Action,
+		ActorID:       auditRec.ActorID,
+		Reason:        auditRec.Reason,
+		CorrelationID: auditRec.CorrelationID,
+		Payload:       auditRec.Payload,
+		Timestamp:     auditRec.OccurredAt,
+	}); err != nil {
+		return fail(err)
+	}
+
+	if err := storage.InjectFault(ctx, storage.FaultBeforeCommit); err != nil {
+		return fail(err)
+	}
 
 	eMap[entry.ID] = cloneEntry(entry)
-	return entry, nil
+	if commit.Idempotency != nil {
+		record := d.idempotency[idempotencyRecordKey]
+		record.Status = storage.IdempotencyCompleted
+		record.EntryID = &entry.ID
+		record.Response = []byte(entry.ID.String())
+		record.UpdatedAt = time.Now().UTC()
+		d.idempotency[idempotencyRecordKey] = record
+	}
+
+	// After this point the unit is durable. An injected error models a lost
+	// response: the call fails but a safe lookup by key returns the result.
+	if err := storage.InjectFault(ctx, storage.FaultAfterCommit); err != nil {
+		return journal.JournalEntry{}, err
+	}
+	return cloneEntry(entry), nil
 }

@@ -22,6 +22,7 @@ var rlsProtectedTables = []string{
 	"bank_items",
 	"exchange_rates",
 	"financial_audit_logs",
+	"external_audit_checkpoints",
 	"accounting_configurations",
 	"account_reconciliations",
 	"account_reconciliation_items",
@@ -51,8 +52,8 @@ var rlsProtectedTables = []string{
 }
 
 func TestEveryFinancialTableHasForcedRLS(t *testing.T) {
-	if len(rlsProtectedTables) != 42 {
-		t.Fatalf("expected exactly 42 RLS protected tables, got %d", len(rlsProtectedTables))
+	if len(rlsProtectedTables) != 43 {
+		t.Fatalf("expected exactly 43 RLS protected tables, got %d", len(rlsProtectedTables))
 	}
 
 	ctx := context.Background()
@@ -90,4 +91,3 @@ func TestEveryFinancialTableHasForcedRLS(t *testing.T) {
 		}
 	}
 }
-

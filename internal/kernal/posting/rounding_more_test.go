@@ -30,8 +30,8 @@ func TestRoundEntryEdgeCasesAndBranches(t *testing.T) {
 
 	// 3. RoundEntryWithRoundingPolicy with non-zero residual but empty roundingAccountID
 	// Line 1: debit 100.005 (rounds to 100.00 or 100.01)
-	m100005, _ := types.NewMoney(decimal.NewFromFloat(100.005), "USD")
-	m99995, _ := types.NewMoney(decimal.NewFromFloat(99.995), "USD")
+	m100005, _ := types.NewMoney(decimal.RequireFromString("100.005"), "USD")
+	m99995, _ := types.NewMoney(decimal.RequireFromString("99.995"), "USD")
 	entryResidual := &journal.JournalEntry{
 		ID: types.NewJournalEntryID(),
 		Lines: []journal.EntryLine{

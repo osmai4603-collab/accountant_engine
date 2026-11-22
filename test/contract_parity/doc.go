@@ -1,4 +1,10 @@
-// Package contract_parity: Contract parity suite: memory adapter versus PostgreSQL across 22 cases.
+// Package contract_parity: Adapter-neutral contract parity suite: memory adapter versus PostgreSQL.
+//
+// Phase 7 adds scope-aware idempotency replay/conflict, unknown-outcome fault
+// injection, reversal atomicity, concurrent single-winner checks, company
+// scope isolation and preservation of kernel-stamped dates. Every scenario is
+// executed against both adapters through the same harness; generated parity
+// reports are an output, not a substitute for the suite.
 //
 // Import charter: Both adapters must satisfy the identical pkg/spi/storage contracts.
 //

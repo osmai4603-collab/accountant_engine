@@ -19,6 +19,7 @@ var (
 	ErrAccountNotCurrent         = errors.New("account is not valid on the posting date")
 	ErrAccountIdentityMismatch   = errors.New("account repository returned a different account or company")
 	ErrCannotPostToParentAccount = types.ErrCannotPostToParentAccount
+	ErrClockRequired             = errors.New("clock is required for current-date master data validation")
 )
 
 // HierarchyNode represents an account node in the COA tree.
@@ -56,13 +57,62 @@ func DetectCyclicHierarchy(accounts []Account) error {
 			curr = parent
 		}
 	}
+
+	// A complete COA snapshot belongs to one company, and a parent taken from
+	// that snapshot may not belong to another tenant (RULE-KERNEL-016).
+	scopeCompany := types.CompanyID{}
+	for _, acc := range accounts {
+		if acc.CompanyID == (types.CompanyID{}) {
+			if scopeCompany != (types.CompanyID{}) {
+				return ErrAccountIdentityMismatch
+			}
+			continue
+		}
+		if scopeCompany == (types.CompanyID{}) {
+			scopeCompany = acc.CompanyID
+			continue
+		}
+		if scopeCompany != acc.CompanyID {
+			return ErrAccountIdentityMismatch
+		}
+	}
+	for _, acc := range accounts {
+		if acc.ParentID == nil {
+			continue
+		}
+		parent, exists := byID[*acc.ParentID]
+		if !exists {
+			continue
+		}
+		if acc.CompanyID != (types.CompanyID{}) && parent.CompanyID != (types.CompanyID{}) &&
+			acc.CompanyID != parent.CompanyID {
+			return ErrAccountIdentityMismatch
+		}
+	}
 	return nil
 }
 
 // ValidateCanPostToAccount verifies that the target account is active, not a header account,
-// and has no child accounts.
+// and has no child accounts using an injected clock. Posting paths that already
+// know the entry date must call ValidateCanPostToAccountAsOf or
+// ValidateCanPostToAccountWithClock instead of relying on wall time.
 func ValidateCanPostToAccount(ctx context.Context, reader Reader, companyID types.CompanyID, accountID types.AccountID) error {
-	return ValidateCanPostToAccountAsOf(ctx, reader, companyID, accountID, time.Now().UTC())
+	return ValidateCanPostToAccountWithClock(ctx, reader, companyID, accountID, SystemClock{})
+}
+
+// ValidateCanPostToAccountWithClock resolves "today" from the supplied clock so
+// the current-date path is deterministic and testable (plan rule 11).
+func ValidateCanPostToAccountWithClock(
+	ctx context.Context,
+	reader Reader,
+	companyID types.CompanyID,
+	accountID types.AccountID,
+	clock Clock,
+) error {
+	if clock == nil {
+		return ErrClockRequired
+	}
+	return ValidateCanPostToAccountAsOf(ctx, reader, companyID, accountID, clock.Now().UTC())
 }
 
 func ValidateCanPostToAccountAsOf(
@@ -72,34 +122,63 @@ func ValidateCanPostToAccountAsOf(
 	accountID types.AccountID,
 	asOf time.Time,
 ) error {
-	acc, err := reader.GetAccount(ctx, companyID, accountID)
+	_, err := ResolvePostableAccountAsOf(ctx, reader, companyID, accountID, asOf)
+	return err
+}
+
+// ResolvePostableAccountAsOf validates an account for a posting date and
+// returns the exact snapshot that was validated. Callers must use the returned
+// value for downstream eligibility decisions instead of issuing a second,
+// differently-timed read: a second read can observe a different master-data
+// version and would make validation and execution disagree (TOCTOU).
+// ADR P3-01 makes the effective-dated snapshot authoritative when the adapter
+// implements EffectiveAccountReader.
+func ResolvePostableAccountAsOf(
+	ctx context.Context,
+	reader Reader,
+	companyID types.CompanyID,
+	accountID types.AccountID,
+	asOf time.Time,
+) (Account, error) {
+	if companyID == (types.CompanyID{}) {
+		return Account{}, ErrCompanyScopeRequired
+	}
+	var acc Account
+	var err error
+	if versioned, ok := reader.(EffectiveAccountReader); ok {
+		acc, err = versioned.GetAccountAsOf(ctx, companyID, accountID, asOf)
+	} else {
+		acc, err = reader.GetAccount(ctx, companyID, accountID)
+	}
 	if err != nil {
-		return err
+		return Account{}, err
 	}
 	if err := ValidateAccountScope(acc, companyID, accountID); err != nil {
-		return err
+		return Account{}, err
 	}
 	if !acc.IsActive {
-		return fmt.Errorf("account %s is inactive", acc.Code)
+		return Account{}, fmt.Errorf("account %s is inactive", acc.Code)
 	}
 	if asOf.IsZero() || !acc.IsCurrent(asOf) {
-		return fmt.Errorf("%w: %s", ErrAccountNotCurrent, acc.Code)
+		return Account{}, fmt.Errorf("%w: %s", ErrAccountNotCurrent, acc.Code)
 	}
 	hasChildren, err := reader.HasAccountChildren(ctx, companyID, accountID)
 	if err != nil {
-		return err
+		return Account{}, err
 	}
 	if hasChildren {
-		return ErrHeaderAccountPosting
+		return Account{}, ErrHeaderAccountPosting
 	}
-	return nil
+	return acc, nil
 }
 
 // ValidateAccountScope ensures a repository returned the requested account
 // within the requested company, not a row with inconsistent ownership.
 func ValidateAccountScope(acc Account, companyID types.CompanyID, accountID types.AccountID) error {
-	if companyID == (types.CompanyID{}) || accountID == (types.AccountID{}) ||
-		acc.ID != accountID || acc.CompanyID != companyID {
+	if companyID == (types.CompanyID{}) {
+		return ErrCompanyScopeRequired
+	}
+	if accountID == (types.AccountID{}) || acc.ID != accountID || acc.CompanyID != companyID {
 		return ErrAccountIdentityMismatch
 	}
 	return nil

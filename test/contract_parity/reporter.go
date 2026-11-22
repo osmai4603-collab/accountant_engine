@@ -102,7 +102,7 @@ func (r *ParityReporter) GenerateMarkdownReport() string {
 		}
 		differences := result.SemanticDifferences
 		if len(differences) == 0 {
-			differences = []string{"none recorded"}
+			differences = []string{"not observed"}
 		}
 		out += fmt.Sprintf("| %s | %s | %s | %s | %s | %s |\n",
 			version, result.ScenarioName, result.AdapterName, status,
@@ -128,6 +128,22 @@ func (r *ParityReporter) GenerateMarkdownReport() string {
 		sort.Strings(items)
 		for _, item := range items {
 			out += "- " + item + "\n"
+		}
+	}
+
+	out += "\n## Declared semantic differences\n\n"
+	var declared []string
+	for _, result := range results {
+		for _, difference := range result.SemanticDifferences {
+			declared = append(declared, fmt.Sprintf("%s / %s: %s", result.ScenarioName, result.AdapterName, difference))
+		}
+	}
+	sort.Strings(declared)
+	if len(declared) == 0 {
+		out += "None declared by the executed scenarios.\n"
+	} else {
+		for _, difference := range declared {
+			out += "- " + difference + "\n"
 		}
 	}
 

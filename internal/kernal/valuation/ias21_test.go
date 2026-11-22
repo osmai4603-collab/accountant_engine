@@ -3,9 +3,11 @@ package valuation
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	"github.com/shopspring/decimal"
@@ -189,6 +191,12 @@ func TestRateRegistryRejectsMissingAndDuplicateEffectiveDates(t *testing.T) {
 	if err := registry.RegisterRate(rate); !errors.Is(err, ErrDuplicateRate) {
 		t.Fatalf("duplicate effective date error = %v, want duplicate rate", err)
 	}
+	inverse := rate
+	inverse.FromCurrency, inverse.ToCurrency = rate.ToCurrency, rate.FromCurrency
+	inverse.Rate = decimal.RequireFromString("0.266666666667")
+	if err := registry.RegisterRate(inverse); !errors.Is(err, ErrDuplicateRate) {
+		t.Fatalf("inverse pair effective date error = %v, want duplicate rate", err)
+	}
 }
 
 type fixedRateProvider struct {
@@ -314,6 +322,86 @@ func TestRevaluationValidatesInvertedAndSameCurrencyRates(t *testing.T) {
 	})
 	if _, err := engine.Calculate(context.Background(), sameCurrencyPosition, asOf); err != nil {
 		t.Fatalf("same-currency unit rate: %v", err)
+	}
+}
+
+func TestRevaluationReferenceIsDeterministicAndRegisteredOnce(t *testing.T) {
+	date := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 12, 31, 10, 30, 0, 0, time.UTC)
+	accountID := types.NewAccountID()
+	difference, _ := types.NewMoneyFromString("500.00", "SAR")
+	result := FXResult{
+		AccountID: accountID, Currency: "USD", Difference: difference, IsGain: true,
+	}
+	accounts := FXJournalAccounts{
+		CompanyID: types.NewCompanyID(), JournalID: types.NewJournalID(),
+		UnrealizedGainID: types.NewAccountID(), UnrealizedLossID: types.NewAccountID(),
+	}
+
+	first, err := GenerateRevaluationEntryAt(result, accounts, date, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := GenerateRevaluationEntryAt(result, accounts, date, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ReferenceID != second.ReferenceID {
+		t.Fatalf("revaluation reference changed: %q -> %q", first.ReferenceID, second.ReferenceID)
+	}
+	if !strings.Contains(first.ReferenceID, accountID.String()) {
+		t.Fatalf("reference %q does not identify account %s", first.ReferenceID, accountID)
+	}
+
+	registry := NewRevaluationRegistry()
+	key, err := RevaluationOperationKey(accounts.CompanyID, accountID, result.Currency, date)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registered, replay, err := registry.Register(key, first)
+	if err != nil || replay {
+		t.Fatalf("first registration = replay %v, err %v", replay, err)
+	}
+	replayed, replay, err := registry.Register(key, second)
+	if err != nil || !replay {
+		t.Fatalf("second registration = replay %v, err %v", replay, err)
+	}
+	if replayed.ReferenceID != registered.ReferenceID {
+		t.Fatalf("replay returned a different entry: %q -> %q", registered.ReferenceID, replayed.ReferenceID)
+	}
+}
+
+func TestRevaluationReverseKeepsReversalDateAndPeriod(t *testing.T) {
+	date := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 12, 31, 10, 30, 0, 0, time.UTC)
+	reversalDate := time.Date(2027, 1, 31, 0, 0, 0, 0, time.UTC)
+	accountID := types.NewAccountID()
+	difference, _ := types.NewMoneyFromString("500.00", "SAR")
+	result := FXResult{
+		AccountID: accountID, Currency: "USD", Difference: difference, IsGain: true,
+	}
+	accounts := FXJournalAccounts{
+		CompanyID: types.NewCompanyID(), JournalID: types.NewJournalID(),
+		UnrealizedGainID: types.NewAccountID(), UnrealizedLossID: types.NewAccountID(),
+	}
+	entry, err := GenerateRevaluationEntryAt(result, accounts, date, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry.Status = journal.EntryPosted
+
+	reversal, err := BuildRevaluationReversalAt(entry, reversalDate, "system-valuation", "correct FX revaluation", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reversal.EffectiveDate.UTC().Format("2006-01-02") != "2027-01-31" {
+		t.Fatalf("reversal date = %s, want 2027-01-31", reversal.EffectiveDate)
+	}
+	if reversal.ReversalOfID == nil || *reversal.ReversalOfID != entry.ID {
+		t.Fatal("reversal does not link to original revaluation")
+	}
+	if len(reversal.Lines) != 2 {
+		t.Fatalf("reversal line count = %d, want 2", len(reversal.Lines))
 	}
 }
 

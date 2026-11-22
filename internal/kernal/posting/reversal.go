@@ -16,7 +16,9 @@ import (
 // 3. Reversal date cannot precede original entry effective date.
 // 4. Combined net impact of original + reversal across all accounts is identically zero.
 func BuildReversalEntry(original journal.JournalEntry, reversalDate time.Time, actorID string, reason string) (journal.JournalEntry, error) {
-	return BuildReversalEntryAt(original, reversalDate, actorID, reason, time.Now().UTC())
+	// Wall time enters domain code only through the Clock boundary. Callers
+	// that need deterministic metadata must use BuildReversalEntryAt.
+	return BuildReversalEntryAt(original, reversalDate, actorID, reason, systemClock{}.Now())
 }
 
 // BuildReversalEntryAt constructs a reversing journal entry using an explicit timestamp.

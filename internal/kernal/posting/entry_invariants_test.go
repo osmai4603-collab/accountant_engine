@@ -372,6 +372,8 @@ type mockMasterReaderForPosting struct {
 	isHeader           bool
 	functionalCurrency string
 	journal            masterdata.Journal
+	foreignAccount     bool
+	controlAccount     bool
 }
 
 func (m *mockMasterReaderForPosting) GetCompany(ctx context.Context, id types.CompanyID) (masterdata.Company, error) {
@@ -382,7 +384,14 @@ func (m *mockMasterReaderForPosting) GetCompany(ctx context.Context, id types.Co
 	return masterdata.Company{ID: id, Active: m.compActive, FunctionalCurrency: fc}, nil
 }
 func (m *mockMasterReaderForPosting) GetAccount(ctx context.Context, cid types.CompanyID, aid types.AccountID) (masterdata.Account, error) {
-	return masterdata.Account{ID: aid, CompanyID: cid, IsActive: true, Type: masterdata.AccountTypeAsset}, nil
+	accountCompany := cid
+	if m.foreignAccount {
+		accountCompany = types.NewCompanyID()
+	}
+	return masterdata.Account{
+		ID: aid, CompanyID: accountCompany, IsActive: true,
+		IsControlAccount: m.controlAccount, Type: masterdata.AccountTypeAsset,
+	}, nil
 }
 func (m *mockMasterReaderForPosting) GetAccountByCode(ctx context.Context, cid types.CompanyID, code string) (masterdata.Account, error) {
 	return masterdata.Account{}, nil

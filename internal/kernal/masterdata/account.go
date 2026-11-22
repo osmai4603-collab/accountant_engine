@@ -97,8 +97,20 @@ func (a *Account) Validate() error {
 	if a.IsControlAccount && (!a.IsReconcilable || (a.Type != AccountTypeAsset && a.Type != AccountTypeLiability)) {
 		return ErrInvalidControlAccount
 	}
+	if err := validateEffectiveRange(a.EffectiveFrom, a.EffectiveTo); err != nil {
+		return err
+	}
 	if a.SubClassification != "" && !validSubClassification(a.Type, a.SubClassification) {
 		return ErrInvalidSubClassificationForType
+	}
+	return nil
+}
+
+// validateEffectiveRange rejects an inverted validity window. Both bounds are
+// inclusive; a nil EffectiveTo means "still current" (RULE-KERNEL-017).
+func validateEffectiveRange(from time.Time, to *time.Time) error {
+	if to != nil && !from.IsZero() && to.UTC().Before(from.UTC()) {
+		return ErrInvalidEffectiveRange
 	}
 	return nil
 }

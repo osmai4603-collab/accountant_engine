@@ -11,7 +11,13 @@ import (
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 )
 
-var ErrControlAccountNotPostable = errors.New("control accounts cannot be posted directly")
+var (
+	ErrNilJournalEntry           = errors.New("journal entry is nil")
+	ErrAccountNotFound           = errors.New("account not found for posting")
+	ErrAccountInactive           = errors.New("account is inactive")
+	ErrAccountNotEffective       = errors.New("account is not effective on the entry date")
+	ErrControlAccountNotPostable = errors.New("control accounts cannot be posted directly")
+)
 
 // CheckAccountEligibility verifies whether the accounts are eligible for the given transaction currency
 // and whether control accounts are respected.
@@ -21,17 +27,25 @@ func CheckAccountEligibility(
 	accounts map[apiTypes.AccountID]masterdata.Account,
 ) error {
 	if entry == nil {
-		return errors.New("journal entry is nil")
+		return ErrNilJournalEntry
 	}
 
 	for _, line := range entry.Lines {
 		acc, ok := accounts[line.AccountID]
 		if !ok {
-			return fmt.Errorf("account %s not found", line.AccountID)
+			return fmt.Errorf("%w: %s", ErrAccountNotFound, line.AccountID)
+		}
+		if entry.CompanyID != (apiTypes.CompanyID{}) {
+			if err := masterdata.ValidateAccountScope(acc, entry.CompanyID, line.AccountID); err != nil {
+				return err
+			}
 		}
 
 		if !acc.IsActive {
-			return fmt.Errorf("account %s is inactive", acc.Code)
+			return fmt.Errorf("%w: %s", ErrAccountInactive, acc.Code)
+		}
+		if !entry.EffectiveDate.IsZero() && !acc.IsCurrent(entry.EffectiveDate) {
+			return fmt.Errorf("%w: account %s", ErrAccountNotEffective, acc.Code)
 		}
 		if acc.IsControlAccount {
 			return fmt.Errorf("%w: %s", ErrControlAccountNotPostable, acc.Code)

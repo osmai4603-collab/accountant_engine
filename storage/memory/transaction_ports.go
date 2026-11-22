@@ -84,6 +84,10 @@ func (t transactionAwareDriver) Claim(ctx context.Context, record storage.Idempo
 	return transactionDriver(ctx, t.driver).Claim(ctx, record)
 }
 
+func (t transactionAwareDriver) Lookup(ctx context.Context, companyID types.CompanyID, key string) (storage.IdempotencyRecord, bool, error) {
+	return transactionDriver(ctx, t.driver).Lookup(ctx, companyID, key)
+}
+
 func (t transactionAwareDriver) Complete(ctx context.Context, companyID types.CompanyID, key, payloadHash string, entryID types.JournalEntryID, response []byte) error {
 	return transactionDriver(ctx, t.driver).Complete(ctx, companyID, key, payloadHash, entryID, response)
 }
@@ -116,4 +120,56 @@ func (t transactionAwareDriver) GetFiscalPeriod(ctx context.Context, companyID t
 	return transactionDriver(ctx, t.driver).GetFiscalPeriod(ctx, companyID, periodID)
 }
 
+// Phase 11 optional master-data capabilities. Each method delegates through
+// transactionDriver so G-019/G-022 writes and reads join the active unit of
+// work and roll back with it.
+func (t transactionAwareDriver) GetAccountAsOf(
+	ctx context.Context,
+	companyID types.CompanyID,
+	accountID types.AccountID,
+	asOf time.Time,
+) (masterdata.Account, error) {
+	return transactionDriver(ctx, t.driver).GetAccountAsOf(ctx, companyID, accountID, asOf)
+}
+
+func (t transactionAwareDriver) SaveAccountVersion(ctx context.Context, account masterdata.Account) error {
+	return transactionDriver(ctx, t.driver).SaveAccountVersion(ctx, account)
+}
+
+func (t transactionAwareDriver) CreateCostCenter(ctx context.Context, center masterdata.CostCenter) error {
+	return transactionDriver(ctx, t.driver).CreateCostCenter(ctx, center)
+}
+
+func (t transactionAwareDriver) GetCostCenterForCompany(ctx context.Context, companyID types.CompanyID, costCenterID types.CostCenterID) (masterdata.CostCenter, error) {
+	return transactionDriver(ctx, t.driver).GetCostCenterForCompany(ctx, companyID, costCenterID)
+}
+
+func (t transactionAwareDriver) CreateAnalyticalDimensionValue(ctx context.Context, value masterdata.AnalyticalDimensionValue) error {
+	return transactionDriver(ctx, t.driver).CreateAnalyticalDimensionValue(ctx, value)
+}
+
+func (t transactionAwareDriver) GetAnalyticalDimensionForCompany(
+	ctx context.Context,
+	companyID types.CompanyID,
+	kind masterdata.AnalyticalDimensionKind,
+	id string,
+) (masterdata.AnalyticalDimensionValue, error) {
+	return transactionDriver(ctx, t.driver).GetAnalyticalDimensionForCompany(ctx, companyID, kind, id)
+}
+
+func (t transactionAwareDriver) AppendVersion(ctx context.Context, version storage.PolicyVersion) error {
+	return transactionDriver(ctx, t.driver).AppendVersion(ctx, version)
+}
+
+func (t transactionAwareDriver) ListVersions(ctx context.Context, companyID types.CompanyID, kind storage.PolicyKind) ([]storage.PolicyVersion, error) {
+	return transactionDriver(ctx, t.driver).ListVersions(ctx, companyID, kind)
+}
+
 var _ masterdata.Store = transactionAwareDriver{}
+var _ masterdata.EffectiveAccountReader = transactionAwareDriver{}
+var _ masterdata.AccountVersionWriter = transactionAwareDriver{}
+var _ masterdata.CostCenterReader = transactionAwareDriver{}
+var _ masterdata.CostCenterWriter = transactionAwareDriver{}
+var _ masterdata.AnalyticalDimensionReader = transactionAwareDriver{}
+var _ masterdata.AnalyticalDimensionWriter = transactionAwareDriver{}
+var _ storage.PolicyStore = transactionAwareDriver{}

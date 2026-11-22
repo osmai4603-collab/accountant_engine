@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -28,6 +27,7 @@ var (
 	_ storage.SequenceAllocator = (*postgresUnitOfWork)(nil)
 	_ storage.AuditWriter       = (*postgresUnitOfWork)(nil)
 	_ storage.IdempotencyStore  = (*postgresUnitOfWork)(nil)
+	_ storage.IdempotencyLookup = (*postgresUnitOfWork)(nil)
 	_ storage.BalanceReader     = (*postgresUnitOfWork)(nil)
 )
 
@@ -57,8 +57,8 @@ func (u *postgresUnitOfWork) GetEntry(ctx context.Context, companyID types.Compa
 	if err != nil {
 		return journal.JournalEntry{}, translateTransactionError(err)
 	}
-	var entry journal.JournalEntry
-	if err := json.Unmarshal(data, &entry); err != nil {
+	entry, err := unmarshalEntryFromStorage(data)
+	if err != nil {
 		return journal.JournalEntry{}, err
 	}
 	return entry, nil
@@ -75,7 +75,46 @@ func (u *postgresUnitOfWork) NextSequence(ctx context.Context, companyID types.C
 	return sequence, translateTransactionError(err)
 }
 
+func (u *postgresUnitOfWork) acquireOrderedAdvisoryLock(ctx context.Context, target storage.LockTarget) (func(), error) {
+	if err := target.Validate(); err != nil {
+		return nil, err
+	}
+	scope, ok := ctx.Value(transactionContextKey{}).(transactionScope)
+	if !ok {
+		return nil, errors.New("postgres: ordered lock requires an active transaction")
+	}
+	if scope.companyID != uuid.UUID(target.CompanyID) {
+		return nil, fmt.Errorf("%w: lock company %s does not match transaction company %s", storage.ErrScopeViolation, target.CompanyID, scope.companyID)
+	}
+	// A non-zero salt keeps Phase 8 identities separate from the Phase 7
+	// idempotency and audit advisory locks while staying stable across calls.
+	const phase8Salt int64 = 0x5048415345
+	if _, err := scope.tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, $2))`, target.Canonical(), phase8Salt); err != nil {
+		return nil, translateTransactionError(err)
+	}
+	// Transaction-scoped advisory locks are released by commit/rollback. The
+	// returned no-op still lets WithOrderedLocks notify the observer in reverse
+	// acquisition order.
+	return func() {}, nil
+}
+
+// CommitPosting acquires the canonical company-scoped lock set inside the
+// transaction before any sequence, idempotency, entry or audit write. The
+// kernel only supplies the order; this adapter performs the actual locking.
 func (u *postgresUnitOfWork) CommitPosting(ctx context.Context, commit storage.PostingCommit) (journal.JournalEntry, error) {
+	if err := storage.ValidateIdempotencyScope(commit.Entry.CompanyID, commit.Operation, commit.Idempotency); err != nil {
+		return journal.JournalEntry{}, err
+	}
+	var result journal.JournalEntry
+	err := storage.WithOrderedLocks(ctx, storage.PostingLockTargets(commit), u.acquireOrderedAdvisoryLock, func() error {
+		var err error
+		result, err = u.commitPostingLocked(ctx, commit)
+		return err
+	})
+	return result, err
+}
+
+func (u *postgresUnitOfWork) commitPostingLocked(ctx context.Context, commit storage.PostingCommit) (journal.JournalEntry, error) {
 	entry := commit.Entry
 	if entry.ID == (types.JournalEntryID{}) || entry.CompanyID == (types.CompanyID{}) {
 		return journal.JournalEntry{}, ErrInvalidEntry
@@ -94,42 +133,98 @@ func (u *postgresUnitOfWork) CommitPosting(ctx context.Context, commit storage.P
 		entry.SequenceNumber = seq
 	}
 
+	var idempotency storage.IdempotencyRecord
+	if commit.Idempotency != nil {
+		if err := commit.Idempotency.Validate(); err != nil {
+			return journal.JournalEntry{}, err
+		}
+		idempotency = storage.IdempotencyRecord{
+			CompanyID:   entry.CompanyID,
+			Key:         commit.Idempotency.Key,
+			Operation:   string(commit.Operation),
+			Scope:       commit.Idempotency.Scope,
+			PayloadHash: commit.Idempotency.PayloadHash,
+		}
+		existing, claimed, err := claimIdempotencyTx(ctx, u.tx, idempotency)
+		if err != nil {
+			return journal.JournalEntry{}, err
+		}
+		if !claimed {
+			if existing.Status == storage.IdempotencyCompleted && existing.EntryID != nil {
+				replayed, getErr := u.GetEntry(ctx, entry.CompanyID, *existing.EntryID)
+				if getErr != nil {
+					return journal.JournalEntry{}, fmt.Errorf("%w: replay entry missing: %v", storage.ErrAtomicCommitFailed, getErr)
+				}
+				return replayed, nil
+			}
+			if existing.Status == storage.IdempotencyStarted {
+				return journal.JournalEntry{}, storage.ErrIdempotencyInProgress
+			}
+			return journal.JournalEntry{}, fmt.Errorf("%w: idempotency key is %s", storage.ErrIdempotencyPayloadConflict, existing.Status)
+		}
+	}
+
+	var committed journal.JournalEntry
+	var err error
 	if commit.Operation == storage.OperationReverse {
 		if commit.OriginalEntryID == nil {
 			return journal.JournalEntry{}, errors.New("postgres: reversal requires original entry id")
 		}
-		return u.commitReversal(ctx, entry, *commit.OriginalEntryID)
+		committed, err = u.commitReversal(ctx, entry, *commit.OriginalEntryID, commit)
+	} else {
+		entry.Status = journal.EntryPosted
+		// The kernel stamps posting time from its injected clock. Preserve it;
+		// only legacy direct callers without a stamp receive an adapter time.
+		if entry.PostingDate.IsZero() {
+			entry.PostingDate = time.Now().UTC()
+		}
+		if entry.PostedAt == nil {
+			postedAt := entry.PostingDate
+			entry.PostedAt = &postedAt
+		}
+		if err = saveEntryTx(ctx, u.tx, entry); err == nil {
+			committed = entry
+		}
 	}
-
-	entry.Status = journal.EntryPosted
-	now := time.Now().UTC()
-	entry.PostingDate = now
-	entry.PostedAt = &now
-
-	if err := saveEntryTx(ctx, u.tx, entry); err != nil {
+	if err != nil {
 		return journal.JournalEntry{}, translateTransactionError(err)
 	}
 
-	// Append audit
+	if err := storage.InjectFault(ctx, storage.FaultBeforeAudit); err != nil {
+		return journal.JournalEntry{}, err
+	}
 	auditRec := storage.AuditRecord{
-		CompanyID:     entry.CompanyID,
+		CompanyID:     committed.CompanyID,
 		EntityType:    "journal_entry",
-		EntityID:      entry.ID.String(),
+		EntityID:      committed.ID.String(),
 		Action:        string(commit.Operation),
 		ActorID:       commit.ActorID,
 		Reason:        commit.Reason,
 		CorrelationID: commit.CorrelationID,
-		Payload:       fmt.Appendf(nil, `{"entry_id":"%s","sequence":%d}`, entry.ID.String(), entry.SequenceNumber),
-		OccurredAt:    now,
+		Payload:       fmt.Appendf(nil, `{"entry_id":"%s","sequence":%d}`, committed.ID.String(), committed.SequenceNumber),
+		OccurredAt:    committed.PostingDate,
 	}
 	if err := u.AppendAudit(ctx, auditRec); err != nil {
 		return journal.JournalEntry{}, translateTransactionError(err)
 	}
 
-	return entry, nil
+	if err := storage.InjectFault(ctx, storage.FaultBeforeCommit); err != nil {
+		return journal.JournalEntry{}, err
+	}
+	if commit.Idempotency != nil {
+		if err := completeIdempotencyRecordTx(ctx, u.tx, idempotency, committed.ID, []byte(committed.ID.String())); err != nil {
+			return journal.JournalEntry{}, err
+		}
+	}
+	return committed, nil
 }
 
-func (u *postgresUnitOfWork) commitReversal(ctx context.Context, reversal journal.JournalEntry, originalID types.JournalEntryID) (journal.JournalEntry, error) {
+func (u *postgresUnitOfWork) commitReversal(
+	ctx context.Context,
+	reversal journal.JournalEntry,
+	originalID types.JournalEntryID,
+	commit storage.PostingCommit,
+) (journal.JournalEntry, error) {
 	var originalData []byte
 	if err := u.tx.QueryRow(ctx, `SELECT entry FROM account_moves WHERE company_id=$1 AND id=$2 FOR UPDATE`,
 		uuid.UUID(reversal.CompanyID), uuid.UUID(originalID)).Scan(&originalData); err != nil {
@@ -138,44 +233,40 @@ func (u *postgresUnitOfWork) commitReversal(ctx context.Context, reversal journa
 		}
 		return journal.JournalEntry{}, err
 	}
-	var original journal.JournalEntry
-	if err := json.Unmarshal(originalData, &original); err != nil {
+	original, err := unmarshalEntryFromStorage(originalData)
+	if err != nil {
 		return journal.JournalEntry{}, err
 	}
 	if original.Status != journal.EntryPosted || original.ReversedByID != nil {
-		return journal.JournalEntry{}, fmt.Errorf("postgres: original entry already reversed or not posted")
+		return journal.JournalEntry{}, storage.ErrEntryAlreadyReversed
 	}
 
 	reversal.Classification = journal.EntryClassReversing
 	reversal.ReversalOfID = &originalID
-	now := time.Now().UTC()
+	if commit.Reason != "" {
+		reversal.ReversalReason = commit.Reason
+	}
+	if commit.ActorID != "" {
+		reversal.PostedBy = commit.ActorID
+	}
+	if reversal.PostingDate.IsZero() {
+		reversal.PostingDate = time.Now().UTC()
+	}
+	if reversal.PostedAt == nil {
+		postedAt := reversal.PostingDate
+		reversal.PostedAt = &postedAt
+	}
 	reversal.Status = journal.EntryPosted
-	reversal.PostingDate = now
-	reversal.PostedAt = &now
 
-	// Save reversal
+	// The reversal entry, the original entry's frozen state and the audit
+	// record are all staged in this same unit of work.
 	if err := saveEntryTx(ctx, u.tx, reversal); err != nil {
 		return journal.JournalEntry{}, err
 	}
-
-	// Mark original as reversed
 	original.ReversedByID = &reversal.ID
 	original.Status = journal.EntryReversed
-	original.UpdatedAt = now
+	original.UpdatedAt = reversal.PostingDate
 	if err := saveEntryTx(ctx, u.tx, original); err != nil {
-		return journal.JournalEntry{}, err
-	}
-
-	// Audit log
-	if err := u.AppendAudit(ctx, storage.AuditRecord{
-		CompanyID:  reversal.CompanyID,
-		EntityType: "journal_entry",
-		EntityID:   reversal.ID.String(),
-		Action:     "reverse",
-		ActorID:    reversal.PostedBy,
-		Reason:     reversal.ReversalReason,
-		OccurredAt: now,
-	}); err != nil {
 		return journal.JournalEntry{}, err
 	}
 
@@ -183,24 +274,27 @@ func (u *postgresUnitOfWork) commitReversal(ctx context.Context, reversal journa
 }
 
 func (u *postgresUnitOfWork) GetAccountBalance(ctx context.Context, companyID types.CompanyID, accountID types.AccountID, asOf time.Time, currency string) (decimal.Decimal, error) {
-	var balance decimal.Decimal
-	var err error
-	if asOf.IsZero() {
-		err = u.tx.QueryRow(ctx, `SELECT COALESCE(SUM(l.debit - l.credit), 0)
-			FROM account_move_lines l
-			JOIN account_moves m ON m.company_id = l.company_id AND m.id = l.move_id
-			WHERE l.company_id = $1 AND l.account_id = $2 AND m.status = 'posted'
-			  AND ($3 = '' OR l.currency_id = $3)`,
-			uuid.UUID(companyID), uuid.UUID(accountID), currency).Scan(&balance)
-	} else {
-		err = u.tx.QueryRow(ctx, `SELECT COALESCE(SUM(l.debit - l.credit), 0)
-			FROM account_move_lines l
-			JOIN account_moves m ON m.company_id = l.company_id AND m.id = l.move_id
-			WHERE l.company_id = $1 AND l.account_id = $2 AND m.status = 'posted'
-			  AND m.entry_date <= $3
-			  AND ($4 = '' OR l.currency_id = $4)`,
-			uuid.UUID(companyID), uuid.UUID(accountID), asOf, currency).Scan(&balance)
+	// An empty currency is resolved to the company's functional currency, the
+	// same deterministic rule used by the memory adapter.
+	if currency == "" {
+		if err := u.tx.QueryRow(ctx, `SELECT functional_currency FROM companies WHERE id = $1`,
+			uuid.UUID(companyID)).Scan(&currency); err != nil {
+			return decimal.Zero, translateTransactionError(err)
+		}
 	}
+
+	var asOfArg any
+	if !asOf.IsZero() {
+		asOfArg = asOf
+	}
+	var balance decimal.Decimal
+	err := u.tx.QueryRow(ctx, `SELECT COALESCE(SUM(l.debit - l.credit), 0)
+		FROM account_move_lines l
+		JOIN account_moves m ON m.company_id = l.company_id AND m.id = l.move_id
+		WHERE l.company_id = $1 AND l.account_id = $2 AND m.status = 'posted'
+		  AND ($4::timestamptz IS NULL OR COALESCE(m.posting_date::timestamptz, m.entry_date) <= $4)
+		  AND l.currency_id = $3`,
+		uuid.UUID(companyID), uuid.UUID(accountID), currency, asOfArg).Scan(&balance)
 	return balance, translateTransactionError(err)
 }
 
@@ -210,6 +304,10 @@ func (u *postgresUnitOfWork) AppendAudit(ctx context.Context, record storage.Aud
 
 func (u *postgresUnitOfWork) Claim(ctx context.Context, record storage.IdempotencyRecord) (storage.IdempotencyRecord, bool, error) {
 	return claimIdempotencyTx(ctx, u.tx, record)
+}
+
+func (u *postgresUnitOfWork) Lookup(ctx context.Context, companyID types.CompanyID, key string) (storage.IdempotencyRecord, bool, error) {
+	return lookupIdempotencyTx(ctx, u.tx, companyID, key)
 }
 
 func (u *postgresUnitOfWork) Complete(ctx context.Context, companyID types.CompanyID, key, payloadHash string, entryID types.JournalEntryID, response []byte) error {

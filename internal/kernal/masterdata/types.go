@@ -8,11 +8,13 @@ import (
 )
 
 var (
-	ErrCompanyNotFound       = errors.New("company not found")
-	ErrJournalNotFound       = errors.New("journal not found")
-	ErrInvalidJournal        = errors.New("invalid journal")
-	ErrJournalNotCurrent     = errors.New("journal is not valid on the posting date")
-	ErrJournalReaderRequired = errors.New("journal repository is required for posting")
+	ErrCompanyNotFound         = errors.New("company not found")
+	ErrJournalNotFound         = errors.New("journal not found")
+	ErrInvalidJournal          = errors.New("invalid journal")
+	ErrJournalNotCurrent       = errors.New("journal is not valid on the posting date")
+	ErrJournalReaderRequired   = errors.New("journal repository is required for posting")
+	ErrJournalIdentityMismatch = errors.New("journal repository returned a different journal or company")
+	ErrInvalidEffectiveRange   = errors.New("invalid effective date range")
 )
 
 type AccountType string

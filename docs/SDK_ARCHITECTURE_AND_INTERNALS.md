@@ -344,7 +344,7 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
    - `OriginalEntryID` يُرسل فقط في حالة العكس.
    - `ActorID` / `Reason` / `CorrelationID` من `PostOptions`.
 3. `ports.Posting.CommitPosting(ctx, commit)` — الذرية مسؤولية المحوّل.
-4. إلحاق سجل تدقيق عبر `ports.Audit.AppendAudit` إن وُجد. **خطأ التدقيق مُهمَل عمداً (`_ =`)**: لا يُفشل الترحيل، لكنه يعني أن غياب التدقيق لا يمنع القيد.
+4. إلحاق سجل تدقيق عبر `ports.Audit.AppendAudit` إن وُجد. بعد المرحلة 11 يُلحق Adapter سجل التدقيق ذرياً في نفس معاملة القيد؛ إلحاق SDK منفصل كان قد يترك دليلاً غير متوازن.
 
 ### 7.4 `ensurePolicies` (`application.go:260`)
 
@@ -355,7 +355,13 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
 | `CurrencyPolicy` | `FunctionalCurrency` و`PresentationCurrency` من الشركة، `RoundingBankers`، عملات مسموح بهما فقط، `AutoSettleRoundingDifferences = false`، سريان من 2000-01-01 |
 | `PostingPolicy` | سياسة فارغة للشركة، سريان من 2000-01-01 |
 
-> أخطاء `SetCurrencyPolicy` / `SetPolicy` مُهمَلة أيضاً.
+هذا المسار **للتوافق فقط** عندما لا يوفّر المضيف مخزن سياسات، أو عندما يكون المخزن موجوداً بصفر نسخة لهذه الشركة (أي أنها لم تشترك بعد في السياسات المؤرخة). أخطاء `SetCurrencyPolicy` / `SetPolicy` **تُعاد ولا تُبتلع** بعد المرحلة 11 (`G-021`). بمجرد إلحاق أول نسخة يصبح المخزن مصدر الحقيقة ولا يعود المسار القدامي متاحاً.
+
+عند وجود `ports.Private[storage.PolicyStoreExtensionKey]` (`G-020`) تُحمَّل كل نسخ الشركة مرة واحدة (`loadVersionedPolicies`) وتُسجَّل بنوافذها الأصلية؛ لا تُشتق سياسة اصطناعية، والغياب عن تاريخ القيد يُفشل مغلقاً (`ensureVersionedPoliciesIsEffective`). تعارض الإصدارات يُترجم إلى `ErrConflict` وغياب النسخة إلى `ErrNotFound`. التفاصيل في [ADR P11-04](./ard/P11_04_versioned_policy_store.md).
+
+### 7.4.1 منافذ master data الاختيارية (المرحلة 11، `G-019`/`G-022`)
+
+يربط SDK قارئ النسخة النافذة ومراكز التكلفة والأبعاد التحليلية انتقائياً إن وفّرها المحول عبر `Ports.Private`. غيابها يُبقي النواة في وضع الفشل المغلق؛ لا تُوسَّع `storage.Ports` المستقرة، ولا تظهر أنواع `internal/kernal` في التوقيعات العامة.
 
 ### 7.5 `authorize` (`application.go:290`)
 
@@ -701,7 +707,7 @@ if err := engine.CloseWithContext(ctx); err != nil { log.Print(err) }
 | 8 | `ProcessEvent` يرفض `Dimensions` تماماً ويتطلب عملة = العملة الوظيفية | لا تحويل FX ولا أبعاد تحليلية عبر هذا المسار حالياً. |
 | 9 | فشل `RunScheduledJobs` لا يُفشل `Build` | يُسجَّل كـ disabled reason فقط؛ راقب `Diagnostics().DisabledReasons`. |
 | 10 | `internal/orbitals/sdkapplication` يحتوي على `doc.go` فقط | الحزمة محجوزة معمارياً لكنها لا تحتوي محولات استخدام بعد. |
-| 11 | أخطاء `AppendAudit` و`setPolicy` مُهمَلة (`_ =`) | الترحيل ينجح حتى لو تعذّر كتابة أثر التدقيق/السياسة؛ يجب تأمين ذلك على مستوى المحول. |
+| 11 | أخطاء `AppendAudit` و`setPolicy` (مغلقة جزئياً في المرحلة 11) | `setPolicy` لم يَعُد مُهمَلاً، والتدقيق يُلحق ذرياً في Adapter؛ يبقى تأكيد تغطية كل مسارات الاستيعاب مرتبطاً بتشغيل بوابة العقد الكاملة. |
 | 12 | `GetJournalByID` في محول البيانات الوصفية قد يُعيد مجلة `GENERAL` تركيبية | تحقق من وجود المجلات فعلياً في master data قبل الاعتماد على هذا المسار. |
 
 > هذه القائمة يجب مراجعتها عند كل تحديث للمحرك؛ الهدف منها منع الافتراض الخاطئ بأن "التسجيل في Diagnostics" يعني "خدمة قابلة للاستدعاء".

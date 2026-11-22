@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/sdk"
@@ -19,6 +20,11 @@ import (
 	parity "github.com/osmai4603-collab/accounting_engine/test/contract_parity"
 	"github.com/shopspring/decimal"
 )
+
+// drillActorID is stable across the source posting and its post-restore replay
+// so the replay is recognised as the same semantic request, not a payload
+// conflict under a different principal.
+var drillActorID = uuid.NewString()
 
 func drillEntry(f parity.UnifiedFixture, id types.JournalEntryID) journal.JournalEntry {
 	amount, _ := types.NewMoneyFromString("25.00", "USD")
@@ -51,7 +57,7 @@ func postDrillEntry(t *testing.T, engine sdk.Engine, f parity.UnifiedFixture, id
 	// Use a UUID actor so the stored v1 audit row can be hash-verified after
 	// restore; non-UUID actors are an adapter limitation recorded as a gap.
 	ctx := publicapplication.WithPrincipal(context.Background(), publicapplication.Principal{
-		ActorID:    uuid.NewString(),
+		ActorID:    drillActorID,
 		CompanyIDs: []types.CompanyID{f.Company.ID},
 	})
 	ctx = publicapplication.WithRequestMetadata(ctx, publicapplication.RequestMetadata{
@@ -75,6 +81,21 @@ func TestDRDrill_FullRecovery(t *testing.T) {
 	postDrillEntry(t, env.engine, env.fixture, types.NewJournalEntryID(), "p7-dr-source-1")
 	postDrillEntry(t, env.engine, env.fixture, types.NewJournalEntryID(), "p7-dr-source-2")
 	postDrillEntry(t, env.engine, env.fixture, replayID, replayKey)
+
+	// Anchor the v2 audit chain before pg_dump. The checkpoint lives in its own
+	// table and is restored with the database, so the post-restore verifier has
+	// a real trusted tail to compare instead of silently skipping the branch.
+	sourceDriver := postgres.NewDriverWithPool(env.sourcePool)
+	lastAudit, err := sourceDriver.GetLastAuditLogForCompany(ctx, env.fixture.Company.ID)
+	if err != nil || lastAudit == nil {
+		t.Fatalf("read last source audit log: %v", err)
+	}
+	if err := sourceDriver.SetExternalAuditCheckpoint(ctx, env.fixture.Company.ID, kernalgovernance.AuditCheckpoint{
+		CompanyID: env.fixture.Company.ID, SequenceNumber: lastAudit.SequenceNumber,
+		Version: 1, LogHash: lastAudit.CurrentLogHash,
+	}); err != nil {
+		t.Fatalf("set source audit checkpoint: %v", err)
+	}
 
 	sourceSnapshot := captureSnapshot(t, ctx, env.sourcePool, env.fixture.Company.ID)
 	t.Logf("source snapshot: %+v", sourceSnapshot)
@@ -186,7 +207,7 @@ func TestDRDrill_FullRecovery(t *testing.T) {
 	})
 
 	t.Run("05_audit_chain", func(t *testing.T) {
-		verifyPostgresAuditChain(t, ctx, env.targetPool, env.fixture.Company.ID)
+		verifyPostgresAuditChain(t, ctx, env.targetPool, env.fixture.Company.ID, true)
 	})
 
 	t.Run("06_idempotent_replay", func(t *testing.T) {
@@ -204,7 +225,7 @@ func TestDRDrill_FullRecovery(t *testing.T) {
 		}
 
 		principal := publicapplication.Principal{
-			ActorID:    "dr-drill",
+			ActorID:    drillActorID,
 			CompanyIDs: []types.CompanyID{env.fixture.Company.ID},
 		}
 		replayCtx := publicapplication.WithPrincipal(ctx, principal)

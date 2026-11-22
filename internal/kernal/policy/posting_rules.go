@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +13,83 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 )
+
+// Policy windows are half-open: [EffectiveDate, EffectiveTo). A nil EffectiveTo
+// means "until the next registered version", which keeps the historical
+// latest-effective-wins behavior while making the boundary explicit.
+func normalizedPolicyTime(value time.Time) time.Time {
+	if value.IsZero() {
+		return value
+	}
+	return value.UTC()
+}
+
+func clonedPolicyEnd(end *time.Time) *time.Time {
+	if end == nil || normalizedPolicyTime(*end).IsZero() {
+		return nil
+	}
+	normalized := normalizedPolicyTime(*end)
+	return &normalized
+}
+
+func policyWindowEnd(start time.Time, explicitEnd, nextStart *time.Time) (time.Time, bool) {
+	if explicitEnd != nil {
+		return explicitEnd.UTC(), true
+	}
+	if nextStart != nil {
+		return nextStart.UTC(), true
+	}
+	return time.Time{}, false
+}
+
+func isWindowEffective(start time.Time, explicitEnd, nextStart *time.Time, asOf time.Time) bool {
+	if asOf.Before(start) {
+		return false
+	}
+	end, bounded := policyWindowEnd(start, explicitEnd, nextStart)
+	return !bounded || asOf.Before(end)
+}
+
+type registeredWindow struct {
+	start time.Time
+	end   *time.Time
+}
+
+// checkWindowRegistration rejects duplicate starts and unresolved overlaps.
+// Touching windows are legal; an open window is closed by the next version.
+func checkWindowRegistration(existing []registeredWindow, candidate registeredWindow) error {
+	index := sort.Search(len(existing), func(i int) bool {
+		return !existing[i].start.Before(candidate.start)
+	})
+	if index < len(existing) && existing[index].start.Equal(candidate.start) {
+		return fmt.Errorf("%w: duplicate effective date %s", ErrInvalidPolicy, candidate.start.Format(time.RFC3339Nano))
+	}
+
+	if index > 0 {
+		predecessor := existing[index-1]
+		predecessorEnd, bounded := policyWindowEnd(predecessor.start, predecessor.end, &candidate.start)
+		if bounded && candidate.start.Before(predecessorEnd) {
+			candidateEnd := "-"
+			if candidate.end != nil {
+				candidateEnd = candidate.end.UTC().Format(time.RFC3339Nano)
+			}
+			return fmt.Errorf("%w: [start=%s,end=%s) overlaps [start=%s,end=%s)",
+				ErrPolicyOverlap,
+				predecessor.start.Format(time.RFC3339Nano), predecessorEnd.Format(time.RFC3339Nano),
+				candidate.start.Format(time.RFC3339Nano), candidateEnd)
+		}
+	}
+	if index < len(existing) && candidate.end != nil {
+		successor := existing[index]
+		if successor.start.Before(candidate.end.UTC()) {
+			return fmt.Errorf("%w: [start=%s,end=%s) overlaps successor start %s",
+				ErrPolicyOverlap,
+				candidate.start.Format(time.RFC3339Nano), candidate.end.Format(time.RFC3339Nano),
+				successor.start.Format(time.RFC3339Nano))
+		}
+	}
+	return nil
+}
 
 type RoundingMethod string
 
@@ -29,11 +107,16 @@ type CurrencyPolicy struct {
 	RoundingDifferenceAccountID   apiTypes.AccountID
 	AutoSettleRoundingDifferences bool
 	EffectiveDate                 time.Time
+	EffectiveTo                   *time.Time
 }
 
 func (p CurrencyPolicy) Validate() error {
 	functionalCurrency := strings.ToUpper(strings.TrimSpace(p.FunctionalCurrency))
 	if p.CompanyID == (apiTypes.CompanyID{}) || p.EffectiveDate.IsZero() {
+		return ErrInvalidPolicy
+	}
+	if p.EffectiveTo != nil && !normalizedPolicyTime(*p.EffectiveTo).IsZero() &&
+		!normalizedPolicyTime(*p.EffectiveTo).After(p.EffectiveDate.UTC()) {
 		return ErrInvalidPolicy
 	}
 	if currency, ok := apiTypes.LookupCurrency(functionalCurrency); !ok || currency.Code == apiTypes.XXX {
@@ -101,6 +184,7 @@ var (
 	ErrPolicyEngineRequired     = errors.New("policy engine is required")
 	ErrPolicyNotFound           = errors.New("accounting policy not found")
 	ErrInvalidPolicy            = errors.New("invalid accounting policy")
+	ErrPolicyOverlap            = errors.New("overlapping accounting policy windows")
 	ErrAccountTypeNotFound      = errors.New("posting account type not found")
 	ErrCurrencyNotAllowed       = errors.New("currency is not allowed by company policy")
 	ErrRoundingMismatch         = errors.New("amount does not conform to currency rounding policy")
@@ -118,10 +202,15 @@ type PostingPolicy struct {
 	RequireCostCenterForIncomeExpense          bool
 	RequireAnalyticalDimensionForIncomeExpense bool
 	EffectiveDate                              time.Time
+	EffectiveTo                                *time.Time
 }
 
 func (p PostingPolicy) Validate() error {
 	if p.CompanyID == (apiTypes.CompanyID{}) || p.EffectiveDate.IsZero() || p.MaxBackdatingDays < 0 {
+		return ErrInvalidPolicy
+	}
+	if p.EffectiveTo != nil && !normalizedPolicyTime(*p.EffectiveTo).IsZero() &&
+		!normalizedPolicyTime(*p.EffectiveTo).After(p.EffectiveDate.UTC()) {
 		return ErrInvalidPolicy
 	}
 	return nil
@@ -144,17 +233,29 @@ func (e *PolicyEngine) SetPolicy(policy PostingPolicy) error {
 	if e == nil {
 		return ErrPolicyEngineRequired
 	}
+	policy.EffectiveDate = normalizedPolicyTime(policy.EffectiveDate)
 	if err := policy.Validate(); err != nil {
 		return err
 	}
+	policy.EffectiveTo = clonedPolicyEnd(policy.EffectiveTo)
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, current := range e.policies[policy.CompanyID] {
-		if current.EffectiveDate.Equal(policy.EffectiveDate) {
-			return ErrInvalidPolicy
-		}
+	versions := e.policies[policy.CompanyID]
+	existing := make([]registeredWindow, len(versions))
+	for i, current := range versions {
+		existing[i] = registeredWindow{start: current.EffectiveDate, end: current.EffectiveTo}
 	}
-	e.policies[policy.CompanyID] = append(e.policies[policy.CompanyID], policy)
+	if err := checkWindowRegistration(existing, registeredWindow{
+		start: policy.EffectiveDate, end: policy.EffectiveTo,
+	}); err != nil {
+		return err
+	}
+	versions = append(versions, policy)
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].EffectiveDate.Before(versions[j].EffectiveDate)
+	})
+	e.policies[policy.CompanyID] = versions
 	return nil
 }
 
@@ -162,6 +263,7 @@ func (e *PolicyEngine) SetCurrencyPolicy(policy CurrencyPolicy) error {
 	if e == nil {
 		return ErrPolicyEngineRequired
 	}
+	policy.EffectiveDate = normalizedPolicyTime(policy.EffectiveDate)
 	if err := policy.Validate(); err != nil {
 		return err
 	}
@@ -171,14 +273,25 @@ func (e *PolicyEngine) SetCurrencyPolicy(policy CurrencyPolicy) error {
 	for i := range policy.AllowedCurrencies {
 		policy.AllowedCurrencies[i] = strings.ToUpper(strings.TrimSpace(policy.AllowedCurrencies[i]))
 	}
+	policy.EffectiveTo = clonedPolicyEnd(policy.EffectiveTo)
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, current := range e.currencyPolicies[policy.CompanyID] {
-		if current.EffectiveDate.Equal(policy.EffectiveDate) {
-			return ErrInvalidPolicy
-		}
+	versions := e.currencyPolicies[policy.CompanyID]
+	existing := make([]registeredWindow, len(versions))
+	for i, current := range versions {
+		existing[i] = registeredWindow{start: current.EffectiveDate, end: current.EffectiveTo}
 	}
-	e.currencyPolicies[policy.CompanyID] = append(e.currencyPolicies[policy.CompanyID], policy)
+	if err := checkWindowRegistration(existing, registeredWindow{
+		start: policy.EffectiveDate, end: policy.EffectiveTo,
+	}); err != nil {
+		return err
+	}
+	versions = append(versions, policy)
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].EffectiveDate.Before(versions[j].EffectiveDate)
+	})
+	e.currencyPolicies[policy.CompanyID] = versions
 	return nil
 }
 
@@ -186,18 +299,21 @@ func (e *PolicyEngine) PostingPolicyFor(companyID apiTypes.CompanyID, asOf time.
 	if e == nil {
 		return PostingPolicy{}, ErrPolicyEngineRequired
 	}
+	asOf = normalizedPolicyTime(asOf)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	var selected PostingPolicy
-	found := false
-	for _, candidate := range e.policies[companyID] {
-		if !candidate.EffectiveDate.After(asOf) &&
-			(!found || candidate.EffectiveDate.After(selected.EffectiveDate)) {
-			selected, found = candidate, true
+	versions := e.policies[companyID]
+	for i, candidate := range versions {
+		var nextStart *time.Time
+		if i+1 < len(versions) {
+			start := versions[i+1].EffectiveDate
+			nextStart = &start
 		}
-	}
-	if found {
-		return selected, nil
+		if isWindowEffective(candidate.EffectiveDate, candidate.EffectiveTo, nextStart, asOf) {
+			selected := candidate
+			selected.EffectiveTo = clonedPolicyEnd(candidate.EffectiveTo)
+			return selected, nil
+		}
 	}
 	return PostingPolicy{}, ErrPolicyNotFound
 }
@@ -206,19 +322,22 @@ func (e *PolicyEngine) CurrencyPolicyFor(companyID apiTypes.CompanyID, asOf time
 	if e == nil {
 		return CurrencyPolicy{}, ErrPolicyEngineRequired
 	}
+	asOf = normalizedPolicyTime(asOf)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	var selected CurrencyPolicy
-	found := false
-	for _, candidate := range e.currencyPolicies[companyID] {
-		if !candidate.EffectiveDate.After(asOf) &&
-			(!found || candidate.EffectiveDate.After(selected.EffectiveDate)) {
-			selected, found = candidate, true
+	versions := e.currencyPolicies[companyID]
+	for i, candidate := range versions {
+		var nextStart *time.Time
+		if i+1 < len(versions) {
+			start := versions[i+1].EffectiveDate
+			nextStart = &start
 		}
-	}
-	if found {
-		selected.AllowedCurrencies = append([]string(nil), selected.AllowedCurrencies...)
-		return selected, nil
+		if isWindowEffective(candidate.EffectiveDate, candidate.EffectiveTo, nextStart, asOf) {
+			selected := candidate
+			selected.AllowedCurrencies = append([]string(nil), candidate.AllowedCurrencies...)
+			selected.EffectiveTo = clonedPolicyEnd(candidate.EffectiveTo)
+			return selected, nil
+		}
 	}
 	return CurrencyPolicy{}, ErrPolicyNotFound
 }

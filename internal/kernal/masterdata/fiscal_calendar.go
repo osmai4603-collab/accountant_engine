@@ -241,6 +241,9 @@ func ValidatePeriodForPostingWithSoftClose(
 	date time.Time,
 	allowSoftClosed bool,
 ) (FiscalPeriod, error) {
+	if companyID == (types.CompanyID{}) {
+		return FiscalPeriod{}, ErrCompanyScopeRequired
+	}
 	if date.IsZero() {
 		return FiscalPeriod{}, ErrPeriodOutsideFiscalYear
 	}
@@ -296,6 +299,9 @@ func ValidateAdjustmentPeriodForPostingWithSoftClose(
 	periodNumber int,
 	allowSoftClosed bool,
 ) (FiscalPeriod, error) {
+	if companyID == (types.CompanyID{}) {
+		return FiscalPeriod{}, ErrCompanyScopeRequired
+	}
 	if periodNumber != 13 && periodNumber != 14 {
 		return FiscalPeriod{}, ErrInvalidAdjustmentPeriod
 	}

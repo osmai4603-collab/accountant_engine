@@ -162,7 +162,7 @@ func TestValuationCoverageBranches(t *testing.T) {
 		Currency:       "USD",
 		Difference:     lossDiffMoney,
 		IsGain:         false,
-		ClosingRate:    decimal.NewFromFloat(3.75),
+		ClosingRate:    decimal.RequireFromString("3.75"),
 		RevaluedAmount: carryingAmt,
 	}
 	accounts := FXJournalAccounts{

@@ -1,5 +1,7 @@
 # الخطة التنفيذية النهائية لتثبيت نواة المحاسبة والوصول إلى 10/10
 
+> **Superseded (متجاوزة):** هذه الوثيقة سجل تاريخي لخطة v12 السابقة، وليست المصدر المعتمد للحالة الحالية أو بوابات المرحلة 1. المرجع الحالي: [خطة المعالجة](./KERNEL_REMEDIATION_EXECUTION_PLAN.md) و[خريطة معمارية المرحلة 1](./KERNEL_ARCHITECTURE_MAP.md).
+
 **اسم الملف:** `KERNEL_V12_FINAL_STABILIZATION_EXECUTION_PLAN.md`  
 **رمز الخطة:** `AE-PLAN-KERNEL-V12-FINAL-STABILIZATION`  
 **خط الأساس:** `accountant_engine11.zip` — Kernel v11  

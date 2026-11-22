@@ -138,12 +138,71 @@ func toKernalJournal(j publicmasterdata.Journal) kernalmasterdata.Journal {
 	}
 }
 
+// capabilityMasterDataReader adds the optional Phase 11 capabilities only when
+// the underlying port actually implements them. It is deliberately a distinct
+// type from masterDataReaderAdapter: hosts without the capabilities must keep
+// the baseline method set so the kernel's fail-closed type assertions still
+// fire (ErrDimensionReaderRequired) instead of seeing an always-present stub.
+type capabilityMasterDataReader struct {
+	masterDataReaderAdapter
+	effective   publicmasterdata.EffectiveAccountReader
+	costCenters publicmasterdata.CostCenterReader
+	dimensions  publicmasterdata.AnalyticalDimensionReader
+}
+
+func (a capabilityMasterDataReader) GetAccountAsOf(
+	ctx context.Context,
+	companyID types.CompanyID,
+	accountID types.AccountID,
+	asOf time.Time,
+) (kernalmasterdata.Account, error) {
+	if a.effective == nil {
+		// Absence of the version reader is not an error: the kernel falls back
+		// to the ordinary current account read and still checks IsCurrent.
+		return a.masterDataReaderAdapter.GetAccount(ctx, companyID, accountID)
+	}
+	return a.effective.GetAccountAsOf(ctx, companyID, accountID, asOf)
+}
+
+func (a capabilityMasterDataReader) GetCostCenterForCompany(
+	ctx context.Context,
+	companyID types.CompanyID,
+	costCenterID types.CostCenterID,
+) (kernalmasterdata.CostCenter, error) {
+	if a.costCenters == nil {
+		return kernalmasterdata.CostCenter{}, posting.ErrDimensionReaderRequired
+	}
+	center, err := a.costCenters.GetCostCenterForCompany(ctx, companyID, costCenterID)
+	if errors.Is(err, publicmasterdata.ErrInvalidCostCenter) {
+		return kernalmasterdata.CostCenter{}, kernalmasterdata.ErrInvalidCostCenter
+	}
+	return center, err
+}
+
+func (a capabilityMasterDataReader) GetAnalyticalDimensionForCompany(
+	ctx context.Context,
+	companyID types.CompanyID,
+	kind kernalmasterdata.AnalyticalDimensionKind,
+	id string,
+) (kernalmasterdata.AnalyticalDimensionValue, error) {
+	if a.dimensions == nil {
+		return kernalmasterdata.AnalyticalDimensionValue{}, posting.ErrDimensionReaderRequired
+	}
+	value, err := a.dimensions.GetAnalyticalDimensionForCompany(ctx, companyID, publicmasterdata.AnalyticalDimensionKind(kind), id)
+	if errors.Is(err, publicmasterdata.ErrInvalidAnalyticalDimension) {
+		return kernalmasterdata.AnalyticalDimensionValue{}, kernalmasterdata.ErrInvalidAnalyticalDimension
+	}
+	return value, err
+}
+
 type applicationService struct {
-	ports        storage.Ports
-	config       PostingConfig
-	authorizer   publicapplication.Authorizer
-	policyEngine *policy.PolicyEngine
-	pipeline     *posting.PostingPipeline
+	ports          storage.Ports
+	config         PostingConfig
+	authorizer     publicapplication.Authorizer
+	policyEngine   *policy.PolicyEngine
+	pipeline       *posting.PostingPipeline
+	policyStore    storage.PolicyStore
+	policiesLoaded map[types.CompanyID]bool
 }
 
 var _ publicapplication.Service = (*applicationService)(nil)
@@ -156,14 +215,33 @@ func newApplication(ports storage.Ports, config PostingConfig, authorizer public
 	mdAdapter := masterDataReaderAdapter{reader: ports.MasterData}
 
 	app := &applicationService{
-		ports:        ports,
-		config:       config,
-		authorizer:   authorizer,
-		policyEngine: policyEngine,
+		ports:          ports,
+		config:         config,
+		authorizer:     authorizer,
+		policyEngine:   policyEngine,
+		policyStore:    policyStoreFromPorts(ports),
+		policiesLoaded: make(map[types.CompanyID]bool),
+	}
+
+	// Optional capabilities are detected, never assumed. A reader that exposes
+	// none of them keeps the baseline method set and the kernel fails closed
+	// for dimensioned lines; an effective-account capability is additive and
+	// otherwise falls back to GetAccount.
+	var reader kernalmasterdata.Reader = mdAdapter
+	effective, hasEffective := ports.MasterData.(publicmasterdata.EffectiveAccountReader)
+	costCenters, hasCostCenters := ports.MasterData.(publicmasterdata.CostCenterReader)
+	dimensions, hasDimensions := ports.MasterData.(publicmasterdata.AnalyticalDimensionReader)
+	if hasEffective || hasCostCenters || hasDimensions {
+		reader = capabilityMasterDataReader{
+			masterDataReaderAdapter: mdAdapter,
+			effective:               effective,
+			costCenters:             costCenters,
+			dimensions:              dimensions,
+		}
 	}
 
 	pipeline := posting.NewPostingPipeline(
-		mdAdapter,
+		reader,
 		app.executePosting,
 		posting.WithPolicyEngine(policyEngine),
 		posting.WithReversalExecutor(app.executeReversalPosting),
@@ -189,27 +267,13 @@ func (s *applicationService) executePosting(ctx context.Context, entry journal.J
 		ActorID:       opts.ActorID,
 		Reason:        opts.Reason,
 		CorrelationID: opts.CorrelationID,
+		Idempotency:   commitIdempotency(opts, storage.OperationPost),
 	}
 
-	committed, err := s.ports.Posting.CommitPosting(ctx, commit)
-	if err != nil {
-		return journal.JournalEntry{}, err
-	}
-
-	if s.ports.Audit != nil {
-		_ = s.ports.Audit.AppendAudit(ctx, storage.AuditRecord{
-			CompanyID:     entry.CompanyID,
-			EntityType:    "journal_entry",
-			EntityID:      entry.ID.String(),
-			Action:        "post",
-			ActorID:       opts.ActorID,
-			Reason:        opts.Reason,
-			CorrelationID: opts.CorrelationID,
-			OccurredAt:    time.Now().UTC(),
-		})
-	}
-
-	return committed, nil
+	// The adapter writes the entry, audit evidence and idempotency completion
+	// in one transaction. The SDK must not append audit records here: a failed
+	// append would otherwise leave unreconciled evidence outside that unit.
+	return s.ports.Posting.CommitPosting(ctx, commit)
 }
 
 func (s *applicationService) executeReversalPosting(
@@ -234,30 +298,58 @@ func (s *applicationService) executeReversalPosting(
 		ActorID:         opts.ActorID,
 		Reason:          opts.Reason,
 		CorrelationID:   opts.CorrelationID,
+		Idempotency:     commitIdempotency(opts, storage.OperationReverse),
 	}
 
-	committed, err := s.ports.Posting.CommitPosting(ctx, commit)
-	if err != nil {
-		return journal.JournalEntry{}, err
-	}
+	return s.ports.Posting.CommitPosting(ctx, commit)
+}
 
-	if s.ports.Audit != nil {
-		_ = s.ports.Audit.AppendAudit(ctx, storage.AuditRecord{
-			CompanyID:     entry.CompanyID,
-			EntityType:    "journal_entry",
-			EntityID:      entry.ID.String(),
-			Action:        "reverse",
-			ActorID:       opts.ActorID,
-			Reason:        opts.Reason,
-			CorrelationID: opts.CorrelationID,
-			OccurredAt:    time.Now().UTC(),
-		})
+// commitIdempotency copies the kernel-stamped scope and stable payload digest
+// onto the durable commit. The kernel is the only authority for both fields.
+// A valid scope hint (post, reverse or revaluation) is preserved; legacy callers
+// that did not stamp one still get the operation inferred from the executor.
+func commitIdempotency(opts posting.PostOptions, operation storage.PostingOperation) *storage.PostingIdempotency {
+	if opts.Scope.Key == "" || opts.CallerFingerprint == "" {
+		return nil
 	}
-
-	return committed, nil
+	scope := opts.Scope
+	if !scope.Operation.Valid() {
+		switch operation {
+		case storage.OperationReverse:
+			scope.Operation = posting.IdempotencyReversal
+		case storage.OperationRevaluation:
+			scope.Operation = posting.IdempotencyRevaluation
+		default:
+			scope.Operation = posting.IdempotencyPosting
+		}
+	}
+	return &storage.PostingIdempotency{
+		Key:         scope.Key,
+		Scope:       scope.String(),
+		PayloadHash: opts.CallerFingerprint,
+	}
 }
 
 func (s *applicationService) ensurePolicies(ctx context.Context, companyID types.CompanyID, asOf time.Time) error {
+	// When the host supplies an authoritative policy history it is the single
+	// source of truth: load every version once and fail closed for dates that
+	// no stored version covers. No synthetic 2000-01-01 policy is created.
+	if s.policyStore != nil {
+		err := s.loadVersionedPolicies(ctx, companyID)
+		if err != nil && !errors.Is(err, errNoVersionedPolicies) {
+			return err
+		}
+		if err == nil {
+			return s.ensureVersionedPoliciesIsEffective(companyID, asOf)
+		}
+		// The store holds no versions for this tenant: fall through to the
+		// legacy derivation below. This keeps existing hosts working until
+		// they explicitly register their first policy version.
+	}
+
+	// Legacy fallback for hosts without a policy store. Registration errors
+	// must be propagated: silently ignoring an overlap or invalid payload
+	// would let a posting proceed under an unrecorded policy decision.
 	company, err := s.ports.MasterData.GetCompany(ctx, companyID)
 	if err != nil {
 		return err
@@ -273,7 +365,9 @@ func (s *applicationService) ensurePolicies(ctx context.Context, companyID types
 			AutoSettleRoundingDifferences: false,
 			EffectiveDate:                 time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
 		}
-		_ = s.policyEngine.SetCurrencyPolicy(curPolicy)
+		if err := s.policyEngine.SetCurrencyPolicy(curPolicy); err != nil {
+			return fmt.Errorf("register fallback currency policy: %w", err)
+		}
 	}
 
 	if _, err := s.policyEngine.PostingPolicyFor(companyID, asOf); errors.Is(err, policy.ErrPolicyNotFound) {
@@ -281,7 +375,9 @@ func (s *applicationService) ensurePolicies(ctx context.Context, companyID types
 			CompanyID:     companyID,
 			EffectiveDate: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
 		}
-		_ = s.policyEngine.SetPolicy(postPolicy)
+		if err := s.policyEngine.SetPolicy(postPolicy); err != nil {
+			return fmt.Errorf("register fallback posting policy: %w", err)
+		}
 	}
 
 	return nil
@@ -465,6 +561,67 @@ func (s *applicationService) Validate(ctx context.Context, command publicapplica
 	return nil
 }
 
+// checkIdempotencyBeforePost is a side-effect-free lookup. It never claims a
+// key: the durable claim and its release are owned by the storage adapter's
+// atomic CommitPosting. It exists only to avoid re-running kernel policy on a
+// replay and to surface payload conflicts explicitly.
+func (s *applicationService) checkIdempotencyBeforePost(
+	ctx context.Context,
+	entry journal.JournalEntry,
+	opts posting.PostOptions,
+) (journal.JournalEntry, bool, error) {
+	key := strings.TrimSpace(opts.IdempotencyKey)
+	if key == "" || s.ports.Idempotency == nil {
+		return journal.JournalEntry{}, false, nil
+	}
+	lookup, ok := s.ports.Idempotency.(storage.IdempotencyLookup)
+	if !ok {
+		return journal.JournalEntry{}, false, nil
+	}
+	scope, err := posting.BuildIdempotencyScope(entry, opts)
+	if err != nil {
+		return journal.JournalEntry{}, false, err
+	}
+	fingerprint, err := posting.FingerprintCallerPayload(entry, opts, scope)
+	if err != nil {
+		return journal.JournalEntry{}, false, err
+	}
+	record, found, err := lookup.Lookup(ctx, entry.CompanyID, key)
+	if err != nil {
+		return journal.JournalEntry{}, false, fmt.Errorf("lookup idempotency key: %w", err)
+	}
+	if !found {
+		return journal.JournalEntry{}, false, nil
+	}
+	if record.PayloadHash != "" && record.PayloadHash != fingerprint {
+		return journal.JournalEntry{}, false, publicapplication.NewError(
+			publicapplication.ErrConflict, "idempotency key was reused with a different payload", ErrIdempotencyKeyConflict)
+	}
+	switch record.Status {
+	case storage.IdempotencyCompleted:
+		if record.EntryID == nil {
+			return journal.JournalEntry{}, false, publicapplication.NewError(
+				publicapplication.ErrConflict, "completed idempotency record has no entry", ErrIdempotencyInProgress)
+		}
+		posted, getErr := s.ports.Entries.GetEntry(ctx, entry.CompanyID, *record.EntryID)
+		if getErr != nil {
+			return journal.JournalEntry{}, false, publicapplication.NewError(
+				publicapplication.ErrInternal, "idempotent result is unavailable", getErr)
+		}
+		return posted, true, nil
+	case storage.IdempotencyStarted:
+		return journal.JournalEntry{}, false, publicapplication.NewError(
+			publicapplication.ErrConflict, "idempotency key is still processing", ErrIdempotencyInProgress)
+	case storage.IdempotencyTerminal:
+		return journal.JournalEntry{}, false, publicapplication.NewError(
+			publicapplication.ErrConflict, "idempotency key previously failed", ErrIdempotencyTerminalFailure)
+	default:
+		// A retryable failure may safely be retried; the adapter will decide
+		// whether the durable key is still owned by a live execution.
+		return journal.JournalEntry{}, false, nil
+	}
+}
+
 func (s *applicationService) Post(ctx context.Context, command publicapplication.PostEntryCommand) (publicapplication.EntryResult, error) {
 	entryID := command.EntryID
 	if err := s.authorize(ctx, command.Context, command.CompanyID, publicapplication.ActionPost, &entryID, ""); err != nil {
@@ -475,52 +632,30 @@ func (s *applicationService) Post(ctx context.Context, command publicapplication
 	if actorID == "" {
 		actorID = "system"
 	}
-
 	key := strings.TrimSpace(command.Context.IdempotencyKey)
-	if key != "" && s.ports.Idempotency != nil {
-		existing, claimed, err := s.ports.Idempotency.Claim(ctx, storage.IdempotencyRecord{
-			CompanyID: command.CompanyID,
-			Key:       key,
-			Operation: "post",
-			CreatedAt: time.Now().UTC(),
-		})
-		if err != nil {
-			return publicapplication.EntryResult{}, classifyError(err)
-		}
-		if !claimed {
-			if existing.Status == storage.IdempotencyCompleted && existing.EntryID != nil {
-				posted, err := s.ports.Entries.GetEntry(ctx, command.CompanyID, *existing.EntryID)
-				if err == nil {
-					return publicapplication.EntryResult{Entry: posted, IdempotentReplay: true}, nil
-				}
-			}
-			return publicapplication.EntryResult{}, ErrIdempotencyInProgress
-		}
+	opts := posting.PostOptions{
+		ActorID:        actorID,
+		CorrelationID:  command.Context.CorrelationID,
+		IdempotencyKey: key,
 	}
 
 	entry, err := s.ports.Entries.GetEntry(ctx, command.CompanyID, command.EntryID)
 	if err != nil {
 		return publicapplication.EntryResult{}, classifyError(err)
 	}
+	if replay, found, err := s.checkIdempotencyBeforePost(ctx, entry, opts); err != nil {
+		return publicapplication.EntryResult{}, classifyError(err)
+	} else if found {
+		return publicapplication.EntryResult{Entry: replay, IdempotentReplay: true}, nil
+	}
 
 	if err := s.ensurePolicies(ctx, entry.CompanyID, entry.EffectiveDate); err != nil {
 		return publicapplication.EntryResult{}, classifyError(err)
 	}
 
-	posted, err := s.pipeline.PostEntry(ctx, entry, posting.PostOptions{
-		ActorID:        actorID,
-		CorrelationID:  command.Context.CorrelationID,
-		IdempotencyKey: key,
-	})
+	posted, err := s.pipeline.PostEntry(ctx, entry, opts)
 	if err != nil {
-		if key != "" && s.ports.Idempotency != nil {
-			_ = s.ports.Idempotency.Fail(ctx, command.CompanyID, key, "", storage.IdempotencyTerminal)
-		}
 		return publicapplication.EntryResult{}, classifyError(err)
-	}
-
-	if key != "" && s.ports.Idempotency != nil {
-		_ = s.ports.Idempotency.Complete(ctx, command.CompanyID, key, "", posted.ID, nil)
 	}
 
 	return publicapplication.EntryResult{Entry: posted, IdempotentReplay: false}, nil
@@ -551,22 +686,28 @@ func (s *applicationService) Reverse(ctx context.Context, command publicapplicat
 	if err != nil {
 		return publicapplication.EntryResult{}, classifyError(err)
 	}
+	opts := posting.PostOptions{
+		ActorID:        actorID,
+		Reason:         command.Reason,
+		CorrelationID:  command.Context.CorrelationID,
+		IdempotencyKey: strings.TrimSpace(command.IdempotencyKey),
+	}
+	if replay, found, err := s.checkIdempotencyBeforePost(ctx, reversal, opts); err != nil {
+		return publicapplication.EntryResult{}, classifyError(err)
+	} else if found {
+		return publicapplication.EntryResult{Entry: replay, IdempotentReplay: true}, nil
+	}
 
 	if err := s.ensurePolicies(ctx, reversal.CompanyID, reversal.EffectiveDate); err != nil {
 		return publicapplication.EntryResult{}, classifyError(err)
 	}
 
-	posted, err := s.pipeline.PostEntry(ctx, reversal, posting.PostOptions{
-		ActorID:        actorID,
-		Reason:         command.Reason,
-		CorrelationID:  command.Context.CorrelationID,
-		IdempotencyKey: command.IdempotencyKey,
-	})
+	posted, err := s.pipeline.PostEntry(ctx, reversal, opts)
 	if err != nil {
 		return publicapplication.EntryResult{}, classifyError(err)
 	}
 
-	return publicapplication.EntryResult{Entry: posted}, nil
+	return publicapplication.EntryResult{Entry: posted, IdempotentReplay: false}, nil
 }
 
 func (s *applicationService) GetEntry(ctx context.Context, query publicapplication.GetEntryQuery) (journal.JournalEntry, error) {
@@ -592,10 +733,22 @@ func (s *applicationService) WithinTransaction(ctx context.Context, companyID ty
 }
 
 func (s *applicationService) FindPostedEntryByIdempotencyKey(ctx context.Context, companyID types.CompanyID, key string) (journal.JournalEntry, bool, error) {
-	if s.ports.Idempotency == nil {
+	lookup, ok := s.ports.Idempotency.(storage.IdempotencyLookup)
+	if !ok {
 		return journal.JournalEntry{}, false, ErrCapabilityNotImplemented
 	}
-	return journal.JournalEntry{}, false, nil
+	record, found, err := lookup.Lookup(ctx, companyID, strings.TrimSpace(key))
+	if err != nil {
+		return journal.JournalEntry{}, false, err
+	}
+	if !found || record.Status != storage.IdempotencyCompleted || record.EntryID == nil {
+		return journal.JournalEntry{}, false, nil
+	}
+	entry, err := s.ports.Entries.GetEntry(ctx, companyID, *record.EntryID)
+	if err != nil {
+		return journal.JournalEntry{}, false, err
+	}
+	return entry, true, nil
 }
 
 func classifyError(err error) error {
@@ -617,6 +770,32 @@ func classifyError(err error) error {
 		errors.Is(err, types.ErrInvalidAmount) ||
 		errors.Is(err, types.ErrInvalidCurrency) {
 		return publicapplication.NewError(publicapplication.ErrValidation, err.Error(), err)
+	}
+	if errors.Is(err, storage.ErrIdempotencyPayloadConflict) ||
+		errors.Is(err, storage.ErrIdempotencyInProgress) ||
+		errors.Is(err, storage.ErrEntryAlreadyReversed) ||
+		errors.Is(err, storage.ErrConcurrentModification) ||
+		errors.Is(err, storage.ErrPolicyVersionConflict) ||
+		errors.Is(err, policy.ErrPolicyOverlap) ||
+		errors.Is(err, posting.ErrRevaluationAlreadyApplied) ||
+		errors.Is(err, posting.ErrIdempotencyConflict) {
+		return publicapplication.NewError(publicapplication.ErrConflict, err.Error(), err)
+	}
+	if errors.Is(err, storage.ErrPolicyVersionNotFound) ||
+		errors.Is(err, policy.ErrPolicyNotFound) ||
+		errors.Is(err, policy.ErrPolicyNotEffective) {
+		return publicapplication.NewError(publicapplication.ErrNotFound, err.Error(), err)
+	}
+	if errors.Is(err, storage.ErrIdempotencyUnavailable) {
+		return publicapplication.NewError(publicapplication.ErrDependencyUnavailable, err.Error(), err)
+	}
+	if errors.Is(err, storage.ErrAtomicCommitFailed) {
+		return publicapplication.NewError(publicapplication.ErrInternal, err.Error(), err)
+	}
+	// A company-scope violation is never a conflict to retry: the caller asked
+	// to act outside its own tenant boundary. Phase 8 classifies it as forbidden.
+	if errors.Is(err, storage.ErrScopeViolation) {
+		return publicapplication.NewError(publicapplication.ErrForbidden, err.Error(), err)
 	}
 	return err
 }

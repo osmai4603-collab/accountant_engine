@@ -24,6 +24,21 @@ type StorageAdapterHarness struct {
 	MasterData   publicmasterdata.Store
 	Capabilities storage.AdapterCapabilities
 	Cleanup      func()
+
+	// SemanticDifferences records intentional, documented behavioral
+	// differences observed by a scenario. It is empty when a scenario observed
+	// none; the reporter never invents a value on behalf of a test.
+	SemanticDifferences []string
+}
+
+// DeclareSemanticDifference records an intentional adapter difference for the
+// running scenario. Tests must call it explicitly when they accept a
+// difference; absence of a call means no difference was observed.
+func (h *StorageAdapterHarness) DeclareSemanticDifference(description string) {
+	if h == nil || strings.TrimSpace(description) == "" {
+		return
+	}
+	h.SemanticDifferences = append(h.SemanticDifferences, description)
 }
 
 // NewMemoryStorageHarness provisions and wires an in-memory adapter for testing.
@@ -140,22 +155,25 @@ func ForEachStorageAdapter(t *testing.T, scenarioName string, testFn func(t *tes
 	for _, tc := range adapters {
 		t.Run(tc.name+"/"+scenarioName, func(t *testing.T) {
 			start := time.Now()
-			var capabilities storage.AdapterCapabilities
+			var harness *StorageAdapterHarness
 			defer func() {
 				differences := []string(nil)
-				semanticDifferences := []string{"none; storage contract assertions passed"}
 				unexpected := []string(nil)
-				if capabilities.AdapterName != "" {
-					differences = []string{
-						"durability=" + boolStr(capabilities.GuaranteesDurability),
-						"foreign_keys=" + boolStr(capabilities.EnforcesForeignKeys),
-						"serializable=" + boolStr(capabilities.SupportsSerializable),
-						"savepoints=" + boolStr(capabilities.SupportsSavepoints),
+				var semanticDifferences []string
+				if harness != nil {
+					semanticDifferences = append(semanticDifferences, harness.SemanticDifferences...)
+					capabilities := harness.Capabilities
+					if capabilities.AdapterName != "" {
+						differences = []string{
+							"durability=" + boolStr(capabilities.GuaranteesDurability),
+							"foreign_keys=" + boolStr(capabilities.EnforcesForeignKeys),
+							"serializable=" + boolStr(capabilities.SupportsSerializable),
+							"savepoints=" + boolStr(capabilities.SupportsSavepoints),
+						}
 					}
 				}
 				if t.Failed() {
 					unexpected = []string{"contract assertions failed; see test logs"}
-					semanticDifferences = []string{"contract assertions failed"}
 				}
 				GlobalReporter.Record(ScenarioResult{
 					ScenarioName:          scenarioName,
@@ -171,14 +189,13 @@ func ForEachStorageAdapter(t *testing.T, scenarioName string, testFn func(t *tes
 			}()
 
 			fixture := NewUnifiedFixture()
-			h := tc.ctor(t, fixture)
-			if h == nil {
+			harness = tc.ctor(t, fixture)
+			if harness == nil {
 				return
 			}
-			capabilities = h.Capabilities
-			defer h.Cleanup()
+			defer harness.Cleanup()
 
-			testFn(t, h, fixture)
+			testFn(t, harness, fixture)
 		})
 	}
 }

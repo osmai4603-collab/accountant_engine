@@ -24,6 +24,19 @@ type JournalType struct {
 	AutomaticallyPosted bool
 }
 
+// ValidateJournalScope checks that a journal returned by a reader belongs to
+// the requested company and to the requested journal identity before any of
+// its policy fields are trusted (RULE-KERNEL-016).
+func ValidateJournalScope(j Journal, companyID types.CompanyID, journalID types.JournalID) error {
+	if companyID == (types.CompanyID{}) {
+		return ErrCompanyScopeRequired
+	}
+	if journalID == (types.JournalID{}) || j.ID != journalID || j.CompanyID != companyID {
+		return ErrJournalIdentityMismatch
+	}
+	return nil
+}
+
 func (j Journal) ValidateWithPolicy(allowedCurrencies []string, allowedAccounts []types.AccountID) error {
 	if j.ID == (types.JournalID{}) || j.CompanyID == (types.CompanyID{}) ||
 		strings.TrimSpace(j.Code) == "" || strings.TrimSpace(j.Name) == "" {

@@ -26,6 +26,31 @@ only.
 - `RULE-KERNEL-008`: Currency and exchange-rate mismatch is rejected. A same-
   currency FX request is exactly `1`.
 
+### Phase 2 precision clarifications (non-normative)
+
+The notes below explain the existing behavior of `RULE-KERNEL-001` through
+`RULE-KERNEL-008`. They do not create a 28th invariant and do not change any
+monetary rule; see ADR P2-01 and `docs/KERNEL_MONETARY_PRECISION_MATRIX.md`.
+
+- Banker's rounding (half to even) is the only monetary rounding mode.
+  `decimal.Truncate` is used only inside exactness/overflow checks, never as a
+  posting policy.
+- `InternalScale = 12` is an intermediate division scale. It does not permit
+  persisting sub-minor-unit amounts; `MinorUnitsExact` fails closed on them and
+  the residual is exposed by `RoundingDifference`.
+- `MinorUnits()` is the explicit rounding path and may lose value only by that
+  explicit rule; cross-currency `Add`/`Subtract` return `ErrCurrencyMismatch`,
+  while cross-currency comparisons simply return `false`.
+- Same-currency conversion uses the exact rate `1` but still normalizes the
+  result to the currency minor unit, like any other conversion.
+- `RoundForPosting()` and `CurrencyMinorUnit()` are deprecated compatibility
+  aliases. They are retained for external callers and are restricted to kernel
+  tests by an automated AST check; kernel production code must use the checked
+  variants.
+- No `float32`, `float64` or float-derived decimal may enter any monetary path,
+  including tests. The precision matrix and its tests are the executable
+  evidence for these clarifications.
+
 ## Entry lifecycle invariants
 
 - `RULE-KERNEL-009`: Only an entry in `Draft` may enter the posting pipeline,
@@ -61,20 +86,311 @@ only.
 - `RULE-KERNEL-020`: Fiscal-year generation preserves the requested start day,
   clamps period boundaries to month ends, and does not create gaps or overlaps.
 
+### Phase 3 master-data clarifications (non-normative)
+
+These notes make `RULE-KERNEL-016` through `RULE-KERNEL-020` executable; they do
+not add a 28th invariant. See ADR P3-01 and the Phase 3 report.
+
+- A zero `CompanyID` is rejected before any reader call by company, account,
+  journal, normal-period and adjustment-period validation (`ErrCompanyScopeRequired`).
+- A COA snapshot has one company scope; a parent taken from the same snapshot
+  must not belong to a different company.
+- Account validity windows are inclusive on both ends; an inverted window is
+  rejected by `Validate`/`IsValid`. Adjustment periods 13 and 14 are explicit
+  targets only and never participate in date-based period discovery.
+- `ValidateCanPostToAccountAsOf` uses the optional `EffectiveAccountReader` port
+  when the adapter supplies it, so a later master-data edit cannot reinterpret
+  a historical posting. Without that port the kernel still fails closed if the
+  single returned record is not current on the posting date.
+- `ValidateCanPostToAccountWithClock` and `masterdata.Clock` replace direct wall
+  clock access in the current-date compatibility wrapper; postings themselves
+  must pass the entry date explicitly.
+- Soft close is honored only when the posting policy explicitly allows it; hard
+  close is never bypassed at period or fiscal-year level.
+
+### Phase 5 policy clarifications (non-normative)
+
+These notes make the policy part of `RULE-KERNEL-010`, `RULE-KERNEL-017` and
+`RULE-KERNEL-019` executable. They do not create a 28th invariant; see ADR P5-01
+and the Phase 5 report.
+
+- A policy is a company-scoped, versioned fact with a half-open effective
+  window `[EffectiveDate, EffectiveTo)`. `EffectiveTo == nil` ends at the next
+  version. Resolution by `(CompanyID, asOf)` is deterministic and independent
+  of registration order; duplicate starts and overlapping windows are rejected.
+- No effective policy means no posting: resolution returns `ErrPolicyNotFound`.
+  Explicit gaps and dates before the first version fail closed.
+- The posted entry records `PolicyFingerprint`, a canonical digest of the
+  resolved posting/currency policy pair. It is immutable audit evidence; a later
+  policy version cannot silently rewrite a past entry's interpretation.
+- Eligibility decisions are date-aware and scope-aware: a foreign-company,
+  inactive, expired, or directly posted control account is rejected.
+- `AllowSoftClosedPosting` comes from the policy selected for the entry date and
+  is passed to `masterdata`; hard close remains an unconditional prohibition.
+  Policy code confers no user permissions.
+
+### Phase 6 posting and reversal clarifications (non-normative)
+
+These notes explain how `RULE-KERNEL-001` through `RULE-KERNEL-017` and
+`RULE-KERNEL-027` are enforced by the posting pipeline. They do not create a
+28th invariant. See `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` and the Phase 6
+report for the executable evidence.
+
+- Every failure path in `PostEntry` returns before `PostingExecutor` or
+  `PostingReversalExecutor` is called. The executor receives only a balanced,
+  stamped copy of a draft whose validation has completed.
+- The entry is defensively cloned before repository access. Caller-side changes
+  to company, account, currency, or period after validation cannot alter the
+  snapshot delivered to the executor.
+- One effective-dated account snapshot per line feeds both account validation
+  and `policy.CheckAccountEligibility`. A second, differently-timed account read
+  is forbidden because it could validate one master-data version and persist
+  another (ADR P3-01).
+- A draft that already carries `ReversedByID` is invalid: only a posted entry
+  may be reversed, and posted entries never re-enter the pipeline. Reversal
+  classification, `ReversalOfID`, and `ReversalReason` must agree before any
+  repository or executor call.
+- Reversals preserve dimensions, transaction currencies, and account IDs, swap
+  functional debit/credit, leave the original untouched, and leave the reversal
+  fiscal period unset until `PostEntry` derives it from the reversal date.
+- Rounding may create a settlement line only when the currency policy enables
+  `AutoSettleRoundingDifferences` and supplies a rounding account. The entry is
+  validated as balanced after normalization, never before.
+- Wall-clock access in production `posting` code is confined to the
+  `systemClock{}.Now()` implementation; deterministic callers use injected
+  clocks or explicit `now` constructors. Atomic persistence, idempotency
+  storage, and row locking remain host executor responsibilities.
+
 ## Valuation and audit invariants
 
 - `RULE-KERNEL-021`: Revaluation is limited to monetary positions and valid
-  closing/historical/spot/average rate types.
+  rates. Four rate types are valid (`closing`, `historical`, `spot`, `average`);
+  revaluation itself requires `CLOSING`.
 - `RULE-KERNEL-022`: Rate effective dates may not be after the valuation date.
 - `RULE-KERNEL-023`: Asset gains/losses and liability gains/losses produce
   opposite debit/credit position effects as appropriate.
 - `RULE-KERNEL-024`: Revaluation journal differences must be nonzero and
   balanced in the functional currency.
+- Revaluation retries use a deterministic company/account/currency/date
+  operation key and reference; repeat registration returns the same entry.
 - `RULE-KERNEL-025`: Audit logs must be sequential, company-scoped, linked to
   the previous hash, and have a hash covering every audited semantic field.
+  Sequence and previous-hash assignment are atomic per company and are the
+  adapter's responsibility; each adapter must accept the same canonical hash
+  definition and reject malformed or regressive checkpoints through the shared
+  `ValidateCheckpoint` helper.
 - `RULE-KERNEL-026`: Audit verification uses one consistent log snapshot and
-  verifies an externally retained checkpoint against that snapshot.
+  verifies an externally retained checkpoint against that snapshot. The
+  checkpoint must exist, have a valid shape, and equal both the snapshot
+  sequence and the final chain hash. Absence or mismatch in
+  `VerifyAuditIntegrityWithCheckpoint` fails closed with
+  `ErrAuditCheckpointMismatch`; a malformed checkpoint is rejected by the
+  shared `ValidateCheckpoint` helper with `ErrInvalidAuditCheckpoint`. The
+  checkpoint-free `VerifyAuditIntegrity` is a lower-guarantee mode and must
+  never claim detection of a deleted tail.
+  Retention and custody of the checkpoint outside the mutable log are host
+  responsibilities, not kernel or adapter policy.
 - `RULE-KERNEL-027`: Atomic posting and audit persistence are host executor
   responsibilities. The kernel validates and returns the snapshot; it does not
-  claim database or network transaction capabilities.
+  claim database or network transaction capabilities. Before delegation it
+  stamps the authoritative idempotency scope and payload fingerprints that the
+  host must persist atomically with the entry, its audit effect and its result.
 
+### Phase 4 lifecycle and GL projection clarifications (non-normative)
+
+These notes make `RULE-KERNEL-009` through `RULE-KERNEL-015` executable as an
+explicit state machine and projection contract; they do not add a 28th
+invariant. See ADR P1-02 addendum and Phase 4 report.
+
+- The journal lifecycle is `draft -> posted -> reversed`; no other transition is
+  allowed. `journal.ValidateTransition` and `AllowedTransitions` are the domain
+  source of this rule.
+- Posted and reversed entries are immutable accounting facts. Domain code must
+  reject in-place mutation (`journal.ValidateImmutability` / `EnsureMutable`);
+  corrections are represented only by linked reversal/correction entries.
+- Reversal linkage is one-to-one at domain level: a reversal references exactly
+  one original (`ReversalOfID`), and a reversed original references exactly one
+  reversal (`ReversedByID`). Storage must enforce atomic uniqueness.
+- Posted `JournalEntry` + `EntryLine` remain the canonical GL source of truth.
+  `ledger.PostedMovement` and `RebuildAccountBalances` are deterministic
+  read-only projections, not stored independent entities or materialized balance
+  stores.
+- Rebuild ordering is deterministic: `(EffectiveDate UTC, SequenceNumber,
+  JournalEntryID.String())` for entries, then `EntryLine.ID.String()` for lines.
+
+### Phase 5 policy and accounting eligibility clarifications (non-normative)
+
+These notes make `RULE-KERNEL-010`, `RULE-KERNEL-017`, and `RULE-KERNEL-019`
+testable without adding a new accounting rule. See ADR P5-01 and the Phase 5
+report for the decision record.
+
+- Policy versions use half-open UTC windows `[EffectiveDate, EffectiveTo)`;
+  `EffectiveTo == nil` ends at the next registered version. Selection is
+  deterministic by `(CompanyID, asOf)`, duplicate starts are invalid, overlaps
+  are rejected with `ErrPolicyOverlap`, and gaps or absence fail closed with
+  `ErrPolicyNotFound`.
+- Registered policies are defensively copied on write and on read; shared
+  slices and pointers from callers cannot mutate stored policy state.
+- `journal.JournalEntry.PolicyFingerprint` is a canonical, content-bound
+  digest of the resolved posting and currency policies. It is stamped after
+  validation and before the executor, participates in immutability checks, and
+  prevents silent historical reinterpretation when policies change later.
+- `policy.CheckAccountEligibility` rejects missing/inactive/control accounts,
+  accounts outside the journal company scope, and accounts not effective at
+  `entry.EffectiveDate`. Soft-close permission comes only from the selected
+  posting policy; hard close remains unconditionally forbidden by `masterdata`.
+
+### Phase 7 transaction and idempotency clarifications (non-normative)
+
+These notes make `RULE-KERNEL-010`, `RULE-KERNEL-011`, `RULE-KERNEL-012`,
+`RULE-KERNEL-025` and `RULE-KERNEL-027` testable at the host boundary. They
+do not add a 28th invariant and do not move ACID persistence into the kernel.
+See the Phase 7 report and its four contracts for executable evidence.
+
+- The kernel derives the uniqueness scope from `(CompanyID, Operation, Key)`
+  after validation and overwrites any caller-supplied `PostOptions.Scope`,
+  `RequestFingerprint` or `CallerFingerprint` immediately before executor
+  dispatch. A posting key and a reversal key with the same text are distinct
+  operations at the storage uniqueness boundary.
+- `RequestFingerprint` describes the frozen, already-stamped entry delivered
+  to the executor. `CallerFingerprint` describes stable caller-controlled
+  fields; it is the digest the SDK persists as the idempotency `PayloadHash`
+  so that conflict detection works on both sides of the posting transformation.
+- Same scope and same payload replay the stored result without a new posting
+  effect; the same scope with a different payload is a non-retryable conflict.
+  Concurrent executions have one winner and one retrievable result. A lost
+  response after commit is resolved by a side-effect-free lookup, never by
+  guessing or creating a replacement entry.
+- The host atomic unit includes the entry and lines, the GL/balance effect,
+  the idempotency record with its stored result, the audit effect, and — for
+  reversals — the reverse entry, the original link and the original state.
+  Audit is staged inside the same transaction; an ignored audit error is a
+  contract violation.
+- Retryable failures are transient storage/in-progress conditions. Payload
+  conflict, an already-reversed original and an atomicity violation are
+  terminal for the same request. Bounded retry policy belongs to the host;
+  the kernel contains no retry loop and no database lock.
+
+### Phase 8 concurrency and isolation clarifications (non-normative)
+
+These notes make `RULE-KERNEL-010`, `RULE-KERNEL-016`, `RULE-KERNEL-027` and
+the Phase 7 snapshot contract executable at the concurrency boundary. They do
+not create a 28th invariant and do not move locking into the kernel. See ADR
+P8-01, `docs/KERNEL_LOCKING_CONTRACT.md`, `docs/KERNEL_CONCURRENCY_MODEL.md`
+and the Phase 8 report for executable evidence.
+
+- `posting.OrderedAccountKeys` and the retained `ExtractAndSortAccountIDs`
+  produce deterministic, company-scoped key strings only. They acquire no
+  lock, hold no state and do not read a clock or random source. The old claim
+  that sorting guaranteed deadlock-free row locking was incorrect and is the
+  gap closed in Phase 8.
+- The host adapter, not the kernel, performs actual locking. The neutral SPI
+  contract is `storage.LockTarget` with canonical identity
+  `v1|company=<id>|kind=<kind>|id=<value>`; `WithOrderedLocks` validates,
+  deduplicates, sorts by canonical text, acquires in ascending order and
+  releases in reverse order even on failure. `LockObserver` is a test-only
+  hook that proves real acquisitions inside the adapter.
+- Four lock classes protect one posting unit: every touched `account`, the
+  posted `entry`, the `original` entry during reversal, and the full
+  `idempotency` scope. Locking the key text alone is insufficient because the
+  same text may name different operations in different companies.
+- The snapshot policy forbids TOCTOU reinterpretation: the pipeline resolves
+  master data and policy once and freezes `FiscalPeriodID`,
+  `PolicyFingerprint`, effective/posting dates and amounts before delegation.
+  The adapter persists the frozen entry without re-reading master data. Later
+  master-data changes affect new requests only; PostgreSQL stays at
+  `READ COMMITTED` by default and a host may request higher isolation through
+  `TxOptions`.
+- Company scope is part of every lock and every read port. A foreign
+  idempotency scope, entry, balance or master-data query is rejected or
+  unfindable; `storage.ErrScopeViolation` is non-retryable and maps to
+  `ErrForbidden` in the SDK. `ActorID` is never authorization. RLS is an
+  adapter defense in depth, not a kernel dependency.
+- Retry remains host-only and bounded (`MaxAllowedRetries = 5`,
+  `RetryPolicy.Validate`); deadlock, serialization, concurrent-modification
+  and in-progress key outcomes may be retried under that policy, while unique,
+  already-reversed, payload-conflict, scope and atomicity failures are
+  terminal. The kernel contains no retry loop, no SQL and no database lock.
+
+### Phase 9 valuation and FX clarifications (non-normative)
+
+These notes make `RULE-KERNEL-021` through `RULE-KERNEL-024` executable and do
+not add a 28th invariant. See ADR P9-01, `docs/KERNEL_VALUATION_RULES_MATRIX.md`
+and the Phase 9 report for the executable evidence.
+
+- Four rate types (`SPOT`, `CLOSING`, `AVERAGE`, `HISTORICAL`) are valid;
+  revaluation itself asks for `CLOSING`. For one pair and type the registry
+  selects the latest effective date not after the valuation date and never
+  answers from a future rate. A duplicate effective day for the same pair/type
+  — including the inverse pair — is rejected.
+- `FXResult.RateDate` records the source rate's effective date separately from
+  the entry's valuation date. The rate reference, direction and positivity are
+  validated before any amount is revalued; cross-currency conversion remains
+  decimal-only and same-currency rate is exactly `1`.
+- A liability's functional increase is an unrealized loss and its decrease is
+  an unrealized gain; the position account therefore takes the opposite side
+  from the asset case. Revaluation entries are nonzero, balanced adjusting
+  entries posted to the designated unrealized gain/loss accounts. Realized FX
+  on settlement is a host posting decision, not a kernel revaluation effect.
+- `RevaluationIdempotencyScope` maps the deterministic
+  `(company, account, currency, date)` operation key to the neutral
+  `posting.IdempotencyScope` with operation `revaluation`; the posting and
+  reversal scope derivations are unchanged. Replaying the same stable payload
+  returns the stored entry, while a different payload under the same key is
+  `ErrRevaluationAlreadyApplied` — the valuation alias of the phase-7 catalog
+  entry and non-retryable under `posting.IsRetryable`. `currency` is the foreign
+  transaction currency, not the functional one. The canonical digest uses
+  length-prefixed stable fields and exact money strings; only generated IDs,
+  timestamps and status are excluded, so regenerating the same result can
+  replay while a changed amount, dimension or date cannot.
+- The in-memory `RevaluationRegistry` protects only one process. Phase 9 only
+  produces the scope object: `PostEntry` and the storage SPI do not yet accept
+  the `revaluation` operation. Atomic, durable idempotency across restarts and
+  lost responses remains the host executor's responsibility under
+  `RULE-KERNEL-027` and is tracked as `G-024` for Phase 11.
+- A revaluation reversal draft carries the reversal date and the link to the
+  original, but leaves `FiscalPeriodID` unset; `BuildRevaluationReversalAt`
+  delegates to `posting.BuildReversalEntryAt`, and `PostEntry` derives the
+  destination period before executor delegation as proven by
+  `TestReversalDraftResolvesDestinationPeriodDuringPosting`.
+- The compatibility wrapper `GenerateRevaluationEntry` reads time only through
+  the package's clock boundary; deterministic callers use
+  `GenerateRevaluationEntryAt` with an explicit timestamp.
+
+### Phase 10 audit-chain and evidence clarifications (non-normative)
+
+These notes make `RULE-KERNEL-025` and `RULE-KERNEL-026` executable without
+adding a 28th invariant. See ADR P10-01, the audit threat model, the audit
+repository contract and the Phase 10 report for evidence.
+
+- The canonical hash covers version, sequence, company, entity type and id,
+  action, actor, reason, correlation id, timestamp truncated to the storage
+  precision, a SHA-256 digest of raw payload bytes, and the previous hash. All
+  fields are length-prefixed so concatenation cannot be ambiguous; changing any
+  semantic field changes the digest.
+- Sequence numbers are company-scoped and start at one. The first log links to
+  the genesis hash. Assignment of the sequence and its previous link happens in
+  one atomic adapter operation; concurrent appends must produce one chain with
+  no duplicate or skipped position.
+- `AuditVerificationSnapshot.CheckpointPresent` is explicit. A missing
+  checkpoint is `ErrAuditCheckpointMismatch` even for an empty chain; the
+  verifier never substitutes a default genesis checkpoint and never accepts a
+  valid prefix as proof that no tail was removed.
+- A trusted checkpoint is bound to the tail: snapshot sequence, log count and
+  checkpoint sequence must be equal, and the final computed hash must equal the
+  checkpoint hash. Shape rules (non-zero company, 64-character hex SHA-256,
+  genesis only at position zero, non-zero version above zero) are shared by the
+  kernel and both adapters through `ValidateCheckpoint`.
+- Checkpoints only move forward. A repeated version, lower sequence or lower
+  version is rejected; PostgreSQL additionally enforces monotonicity with a
+  database trigger and applies row-level security with `FORCE ROW LEVEL
+  SECURITY`. The kernel stores no checkpoint and knows no storage technology.
+- The audit effect of a posting is inside the same host unit of work. A failure
+  before audit staging or before commit removes both the legacy audit record
+  and the v2 hash-chained log together with the journal effect. PostgreSQL
+  achieves the same guarantee in its posting transaction; the kernel only
+  supplies the digest and the verification rules.
+- "External" checkpoint means external to the mutable log, not necessarily
+  external to the database. True custody independence, retention period and
+  backup of the checkpoint are host/operations decisions, documented in ADR
+  P10-01; the kernel provides no SIEM, key management or external provider.

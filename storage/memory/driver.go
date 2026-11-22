@@ -1,8 +1,13 @@
 package memory
 
 import (
+	"context"
+	"sort"
 	"sync"
+	"time"
 
+	"github.com/google/uuid"
+	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicevents "github.com/osmai4603-collab/accounting_engine/pkg/spi/events"
@@ -17,10 +22,33 @@ type accountBalanceKey struct {
 	currency  string
 }
 
+type accountVersionKey struct {
+	companyID types.CompanyID
+	accountID types.AccountID
+}
+
+type dimensionKey struct {
+	kind types.AnalyticalDimensionKind
+	id   string
+}
+
+type phase11PolicyVersionKey struct {
+	companyID types.CompanyID
+	policyID  uuid.UUID
+	kind      storage.PolicyKind
+	version   int
+}
+
 type idempotencyKey struct {
 	companyID types.CompanyID
 	key       string
+	// scope is the canonical company/operation/key triple. Including it makes
+	// the same text key reusable for a posting and a reversal, matching the
+	// kernel idempotency scope contract.
+	scope string
 }
+
+var _ storage.PolicyStore = (*Driver)(nil)
 
 // Driver is the thread-safe in-memory state engine.
 type Driver struct {
@@ -33,12 +61,24 @@ type Driver struct {
 	years        map[types.CompanyID]map[types.FiscalYearID]masterdata.FiscalYear
 	periods      map[types.CompanyID]map[types.FiscalPeriodID]masterdata.FiscalPeriod
 
-	journalSequences map[string]int64
-	entries          map[types.CompanyID]map[types.JournalEntryID]journal.JournalEntry
-	balances         map[accountBalanceKey]decimal.Decimal
-	auditRecords     []storage.AuditRecord
-	auditLastHash    string
-	idempotency      map[idempotencyKey]storage.IdempotencyRecord
+	// G-019/G-022 effective master data. primaryCompanyID binds reads without
+	// an explicit storage company context to the first provisioned tenant.
+	primaryCompanyID types.CompanyID
+	accountVersions  map[accountVersionKey][]masterdata.Account
+	costCenters      map[types.CompanyID]map[types.CostCenterID]masterdata.CostCenter
+	dimensionValues  map[types.CompanyID]map[dimensionKey]masterdata.AnalyticalDimensionValue
+
+	// G-020 append-only policy history.
+	policyVersions map[phase11PolicyVersionKey]storage.PolicyVersion
+
+	journalSequences      map[string]int64
+	entries               map[types.CompanyID]map[types.JournalEntryID]journal.JournalEntry
+	balances              map[accountBalanceKey]decimal.Decimal
+	auditRecords          []storage.AuditRecord
+	auditLastHash         string
+	governanceAuditLogs   map[types.CompanyID][]kernalgovernance.AuditLog
+	governanceCheckpoints map[types.CompanyID]kernalgovernance.AuditCheckpoint
+	idempotency           map[idempotencyKey]storage.IdempotencyRecord
 
 	// Public event ingestion
 	eventIngestions map[string]publicevents.Ingestion
@@ -50,40 +90,53 @@ type Driver struct {
 
 func newDriver() *Driver {
 	return &Driver{
-		companies:        make(map[types.CompanyID]masterdata.Company),
-		accounts:         make(map[types.CompanyID]map[types.AccountID]masterdata.Account),
-		accountCodes:     make(map[types.CompanyID]map[string]types.AccountID),
-		journals:         make(map[types.CompanyID]map[string]masterdata.Journal),
-		years:            make(map[types.CompanyID]map[types.FiscalYearID]masterdata.FiscalYear),
-		periods:          make(map[types.CompanyID]map[types.FiscalPeriodID]masterdata.FiscalPeriod),
-		journalSequences: make(map[string]int64),
-		entries:          make(map[types.CompanyID]map[types.JournalEntryID]journal.JournalEntry),
-		balances:         make(map[accountBalanceKey]decimal.Decimal),
-		auditRecords:     make([]storage.AuditRecord, 0),
-		idempotency:      make(map[idempotencyKey]storage.IdempotencyRecord),
-		eventIngestions:  make(map[string]publicevents.Ingestion),
-		eventMappings:    make(map[string]publicevents.AccountMapping),
+		companies:             make(map[types.CompanyID]masterdata.Company),
+		accounts:              make(map[types.CompanyID]map[types.AccountID]masterdata.Account),
+		accountCodes:          make(map[types.CompanyID]map[string]types.AccountID),
+		journals:              make(map[types.CompanyID]map[string]masterdata.Journal),
+		years:                 make(map[types.CompanyID]map[types.FiscalYearID]masterdata.FiscalYear),
+		periods:               make(map[types.CompanyID]map[types.FiscalPeriodID]masterdata.FiscalPeriod),
+		accountVersions:       make(map[accountVersionKey][]masterdata.Account),
+		costCenters:           make(map[types.CompanyID]map[types.CostCenterID]masterdata.CostCenter),
+		dimensionValues:       make(map[types.CompanyID]map[dimensionKey]masterdata.AnalyticalDimensionValue),
+		policyVersions:        make(map[phase11PolicyVersionKey]storage.PolicyVersion),
+		journalSequences:      make(map[string]int64),
+		entries:               make(map[types.CompanyID]map[types.JournalEntryID]journal.JournalEntry),
+		balances:              make(map[accountBalanceKey]decimal.Decimal),
+		auditRecords:          make([]storage.AuditRecord, 0),
+		governanceAuditLogs:   make(map[types.CompanyID][]kernalgovernance.AuditLog),
+		governanceCheckpoints: make(map[types.CompanyID]kernalgovernance.AuditCheckpoint),
+		idempotency:           make(map[idempotencyKey]storage.IdempotencyRecord),
+		eventIngestions:       make(map[string]publicevents.Ingestion),
+		eventMappings:         make(map[string]publicevents.AccountMapping),
 	}
 }
 
 // clone creates a deep snapshot of state for unit of work isolation and rollback.
 func (d *Driver) clone() *Driver {
 	cp := &Driver{
-		readOnly:         d.readOnly,
-		companies:        make(map[types.CompanyID]masterdata.Company, len(d.companies)),
-		accounts:         make(map[types.CompanyID]map[types.AccountID]masterdata.Account, len(d.accounts)),
-		accountCodes:     make(map[types.CompanyID]map[string]types.AccountID, len(d.accountCodes)),
-		journals:         make(map[types.CompanyID]map[string]masterdata.Journal, len(d.journals)),
-		years:            make(map[types.CompanyID]map[types.FiscalYearID]masterdata.FiscalYear, len(d.years)),
-		periods:          make(map[types.CompanyID]map[types.FiscalPeriodID]masterdata.FiscalPeriod, len(d.periods)),
-		journalSequences: make(map[string]int64, len(d.journalSequences)),
-		entries:          make(map[types.CompanyID]map[types.JournalEntryID]journal.JournalEntry, len(d.entries)),
-		balances:         make(map[accountBalanceKey]decimal.Decimal, len(d.balances)),
-		auditRecords:     make([]storage.AuditRecord, len(d.auditRecords)),
-		auditLastHash:    d.auditLastHash,
-		idempotency:      make(map[idempotencyKey]storage.IdempotencyRecord, len(d.idempotency)),
-		eventIngestions:  make(map[string]publicevents.Ingestion, len(d.eventIngestions)),
-		eventMappings:    make(map[string]publicevents.AccountMapping, len(d.eventMappings)),
+		readOnly:              d.readOnly,
+		companies:             make(map[types.CompanyID]masterdata.Company, len(d.companies)),
+		accounts:              make(map[types.CompanyID]map[types.AccountID]masterdata.Account, len(d.accounts)),
+		accountCodes:          make(map[types.CompanyID]map[string]types.AccountID, len(d.accountCodes)),
+		journals:              make(map[types.CompanyID]map[string]masterdata.Journal, len(d.journals)),
+		years:                 make(map[types.CompanyID]map[types.FiscalYearID]masterdata.FiscalYear, len(d.years)),
+		periods:               make(map[types.CompanyID]map[types.FiscalPeriodID]masterdata.FiscalPeriod, len(d.periods)),
+		primaryCompanyID:      d.primaryCompanyID,
+		accountVersions:       make(map[accountVersionKey][]masterdata.Account, len(d.accountVersions)),
+		costCenters:           make(map[types.CompanyID]map[types.CostCenterID]masterdata.CostCenter, len(d.costCenters)),
+		dimensionValues:       make(map[types.CompanyID]map[dimensionKey]masterdata.AnalyticalDimensionValue, len(d.dimensionValues)),
+		policyVersions:        make(map[phase11PolicyVersionKey]storage.PolicyVersion, len(d.policyVersions)),
+		journalSequences:      make(map[string]int64, len(d.journalSequences)),
+		entries:               make(map[types.CompanyID]map[types.JournalEntryID]journal.JournalEntry, len(d.entries)),
+		balances:              make(map[accountBalanceKey]decimal.Decimal, len(d.balances)),
+		auditRecords:          make([]storage.AuditRecord, len(d.auditRecords)),
+		auditLastHash:         d.auditLastHash,
+		governanceAuditLogs:   make(map[types.CompanyID][]kernalgovernance.AuditLog, len(d.governanceAuditLogs)),
+		governanceCheckpoints: make(map[types.CompanyID]kernalgovernance.AuditCheckpoint, len(d.governanceCheckpoints)),
+		idempotency:           make(map[idempotencyKey]storage.IdempotencyRecord, len(d.idempotency)),
+		eventIngestions:       make(map[string]publicevents.Ingestion, len(d.eventIngestions)),
+		eventMappings:         make(map[string]publicevents.AccountMapping, len(d.eventMappings)),
 	}
 
 	for k, v := range d.companies {
@@ -119,6 +172,27 @@ func (d *Driver) clone() *Driver {
 			cp.periods[cid][pid] = p
 		}
 	}
+	for key, versions := range d.accountVersions {
+		cp.accountVersions[key] = make([]masterdata.Account, len(versions))
+		for i, version := range versions {
+			cp.accountVersions[key][i] = cloneAccount(version)
+		}
+	}
+	for companyID, centers := range d.costCenters {
+		cp.costCenters[companyID] = make(map[types.CostCenterID]masterdata.CostCenter, len(centers))
+		for id, center := range centers {
+			cp.costCenters[companyID][id] = cloneCostCenter(center)
+		}
+	}
+	for companyID, values := range d.dimensionValues {
+		cp.dimensionValues[companyID] = make(map[dimensionKey]masterdata.AnalyticalDimensionValue, len(values))
+		for key, value := range values {
+			cp.dimensionValues[companyID][key] = cloneDimensionValue(value)
+		}
+	}
+	for key, version := range d.policyVersions {
+		cp.policyVersions[key] = clonePolicyVersion(version)
+	}
 	for k, v := range d.journalSequences {
 		cp.journalSequences[k] = v
 	}
@@ -132,6 +206,12 @@ func (d *Driver) clone() *Driver {
 		cp.balances[k] = v
 	}
 	copy(cp.auditRecords, d.auditRecords)
+	for companyID, logs := range d.governanceAuditLogs {
+		cp.governanceAuditLogs[companyID] = append([]kernalgovernance.AuditLog(nil), logs...)
+	}
+	for companyID, checkpoint := range d.governanceCheckpoints {
+		cp.governanceCheckpoints[companyID] = checkpoint
+	}
 	for k, v := range d.idempotency {
 		cp.idempotency[k] = v
 	}
@@ -152,11 +232,18 @@ func (d *Driver) copyFrom(src *Driver) {
 	d.journals = src.journals
 	d.years = src.years
 	d.periods = src.periods
+	d.primaryCompanyID = src.primaryCompanyID
+	d.accountVersions = src.accountVersions
+	d.costCenters = src.costCenters
+	d.dimensionValues = src.dimensionValues
+	d.policyVersions = src.policyVersions
 	d.journalSequences = src.journalSequences
 	d.entries = src.entries
 	d.balances = src.balances
 	d.auditRecords = src.auditRecords
 	d.auditLastHash = src.auditLastHash
+	d.governanceAuditLogs = src.governanceAuditLogs
+	d.governanceCheckpoints = src.governanceCheckpoints
 	d.idempotency = src.idempotency
 	d.eventIngestions = src.eventIngestions
 	d.eventMappings = src.eventMappings
@@ -169,4 +256,110 @@ func cloneEntry(entry journal.JournalEntry) journal.JournalEntry {
 		copy(cloned.Lines, entry.Lines)
 	}
 	return cloned
+}
+
+func cloneAccount(account masterdata.Account) masterdata.Account {
+	cloned := account
+	if account.EffectiveTo != nil {
+		to := *account.EffectiveTo
+		cloned.EffectiveTo = &to
+	}
+	if account.ParentID != nil {
+		parent := *account.ParentID
+		cloned.ParentID = &parent
+	}
+	return cloned
+}
+
+func cloneCostCenter(center masterdata.CostCenter) masterdata.CostCenter {
+	cloned := center
+	if center.ParentID != nil {
+		parent := *center.ParentID
+		cloned.ParentID = &parent
+	}
+	return cloned
+}
+
+func cloneDimensionValue(value masterdata.AnalyticalDimensionValue) masterdata.AnalyticalDimensionValue {
+	return value
+}
+
+func clonePolicyVersion(version storage.PolicyVersion) storage.PolicyVersion {
+	cloned := version
+	if version.EffectiveTo != nil {
+		to := *version.EffectiveTo
+		cloned.EffectiveTo = &to
+	}
+	if version.Payload != nil {
+		cloned.Payload = append([]byte(nil), version.Payload...)
+	}
+	return cloned
+}
+
+// AppendVersion implements storage.PolicyStore for the in-memory driver. The
+// rules mirror the PostgreSQL implementation: company-scoped, append-only,
+// non-overlapping windows ordered by effective_from.
+func (d *Driver) AppendVersion(ctx context.Context, version storage.PolicyVersion) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := version.Validate(); err != nil {
+		return err
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.readOnly {
+		return ErrReadOnlyTransaction
+	}
+	key := phase11PolicyVersionKey{
+		companyID: version.CompanyID,
+		policyID:  version.PolicyID,
+		kind:      version.Kind,
+		version:   version.Version,
+	}
+	if _, exists := d.policyVersions[key]; exists {
+		return storage.ErrPolicyVersionConflict
+	}
+	end := time.Date(9999, time.December, 31, 0, 0, 0, 0, time.UTC)
+	if version.EffectiveTo != nil {
+		end = version.EffectiveTo.UTC()
+	}
+	for _, existing := range d.policyVersions {
+		if existing.CompanyID != version.CompanyID || existing.Kind != version.Kind {
+			continue
+		}
+		if existing.EffectiveFrom.UTC().Before(end) &&
+			(existing.EffectiveTo == nil || existing.EffectiveTo.UTC().After(version.EffectiveFrom.UTC())) {
+			return storage.ErrPolicyVersionConflict
+		}
+	}
+	d.policyVersions[key] = clonePolicyVersion(version)
+	return nil
+}
+
+func (d *Driver) ListVersions(ctx context.Context, companyID types.CompanyID, kind storage.PolicyKind) ([]storage.PolicyVersion, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if companyID == (types.CompanyID{}) {
+		return nil, storage.ErrPolicyVersionNotFound
+	}
+	if kind != storage.PolicyKindPosting && kind != storage.PolicyKindCurrency {
+		return nil, storage.ErrPolicyVersionNotFound
+	}
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	versions := make([]storage.PolicyVersion, 0)
+	for _, version := range d.policyVersions {
+		if version.CompanyID == companyID && version.Kind == kind {
+			versions = append(versions, clonePolicyVersion(version))
+		}
+	}
+	sort.Slice(versions, func(i, j int) bool {
+		if versions[i].EffectiveFrom.Equal(versions[j].EffectiveFrom) {
+			return versions[i].Version < versions[j].Version
+		}
+		return versions[i].EffectiveFrom.Before(versions[j].EffectiveFrom)
+	})
+	return versions, nil
 }

@@ -2,9 +2,9 @@
 title: "النواة المحاسبية للرؤية المستهدفة — Target Accounting Kernal Kernel"
 subtitle: "الهيكل المفاهيمي والبرمجي للنواة المحاسبية المجردة القابلة للتضمين وعلاقتها بالمكونات المدارية"
 document_code: "AE-ARCH-KERNAL-001"
-version: "1.0.0"
-date: "2026-11-20"
-status: "وثيقة معمارية معتمدة"
+version: "1.1.0"
+date: "2026-11-21"
+status: "وثيقة معمارية معتمدة — محدَّثة في المرحلة 1 من خطة المعالجة"
 project: "Accounting Engine"
 classification: "Kernal Architecture Specification"
 language: "ar"
@@ -13,6 +13,8 @@ technical_terms: "en"
 
 # النواة المحاسبية للرؤية المستهدفة (Target Accounting Kernal Kernel)
 
+> **تحديث المرحلة 1 (2026-11-21):** النسخة 1.1.0 تطابق التنفيذ الفعلي: تسع حزم نواة + حزمة جذر، وتضيف `journal` و`ledger` إلى قائمة المكونات، وتحسم مصدر الحقيقة المحاسبي. انظر [خريطة المعمارية](./KERNEL_ARCHITECTURE_MAP.md) و[ADR P1-01](./ard/P1_01_kernel_package_map.md) و[ADR P1-02](./ard/P1_02_gl_source_of_truth.md) و[ADR P1-03](./ard/P1_03_reference_model_duality.md). القائمة "السبع حزم" في النسخة 1.0.0 **متجاوزة (Superseded)**.
+>
 > **بيان الرؤية والمعمارية:**  
 > تُحدد هذه الوثيقة الهيكل المفاهيمي والحزمي الدقيق لـ **النواة المحاسبية الصرفة (Kernal Accounting Kernel)** في الرؤية المستهدفة لمشروع `accounting_engine`، مع حصر مكوناتها وحزمها الجوهرية وفصلها فصلاً تاماً عن المكونات المدارية، ومحولات التخزين، وطبقات النقل والمصادقة، لتعمل بوصفها **نواة محاسبية موثوقة وعالية الأداء وقابلة للتضمين (Embeddable Kernal Engine)** فقط.
 > قواعد الترحيل المحاسبية الملزمة موثقة في [قواعد العمل المحاسبية](./ACCOUNTING_BUSINESS_RULES.md)؛ وتصف هذه الوثيقة الحد المعماري بين مسؤوليات النواة والمضيف.
@@ -41,7 +43,7 @@ technical_terms: "en"
 * استيعاب الأحداث الاقتصادية وتحويلها إلى أثر مالي متوازن.
 * فرض قواعد القيد المزدوج، الترحيل الذري، والحرمة المحاسبية.
 * إدارة شجرة الحسابات والعملات وتقويم الفترات المالية.
-* ضمان صحة الأرصدة وإثبات مسار التدقيق غير القابل للتلاعب.
+* ضمان صحة الأرصدة **المشتقة** القابلة لإعادة البناء من الحقائق المرحلة، وإثبات مسار التدقيق غير القابل للتلاعب؛ لا تخزّن النواة رصيداً مادياً ولا تقارير مالية.
 
 ### 1.2 فلسفة الفصل المعماري
 
@@ -75,6 +77,8 @@ flowchart TB
         POLICY["internal/kernal/policy<br/>• Currency & Posting Policies<br/>• Account & Dimension Eligibility<br/>• Auto-Settle Rounding Rules"]
         GOVERNANCE["internal/kernal/governance<br/>• Append-Only Hash Chain<br/>• Atomic Sequences<br/>• External Checkpoint Verification"]
         APPERRORS["internal/kernal/apperrors<br/>• Unified Financial Error Taxonomy<br/>• Coded Sentinel Errors"]
+        JOURNAL["internal/kernal/journal<br/>• JournalEntry + EntryLine Aggregate<br/>• Draft/Posted/Reversed States<br/>• Defensive Clone & Reversal Links"]
+        LEDGER["internal/kernal/ledger<br/>• Lightweight Reference DTOs<br/>• pkg/api/v1/ledger Compatibility<br/>• NOT a GL Store"]
     end
 
     subgraph Orbitals ["🔵 المكونات المدارية (Orbital Components - Opt-in)"]
@@ -98,7 +102,7 @@ flowchart TB
     SDK --> TargetCore
     SDK --> Orbitals
     Orbitals --> TargetCore
-    TargetCore --> SPI
+    TargetCore -.->|port contracts only; no concrete adapter| SPI
     SPI --> StorageLayer
 
     %% موانع معمارية صارمة
@@ -110,7 +114,7 @@ flowchart TB
     classDef publicStyle fill:#023e8a,stroke:#0077b6,stroke-width:2px,color:#fff;
     classDef blockStyle fill:#d90429,stroke:#ef233c,stroke-width:2px,color:#fff;
 
-    class POSTING,MASTER,TYPES,VALUATION,POLICY,GOVERNANCE coreStyle;
+    class POSTING,MASTER,TYPES,VALUATION,POLICY,GOVERNANCE,APPERRORS,JOURNAL,LEDGER coreStyle;
     class SUBLEDGERS,REPORTING,EVENTS_ING,RECON,CONSOL,STANDARDS orbitStyle;
     class SDK,API,SPI publicStyle;
     class HOST_AUTH,HOST_TRANS blockStyle;
@@ -120,14 +124,26 @@ flowchart TB
 
 ## 3. المكونات الأساسية للنواة المحاسبية (Kernal Kernel Components)
 
-تتألف النواة المحاسبية الصرفة حصراً من الحزم والمسؤوليات السبع التالية:
+تتألف النواة المحاسبية الصرفة حصراً من **تسع حزم تنفيذية**، إضافة إلى حزمة جذر `internal/kernal` التي تحمل charter الاستيراد والفحوص المعمارية فقط. ترتيب الحزم أدناه هو ترتيب تقديمي؛ خريطة الاعتماد الفعلية ومسؤوليات كل حزمة مُثبّتة في [KERNEL_ARCHITECTURE_MAP.md](./KERNEL_ARCHITECTURE_MAP.md):
+
+| # | الحزمة | الدور |
+|---|---|---|
+| 1 | `internal/kernal/types` | القيم والمعرفات (أساس بلا تبعية نواة) |
+| 2 | `internal/kernal/journal` | aggregate القيد (تعريف لا تحقق ولا حفظ) |
+| 3 | `internal/kernal/ledger` | DTO مرجعي للسطح العام (ليس GL) |
+| 4 | `internal/kernal/masterdata` | الحقيقة المخولة للحسابات والفترات |
+| 5 | `internal/kernal/governance` | سلسلة التدقيق والتحقق |
+| 6 | `internal/kernal/policy` | سياسات نافذة وأهلية |
+| 7 | `internal/kernal/posting` | أنبوب الترحيل والتحقق والعكس |
+| 8 | `internal/kernal/valuation` | أسعار الصرف وإعادة التقييم |
+| 9 | `internal/kernal/apperrors` | تصنيف أخطاء للتوافق العام |
 
 ### 3.1 محرك الترحيل والقيد المزدوج (`internal/kernal/posting`)
 
 * **قلب النواة الحسابي:**
   * التحقق الرياضي الصارم من توازن القيد المزدوج ومطابقة العملة الوظيفية للشركة وعملات الأسطر.
   * جعل `PostingPipeline.PostEntry` نقطة التحقق الإلزامية: لا يفوض الحفظ إلا بعد التحقق من هوية القيد، والشركة واليومية، والسياسات والعملات والفترة والحسابات والأبعاد.
-  * حجز أقفال الصفوف المرتبة تصاعدياً (`SELECT FOR UPDATE by AccountID ASC`) لمنع الـ Deadlocks.
+  * إنتاج مفاتيح حسابات فريدة بترتيب حتمي (`OrderedAccountKeys`، و`ExtractAndSortAccountIDs` للتوافق) ليطبّق المحول المضيف أقفال الصفوف بذلك الترتيب؛ النواة نفسها لا تحجز أقفالاً ولا تصدر SQL. أُغلقت `G-002` في المرحلة 8 بعقد قفل محايد وحجز فعلي مُرصَد في المحولين (انظر [عقد القفل](./KERNEL_LOCKING_CONTRACT.md)).
   * تطبيع مبالغ المعاملة والعملة الوظيفية إلى الوحدات النقدية الصغرى قبل ترحيل القيد، وفق سياسة العملة النافذة؛ ولا تُسوّى الفروق إلا عند تفعيل `AutoSettleRoundingDifferences` وضبط حسابها، وإلا يُرفض القيد.
   * فرض سعر صرف يساوي `1` عندما تتطابق عملة المعاملة والعملة الوظيفية، والتحقق من هوية القيد ومعرفات الأسطر وعدم تكرارها.
   * إنشاء القيود العكسية كمسودات، وإعادة تحديد الفترة من تاريخ العكس، ثم تسليمها إلى منفذ عكس ذري مستقل يربطها بالقيد الأصلي ويمنع العكس المكرر.
@@ -183,6 +199,37 @@ flowchart TB
 * **التصنيف الموحد للأخطاء:**
   * أخطاء محاسبية مصنفة ومكودة بدقة (`CodedError`).
   * تصنيف أخطاء التوازن، الفترات، الحسابات، الأقفال، والتزامن لتسهيل معالجتها برمجياً دون غموض.
+  * حزمة توافق عام معزولة؛ لا تستوردها حزم النواة حالياً، ولا تُحذف دون ADR هجرة.
+
+### 3.8 نموذج القيد (`internal/kernal/journal`)
+
+* **تعريف الaggregate المحاسبي:**
+  * `JournalEntry` و`EntryLine` يحملان الهوية، الحالة (`draft`/`posted`/`reversed`)، التصنيف، بيانات الفترة والتاريخ، مبالغ المعاملة والوظيفة، الأبعاد، وبيانات النسبة.
+  * روابط العكس (`ReversalOfID`, `ReversedByID`, `ReversalReason`) و`Clone` الدفاعي للشرائح والمؤشرات.
+* **الحدود:** لا يتحقق `journal` من التوازن، ولا يفرض انتقال الحالة، ولا يحفظ؛ هذه المسؤوليات في `posting` ومنفذ المضيف على التوالي.
+
+### 3.9 النماذج المرجعية (`internal/kernal/ledger`)
+
+* DTOs خفيفة (`Account`, `FiscalYear`, `FiscalPeriod`) تُعاد تصديرها عبر `pkg/api/v1/ledger` بموجب ADR P7-01.
+* **ليست** سجل GL ولا مخزن حركة ولا مصدراً للأرصدة أو التقارير؛ `masterdata` هو المصدر المخول لقواعد الحساب والتقويم (ADR P1-03).
+* `AccountTypeRevenue` اسم مستعار موثّق لـ `AccountTypeIncome` (`"income"`) ويبقى للتوافق.
+
+### 3.10 مصدر الحقيقة وإعادة بناء GL
+
+```mermaid
+flowchart LR
+    JE["JournalEntry (draft) + EntryLines"] --> PP["posting.PostEntry<br/>clone + validate + round + stamp"]
+    PP --> PJ["Posted JournalEntry + EntryLines<br/>CANONICAL GL FACTS"]
+    PJ --> EX["host executor (atomic)<br/>account_moves + account_move_lines"]
+    EX --> D["Derived Balances<br/>host-owned; outside kernel"]
+    D --> R["Reports / BI<br/>outside internal/kernal"]
+    PJ --> RV["linked Reversal / Correction<br/>no update/delete of posted facts"]
+```
+
+* **Canonical:** القيود المرحلة (`posted`/`reversed`) مع أسطرها. `account_moves.entry` هو الكائن الكامل المخزن، و`account_move_lines` هو الإسقاط العلائقي للأسطر؛ كلاهما يمثل الحقائق المرحلة ذاتها، ولا يوجد سجل GL ثالث.
+* **الرصيد:** مشتق حتمياً من `FunctionalDebit − FunctionalCredit`؛ trigger قاعدة البيانات أو خريطة الذاكرة مجرد إسقاط مضيف، وليس مصدر حقيقة (انظر `RULE-ACC-023` و`RULE-ACC-036`).
+* **إعادة البناء:** ترتيب كلي `(EffectiveDate UTC, SequenceNumber, JournalEntryID)` ثم `(EntryLine.ID)` داخل نطاق `CompanyID`؛ لا يعتمد على ترتيب Map. التنفيذ والإثبات في المرحلتين 4 و12.
+* **النطاق:** `CompanyID` هو مفتاح النطاق داخل النواة؛ لا `BookID`/`LedgerID` في عقد الترحيل، وأي Multi-Book يحتاج ADR منفصلاً.
 
 ---
 
@@ -224,8 +271,9 @@ flowchart TB
     * `UnitOfWork`: إدارة بدء وتأكيد وإلغاء المعاملات الذرية.
     * `AccountStore`: استرجاع وتحديث بيانات شجرة الحسابات.
     * `EntryStore`: حفظ واسترجاع القيود وأسطرها.
-    * `BalanceStore`: تحديث واسترجاع أرصدة الحسابات.
+    * `BalanceStore`: تحديث واسترجاع أرصدة الحسابات **كمشتقات مضيفة قابلة لإعادة البناء من الحقائق المرحلة**؛ ليست جزءاً من `internal/kernal` ولا مصدر حقيقة.
     * `AuditStore`: حفظ سلاسل التدقيق.
+* الذرية وربط مفتاح منع التكرار بالنتيجة مسؤولية المحول/المضيف، وتُختبر عبر Contract Tests في المرحلتين 7 و11؛ وجود `IdempotencyKey` في طلب النواة وحده لا يثبت منع التكرار.
 * **المحولات الملموسة (Adapters):**
   * `storage/postgres`: المحول الإنتاجي المعتمد، يطبق RLS و WORM Triggers.
   * `storage/memory`: المحول الخفيف للاختبارات السريعة في بيئات التطوير.
@@ -266,17 +314,23 @@ flowchart TB
 
 ## 8. مصفوفة الحزم والمسؤوليات (Package Responsibility Matrix)
 
-| الحزمة | النطاق المعماري | المسؤولية الرئيسية | الاعتماديات المسموحة |
+> الاعتماديات أدناه هي الاعتماديات **الفعلية المستخرجة من `go list`** داخل النواة. لا تُدرج `spi/storage` كاعتمادية نواة؛ النواة تعتمد على عقود مجردة يوفرها المضيف ولا تستورد أي حزمة تخزين.
+
+| الحزمة | النطاق المعماري | المسؤولية الرئيسية | اعتماديات kernel الفعلية |
 | :--- | :--- | :--- | :--- |
-| `internal/posting` | **Kernal Kernel** | الترحيل، القيد المزدوج، العكس، الأقفال | `types`, `masterdata`, `spi/storage` |
-| `internal/masterdata` | **Kernal Kernel** | الحسابات، التقويم، الفترات، الشركات | `types`, `spi/storage` |
-| `internal/types` | **Kernal Kernel** | المبالغ، العملات، المعرفات، الحساب العشري | لا يعتمد على أي حزمة داخلية |
-| `internal/valuation` | **Kernal Kernel** | أسعار الصرف، تحويل العملات | `types`, `spi/storage` |
-| `internal/policy` | **Kernal Kernel** | سياسات الترحيل والعملات وأهلية الحسابات والأبعاد | `types`, `masterdata` |
-| `internal/governance` | **Kernal Kernel** | سلسلة التدقيق والتحقق مقابل نقطة تحقق خارجية | `types`, `spi/storage` |
+| `internal/kernal` | **Kernal (doc-only)** | charter الاستيراد والفحوص المعمارية | none |
+| `internal/kernal/types` | **Kernal Kernel** | المبالغ، العملات، المعرفات، الحساب العشري | none |
+| `internal/kernal/apperrors` | **Kernal Kernel** | أخطاء مصنفة للتوافق العام | none (معزولة) |
+| `internal/kernal/journal` | **Kernal Kernel** | تعريف القيد وحالته وروابط العكس والنسخ الدفاعي | `types` |
+| `internal/kernal/ledger` | **Kernal Kernel** | DTOs مرجعية لـ `pkg/api/v1/ledger`؛ بلا GL أو أرصدة | `types` |
+| `internal/kernal/masterdata` | **Kernal Kernel** | الحسابات، التقويم، الفترات، الشركات،Reader ports | `types` |
+| `internal/kernal/governance` | **Kernal Kernel** | سلسلة التدقيق والتحقق مقابل نقطة تحقق خارجية | `types` |
+| `internal/kernal/policy` | **Kernal Kernel** | سياسات الترحيل والعملات وأهلية الحسابات والأبعاد | `journal`, `masterdata`, `types` |
+| `internal/kernal/posting` | **Kernal Kernel** | الترحيل، القيد المزدوج، العكس، ترتيب مفاتيح الأقفال، تفويض الحفظ | `journal`, `masterdata`, `policy`, `types` |
+| `internal/kernal/valuation` | **Kernal Kernel** | أسعار الصرف، التحويل، إعادة التقييم | `journal`, `posting`, `types` |
 | `internal/subledgers` | **Orbital** | الدفاتر المساعدة (AR/AP/Cash/Assets) | `posting`, `types`, `masterdata` |
-| `internal/reporting` | **Orbital** | القوائم المالية وميزان المراجعة | `types`, `masterdata`, `spi/storage` |
-| `internal/events` | **Orbital** | استيعاب الأحداث ومطابقتها ومنع التكرار | `posting`, `types`, `spi/storage` |
+| `internal/reporting` | **Orbital** | القوائم المالية وميزان المراجعة (مشترك من الحقائق المرحلة) | `types`, `masterdata`, storage ports |
+| `internal/events` | **Orbital** | استيعاب الأحداث ومطابقتها ومنع التكرار | `posting`, `types`, storage ports |
 | `internal/reconciliation` | **Orbital** | مطابقة الأرصدة والسجلات الخارجية | `reporting`, `types` |
 | `internal/consolidation` | **Orbital** | توحيد القوائم المالية للمجموعات | `reporting`, `types`, `valuation` |
 | `modules/*` | **Orbital** | معايير IFRS/IAS المتخصصة | `spi/standards`, `api/v1` |

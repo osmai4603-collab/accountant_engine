@@ -52,13 +52,33 @@ type EntryReader interface {
 	GetEntry(ctx context.Context, companyID types.CompanyID, entryID types.JournalEntryID) (journal.JournalEntry, error)
 }
 
-// PostingOperation distinguishes a first posting from a reversal posting.
+// PostingOperation distinguishes a first posting from a reversal or a
+// revaluation posting. It is part of the canonical idempotency scope.
 type PostingOperation string
 
 const (
-	OperationPost    PostingOperation = "post"
-	OperationReverse PostingOperation = "reverse"
+	OperationPost        PostingOperation = "post"
+	OperationReverse     PostingOperation = "reverse"
+	OperationRevaluation PostingOperation = "revaluation"
 )
+
+// PostingIdempotency is the kernel-stamped uniqueness contract of a commit.
+// Scope is the canonical company/operation/key triple, and PayloadHash is the
+// canonical digest of the frozen semantic payload. The adapter must persist
+// both atomically with the entry and enforce their uniqueness at the storage
+// layer; the bare key alone is not a sufficient idempotency guarantee.
+type PostingIdempotency struct {
+	Key         string
+	Scope       string
+	PayloadHash string
+}
+
+func (p PostingIdempotency) Validate() error {
+	if p.Key == "" || p.Scope == "" || p.PayloadHash == "" {
+		return errors.New("storage: idempotency key, scope and payload hash required")
+	}
+	return nil
+}
 
 // PostingCommit is a fully validated entry prepared by the application layer.
 // The adapter persists it; it must not re-implement accounting policy, balance
@@ -72,6 +92,9 @@ type PostingCommit struct {
 	Reason  string
 	// CorrelationID links the operation to the caller's request trace.
 	CorrelationID string
+	// Idempotency is optional for legacy callers, but the kernel pipeline
+	// always supplies it. When present it is part of the atomic unit.
+	Idempotency *PostingIdempotency
 }
 
 // PostingWriter commits a validated posting atomically.
@@ -125,9 +148,13 @@ type AuditWriter interface {
 
 // IdempotencyRecord is the durable state of one idempotency key.
 type IdempotencyRecord struct {
-	CompanyID   types.CompanyID
-	Key         string
-	Operation   string
+	CompanyID types.CompanyID
+	Key       string
+	Operation string
+	// Scope is the canonical company/operation/key triple supplied by the
+	// kernel. Older records may have an empty scope; adapters must still scope
+	// by company and key.
+	Scope       string
 	PayloadHash string
 	Status      string
 	EntryID     *types.JournalEntryID
@@ -149,6 +176,13 @@ type IdempotencyStore interface {
 	Claim(ctx context.Context, record IdempotencyRecord) (existing IdempotencyRecord, claimed bool, err error)
 	Complete(ctx context.Context, companyID types.CompanyID, key, payloadHash string, entryID types.JournalEntryID, response []byte) error
 	Fail(ctx context.Context, companyID types.CompanyID, key, payloadHash, status string) error
+}
+
+// IdempotencyLookup is the safe, side-effect-free read required after an
+// unknown outcome (timeout or lost response). It is an optional capability so
+// existing fakes and adapters remain source compatible.
+type IdempotencyLookup interface {
+	Lookup(ctx context.Context, companyID types.CompanyID, key string) (IdempotencyRecord, bool, error)
 }
 
 // Ports is the explicit dependency set required to build the kernal engine.

@@ -17,18 +17,21 @@ func TestMigrateUpAndMigrateDownCycle(t *testing.T) {
 
 	pool := driver.Pool()
 
-	// 1. All 32 migrations are applied by newIsolatedPostgresDriver
-	var count int
+	// 1. All migrations are applied by newIsolatedPostgresDriver. The count is
+	// read from the schema so later phases may append migrations without
+	// invalidating the Phase 10 up/down-cycle evidence.
+	var count, total int
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 32 {
-		t.Fatalf("expected 32 applied migrations, got %d", count)
+	total = count
+	if total < 34 {
+		t.Fatalf("expected at least 34 applied migrations, got %d", total)
 	}
 
-	// 2. Migrate down all 32 steps
-	if err := postgres.MigrateDown(ctx, pool, 32); err != nil {
-		t.Fatalf("MigrateDown(32): %v", err)
+	// 2. Migrate down every applied step
+	if err := postgres.MigrateDown(ctx, pool, total); err != nil {
+		t.Fatalf("MigrateDown(%d): %v", total, err)
 	}
 
 	// Verify schema_migrations is now empty
@@ -47,8 +50,8 @@ func TestMigrateUpAndMigrateDownCycle(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatalf("count migrations after re-apply: %v", err)
 	}
-	if count != 32 {
-		t.Fatalf("expected 32 applied migrations after re-apply, got %d", count)
+	if count != total {
+		t.Fatalf("expected %d applied migrations after re-apply, got %d", total, count)
 	}
 
 	// Ensure idempotent repeated MigrateUp

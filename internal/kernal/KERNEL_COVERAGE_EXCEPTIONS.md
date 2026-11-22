@@ -10,7 +10,7 @@
 ## 1. ملخص التغطية العامة
 
 | الحزمة | التغطية المحققة | المستهدف المعتمد | الحالة | الملاحظة |
-|---|---:|---:|---|---|
+| --- | ---: | ---: | --- | --- |
 | `apperrors` | 100.0% | ≥90% | PASS | تغطية تامة لكافة تصنيفات الأخطاء |
 | `ledger` | 100.0% | ≥90% | PASS | نماذج مرجعية خفيفة محصنة بالكامل |
 | `types` | 98.3% | ≥95% | PASS | النواة المالية الحسابية محصنة |
@@ -29,16 +29,19 @@
 حزمة `posting` هي بوابة تدفق الترحيل المالي (`PostingPipeline`). الفروع غير المغطاة (10.7%) هي فروع دفاعية محصنة مسبقاً (Defense-in-Depth):
 
 ### 2.1 فرع `entry_validation.go:100.16` (NewMoney calculation failure in line validation)
+
 - **الوصف:** `_, err := apiTypes.NewMoney(expectedAmt, fDebitCur)`
 - **سبب الاستثناء:** التحقق الأولي يفحص صحة `TransactionAmount` و`ExchangeRate` مسبقاً؛ ضرب قيمة صالحة بسعر صرف موجب لا يولد خطأ في `NewMoney` إلا في حالة طفح حسابي يتجاوز 28 رقماً، وهو ما يتم اعتراضه في طبقة الأرقام الصحيحة.
 - **التصنيف:** استثناء دفاعي بنيوي (Unreachable defensive guard).
 
 ### 2.2 فرع `pipeline.go:210.69` (TargetPeriodNumber for Regular entry outside [0, 1])
+
 - **الوصف:** فحص دفاعي يمنع استهداف الفترات 13 أو 14 لقيد عادي قبل استدعاء `ValidatePeriodForPosting`.
 - **سبب الاستثناء:** يتم حظر هذا السيناريو مسبقاً في `ValidateEntryClassificationMetadata` الذي يتأكد من أن القيد العادي لا يحمل بيانات تسوية.
 - **التصنيف:** استثناء دفاعي مزدوج (Redundant precondition check).
 
 ### 2.3 فرع `rounding.go:115.43` (RoundEntryWithRoundingPolicy zero entry ID / zero account with residual)
+
 - **الوصف:** معالجة وجود متبقي تقريب عند غياب معرف القيد أو حساب التقريب.
 - **سبب الاستثناء:** يتم التحقق الإلزامي من وجود `Entry.ID` و`RoundingAccountID` بواسطة السياسة في أول مراحل `PostEntry` قبل الوصول إلى دالة التطبيع.
 - **التصنيف:** استثناء حماية دفاعية داخلية.
@@ -48,11 +51,13 @@
 ## 3. تحليل الفروع المستثناة في حزمة `masterdata` (91.8%)
 
 ### 3.1 فرع `fiscal_calendar.go:99.21` (addFiscalMonths leap year / month boundary defense)
+
 - **الوصف:** فرع دفاعي يضمن عدم تجاوز الأيام في الشهور القصيرة عند توليد التقويم.
 - **سبب الاستثناء:** التقويم المالي يولد فترات متصلة بحدود واضحة؛ الفروع غير المستدعاة هي معالجات حالات خاصة جداً في خوارزميات التقويم اليدوي التي تُفحص عبر Fuzz Test `FuzzGenerateFiscalYearMaintainsContinuityAndContainment`.
 - **التصنيف:** فرع أمان خوارزمي محصن باختبارات Fuzz.
 
 ### 3.2 فرع `coa.go:125.44` (BuildHierarchyTree missing parent link)
+
 - **الوصف:** فحص دفاعي لربط الأب غير المعرف عند بناء شجرة الحسابات.
 - **سبب الاستثناء:** يتم مسبقاً فحص الشجرة عبر `DetectCyclicHierarchy` والتحقق من الأبوة قبل تمرير الحسابات؛ هذا الفرع هو صمام أمان لـ nil pointer safety.
 - **التصنيف:** صمام أمان دفاعي للذاكرة.

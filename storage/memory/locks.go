@@ -24,4 +24,3 @@ func (d *Driver) Lock(ctx context.Context, companyID, key string) (unlock func()
 		mtx.Unlock()
 	}, nil
 }
-

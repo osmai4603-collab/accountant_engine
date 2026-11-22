@@ -31,6 +31,15 @@ type PostOptions struct {
 	Reason         string
 	CorrelationID  string
 	IdempotencyKey string
+	// Scope and RequestFingerprint are kernel-stamped immediately before the
+	// executor call. Caller-supplied values are overwritten; executors must
+	// treat them as the authoritative idempotency contract (RULE-KERNEL-027).
+	Scope              IdempotencyScope
+	RequestFingerprint string
+	// CallerFingerprint is the stable digest of caller-controlled fields. It is
+	// stamped by the kernel so the host can detect payload reuse both before
+	// and after the draft-to-posted transformation.
+	CallerFingerprint string
 }
 
 // PostingExecutor persists a validated non-reversal posting. Implementations
@@ -251,14 +260,13 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	accounts := make(map[types.AccountID]masterdata.Account, len(entry.Lines))
 	accountTypes := make(map[types.AccountID]masterdata.AccountType, len(entry.Lines))
 	for _, line := range entry.Lines {
-		if err := masterdata.ValidateCanPostToAccountAsOf(ctx, p.reader, entry.CompanyID, line.AccountID, entry.EffectiveDate); err != nil {
-			return journal.JournalEntry{}, err
-		}
-		account, err := p.reader.GetAccount(ctx, entry.CompanyID, line.AccountID)
+		// One effective-dated read feeds both validation and eligibility. A
+		// second read here could observe a different master-data version after
+		// validation and let the executor persist an unvalidated account.
+		account, err := masterdata.ResolvePostableAccountAsOf(
+			ctx, p.reader, entry.CompanyID, line.AccountID, entry.EffectiveDate,
+		)
 		if err != nil {
-			return journal.JournalEntry{}, err
-		}
-		if err := masterdata.ValidateAccountScope(account, entry.CompanyID, line.AccountID); err != nil {
 			return journal.JournalEntry{}, err
 		}
 		accounts[line.AccountID] = account
@@ -274,10 +282,32 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	if err := p.policyEngine.ValidatePostingPolicy(ctx, postingPolicy, &entry, accountTypes, now); err != nil {
 		return journal.JournalEntry{}, err
 	}
+	// Audit evidence of the exact policy versions used for this posting.
+	// The digest is immutable together with the posted entry (ADR P5-01).
+	entry.PolicyFingerprint = policy.Fingerprint(postingPolicy, currencyPolicy)
 	entry.PostingDate = now
 	entry.PostedBy = opts.ActorID
 	entry.PostedAt = &now
 	entry.Status = journal.EntryPosted
+
+	// The idempotency contract is derived from the frozen, fully stamped
+	// snapshot. Overwriting caller values prevents a caller from choosing a
+	// foreign company or operation scope for the durable key.
+	scope, err := BuildIdempotencyScope(entry, opts)
+	if err != nil {
+		return journal.JournalEntry{}, err
+	}
+	fingerprint, err := FingerprintRequest(entry, opts, scope)
+	if err != nil {
+		return journal.JournalEntry{}, err
+	}
+	callerFingerprint, err := FingerprintCallerPayload(entry, opts, scope)
+	if err != nil {
+		return journal.JournalEntry{}, err
+	}
+	opts.Scope = scope
+	opts.RequestFingerprint = fingerprint
+	opts.CallerFingerprint = callerFingerprint
 
 	if entry.ReversalOfID != nil {
 		return p.executeReversal(ctx, *entry.ReversalOfID, entry, opts)

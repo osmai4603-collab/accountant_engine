@@ -109,6 +109,14 @@ func (r *RateRegistry) RegisterRate(rate ExchangeRate) error {
 			return ErrDuplicateRate
 		}
 	}
+	inverseKey := r.rateKey(rate.Type, rate.ToCurrency, rate.FromCurrency)
+	if inverseList := r.rates[inverseKey]; len(inverseList) > 0 {
+		for _, current := range inverseList {
+			if current.EffectiveDate.Equal(rate.EffectiveDate) {
+				return ErrDuplicateRate
+			}
+		}
+	}
 	list = append(list, rate)
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].EffectiveDate.Before(list[j].EffectiveDate)

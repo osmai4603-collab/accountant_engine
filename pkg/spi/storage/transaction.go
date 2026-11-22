@@ -73,6 +73,11 @@ type AdvancedTransactionRunner interface {
 type AdapterCapabilities struct {
 	// AdapterName is the human-readable identifier of the storage implementation.
 	AdapterName string
+	// ContractVersion identifies the storage SPI contract generation implemented
+	// by this adapter. It must be updated only for intentional contract releases.
+	ContractVersion string
+	// AdapterVersion identifies the adapter implementation build.
+	AdapterVersion string
 	// SupportsRepeatableRead indicates support for repeatable read isolation.
 	SupportsRepeatableRead bool
 	// SupportsSerializable indicates support for strict serializable isolation.
@@ -95,7 +100,10 @@ func IsRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, ErrSerializationFailure) || errors.Is(err, ErrDeadlockDetected) {
+	if errors.Is(err, ErrSerializationFailure) ||
+		errors.Is(err, ErrDeadlockDetected) ||
+		errors.Is(err, ErrIdempotencyInProgress) ||
+		errors.Is(err, ErrConcurrentModification) {
 		return true
 	}
 	type retryableError interface {
@@ -115,6 +123,25 @@ type RetryPolicy struct {
 	MaxBackoff     time.Duration
 }
 
+// MaxAllowedRetries is the host-layer ceiling for a bounded retry policy. The
+// kernel never retries; this limit prevents a misconfigured host from turning
+// a transient conflict into an unbounded loop (Phase 8, task 15).
+const MaxAllowedRetries = 5
+
+// Validate rejects policies that are unbounded, inverted, or missing a backoff.
+func (policy RetryPolicy) Validate() error {
+	if policy.MaxRetries < 0 || policy.MaxRetries > MaxAllowedRetries {
+		return fmt.Errorf("storage: retry count %d outside [0,%d]", policy.MaxRetries, MaxAllowedRetries)
+	}
+	if policy.InitialBackoff <= 0 {
+		return errors.New("storage: retry initial backoff must be positive")
+	}
+	if policy.MaxBackoff > 0 && policy.MaxBackoff < policy.InitialBackoff {
+		return errors.New("storage: retry max backoff must not be smaller than initial backoff")
+	}
+	return nil
+}
+
 // DefaultRetryPolicy returns recommended retry defaults for high-concurrency accounting workloads.
 func DefaultRetryPolicy() RetryPolicy {
 	return RetryPolicy{
@@ -128,6 +155,9 @@ func DefaultRetryPolicy() RetryPolicy {
 func ExecuteWithRetry(ctx context.Context, runner UnitOfWorkRunner, opts TxOptions, policy RetryPolicy, fn func(ctx context.Context, uow UnitOfWork) error) error {
 	if runner == nil {
 		return errors.New("storage: unit of work runner is nil")
+	}
+	if err := policy.Validate(); err != nil {
+		return err
 	}
 	var lastErr error
 	backoff := policy.InitialBackoff

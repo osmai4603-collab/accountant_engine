@@ -38,7 +38,11 @@ func (a *Adapter) Ports() storage.Ports {
 			Mappings:    a.driver,
 		},
 		Private: storage.PrivateExtensions{
-			storage.PostingLockerExtensionKey: a.driver,
+			storage.PostingLockerExtensionKey:    a.driver,
+			storage.AuditConformanceExtensionKey: a.driver,
+			// Transaction-aware so policy appends join and roll back with the
+			// active unit of work.
+			storage.PolicyStoreExtensionKey: t,
 		},
 	}
 }
@@ -71,4 +75,3 @@ func (a *Adapter) Driver() *Driver {
 func (a *Adapter) Close() error {
 	return nil
 }
-

@@ -1,5 +1,7 @@
 # خط الأساس المعتمد للنواة المحاسبية — Kernel Release Baseline v12
 
+> **Superseded (متجاوز):** هذا خط أساس تاريخي لإصدار v12، وليس خط الأساس المعتمد لخطة المعالجة الحالية. المرجع الحالي: [خط أساس المرحلة 0](../../docs/KERNEL_REMEDIATION_BASELINE.md) و[خريطة معمارية المرحلة 1](../../docs/KERNEL_ARCHITECTURE_MAP.md).
+
 - **رمز الوثيقة:** `AE-BASELINE-KERNEL-V12`
 - **الإصدار الأساس السابق:** Kernel v11 (`accountant_engine11.zip`)
 - **الإصدار الحالي المستهدف:** Kernel v12 Final Stabilization & Acceptance
@@ -14,6 +16,7 @@
 يحتوي مجلد `internal/kernal/` على 78 ملفاً مصنفة كما يلي:
 
 ### 1.1 الوثائق الرسمية للنواة (7 ملفات)
+
 1. `KERNEL_ACCOUNTING_INVARIANTS.md` — الوثيقة المرجعية لقواعد المجال المحاسبي الـ27.
 2. `KERNEL_TRACEABILITY_MATRIX.md` — مصفوفة التتبع بين القواعد والتنفيذ والاختبارات (`AE-TRACE-KERNEL-V12`).
 3. `KERNEL_COMPLETION_REPORT.md` — تقرير الإنجاز النهائي واعتماد 10/10 (`AE-REP-KERNEL-V12`).
@@ -23,6 +26,7 @@
 7. `KERNEL_V12_CHANGELOG.md` — سجل التغييرات التاريخية للإصدار v12.
 
 ### 1.2 الملفات البرمجية والاختبارات (71 ملفاً)
+
 - `doc.go` و `doc_test.go` (فحص النقاء المعماري والاستقلال الذاتي).
 - `apperrors/`: أخطاء النواة المصنفة واختباراتها.
 - `types/`: الحسابات المالية الدقيقة، العملات، الأرقام العشرية، والتقريب، واختبارات الوحدة وFuzz.

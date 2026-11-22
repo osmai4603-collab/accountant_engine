@@ -1,27 +1,32 @@
-// Package ledger defines the foundational domain models for chart-of-accounts and fiscal periods
-// referenced across engine layers and API contracts (e.g., pkg/api/v1/ledger).
+// Package ledger defines lightweight reference models for chart-of-accounts and
+// fiscal periods, used across engine layers and API contracts (pkg/api/v1/ledger),
+// and provides deterministic read-only projections derived from canonical posted
+// journal entries.
 //
-// Architectural Boundaries (DEC-05 / RULE-KERNEL-023 / TARGET_ACCOUNTING_KERNAL):
+// Architectural Boundaries (ADR P1-01 / P1-02 / P1-03):
 //
-//  1. General Ledger & Reporting Exclusion:
-//     The kernel is strictly responsible for double-entry invariants, transaction validation,
-//     normalization, and cryptographic audit chaining. Materialized balances, Trial Balance,
-//     Balance Sheets, P&L, Cash Flow, and financial reporting belong to internal/reporting and
-//     the host storage layer. The ledger package must not contain SetBalance, balance calculators,
-//     or reporting queries.
+//  1. Canonical source of truth. Posted JournalEntry and EntryLine records owned
+//     by journal and validated/posted by posting are the canonical accounting
+//     facts. This package does not own a second stored ledger movement entity.
+//     PostedMovement and balance rebuild helpers are pure projections derived from
+//     posted entries; they hold no persistent state, no materialized balance
+//     store, no SetBalance, and no reporting engine.
 //
-// 2. Domain Models vs. Master Data:
-//   - ledger.Account vs. masterdata.Account:
-//     masterdata.Account is the authoritative entity for Chart of Accounts governance,
-//     enforcing lifecycle dates (EffectiveFrom/EffectiveTo), control account flags,
-//     cash-equivalence rules, contra-account relationships, and parent-child hierarchy validation.
-//     ledger.Account represents a lightweight domain transfer structure.
-//   - ledger.FiscalPeriod vs. masterdata.FiscalPeriod:
-//     masterdata.FiscalPeriod is the authoritative fiscal calendar model, managed by
-//     masterdata.GenerateFiscalYear and validated with strict contiguity and containment rules.
-//     ledger.FiscalPeriod is the corresponding lightweight reference representation.
+//  2. Domain models vs. master data. masterdata.Account is the authoritative
+//     chart-of-accounts entity (lifecycle dates, control/contra/cash flags,
+//     hierarchy rules); masterdata.FiscalPeriod is the authoritative calendar
+//     entity (generation, contiguity, containment, close states). ledger.Account,
+//     ledger.FiscalYear and ledger.FiscalPeriod are compatibility DTOs for public
+//     API shapes — never use them for posting eligibility or fiscal validation.
+//     Conversion rules are recorded in docs/ard/P1_03_reference_model_duality.md.
 //
-// 3. Backward Compatibility & Aliases:
-//   - AccountTypeRevenue is a documented alias for AccountTypeIncome ("income") to support
-//     callers and API schemas expecting revenue nomenclature. It must not be altered silently.
+//  3. Scope keys. All ledger models and projections carry CompanyID. There is no
+//     BookID or LedgerID in the kernel posting contract; multi-book scope keys
+//     are reserved for a future ADR and are not implemented here.
+//
+//  4. Backward compatibility. AccountTypeRevenue is a documented alias for
+//     AccountTypeIncome ("income") retained for callers and public API schemas.
+//     It must not be altered silently.
+//
+// Import charter: Go standard library and sibling kernel modules only.
 package ledger

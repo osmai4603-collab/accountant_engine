@@ -212,6 +212,12 @@ func ValidateEntryClassificationMetadata(entry journal.JournalEntry) error {
 	} else if entry.AdjustingEntryType != "" || entry.AdjustmentReason != "" {
 		return ErrInvalidAdjustingEntryMetadata
 	}
+	// A draft cannot already carry a reversal: only a posted entry may be
+	// reversed, and posted entries never re-enter the pipeline. Accepting a
+	// pre-linked draft would let a caller describe an impossible lifecycle.
+	if entry.ReversedByID != nil {
+		return ErrInvalidReversal
+	}
 	if (entry.Classification == journal.EntryClassReversing) != (entry.ReversalOfID != nil) {
 		return ErrInvalidReversal
 	}
@@ -263,7 +269,7 @@ func NewJournalEntry(
 	createdBy string,
 	lines []journal.EntryLine,
 ) (journal.JournalEntry, error) {
-	return NewJournalEntryAt(companyID, journalID, effectiveDate, createdBy, lines, time.Now().UTC())
+	return NewJournalEntryAt(companyID, journalID, effectiveDate, createdBy, lines, systemClock{}.Now())
 }
 
 // NewJournalEntryAt creates a new JournalEntry with defaults using an explicit timestamp.

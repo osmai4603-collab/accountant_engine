@@ -3,6 +3,7 @@ package governance
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,7 +113,8 @@ func TestAuditChainAdditionalIntegrityAndBranchCoverage(t *testing.T) {
 
 	// b. invalid checkpoint sequence/logHash/version
 	badCheckpoint1 := AuditVerificationSnapshot{
-		CompanyID: companyID,
+		CompanyID:         companyID,
+		CheckpointPresent: true,
 		Checkpoint: AuditCheckpoint{
 			CompanyID:      companyID,
 			SequenceNumber: 0,
@@ -124,7 +126,8 @@ func TestAuditChainAdditionalIntegrityAndBranchCoverage(t *testing.T) {
 	}
 
 	badCheckpoint2 := AuditVerificationSnapshot{
-		CompanyID: companyID,
+		CompanyID:         companyID,
+		CheckpointPresent: true,
 		Checkpoint: AuditCheckpoint{
 			CompanyID:      companyID,
 			SequenceNumber: 5,
@@ -137,12 +140,13 @@ func TestAuditChainAdditionalIntegrityAndBranchCoverage(t *testing.T) {
 
 	// c. len(Logs) != SnapshotSequence
 	mismatchedLen := AuditVerificationSnapshot{
-		CompanyID:        companyID,
-		SnapshotSequence: 1,
+		CompanyID:         companyID,
+		CheckpointPresent: true,
+		SnapshotSequence:  1,
 		Checkpoint: AuditCheckpoint{
 			CompanyID:      companyID,
 			SequenceNumber: 1,
-			LogHash:        "hash",
+			LogHash:        strings.Repeat("a", 64),
 			Version:        1,
 		},
 		Logs: nil, // len 0 != 1
@@ -153,12 +157,13 @@ func TestAuditChainAdditionalIntegrityAndBranchCoverage(t *testing.T) {
 
 	// d. snapshot.Logs companyID mismatch
 	snapWithBadCompLog := AuditVerificationSnapshot{
-		CompanyID:        companyID,
-		SnapshotSequence: 1,
+		CompanyID:         companyID,
+		CheckpointPresent: true,
+		SnapshotSequence:  1,
 		Checkpoint: AuditCheckpoint{
 			CompanyID:      companyID,
 			SequenceNumber: 1,
-			LogHash:        "hash",
+			LogHash:        strings.Repeat("a", 64),
 			Version:        1,
 		},
 		Logs: []AuditLog{
@@ -171,12 +176,13 @@ func TestAuditChainAdditionalIntegrityAndBranchCoverage(t *testing.T) {
 
 	// e. snapshot.Logs SequenceNumber mismatch
 	snapWithBadSeqLog := AuditVerificationSnapshot{
-		CompanyID:        companyID,
-		SnapshotSequence: 1,
+		CompanyID:         companyID,
+		CheckpointPresent: true,
+		SnapshotSequence:  1,
 		Checkpoint: AuditCheckpoint{
 			CompanyID:      companyID,
 			SequenceNumber: 1,
-			LogHash:        "hash",
+			LogHash:        strings.Repeat("a", 64),
 			Version:        1,
 		},
 		Logs: []AuditLog{
@@ -189,12 +195,13 @@ func TestAuditChainAdditionalIntegrityAndBranchCoverage(t *testing.T) {
 
 	// f. snapshot.Logs PreviousLogHash mismatch
 	snapWithBadPrevLog := AuditVerificationSnapshot{
-		CompanyID:        companyID,
-		SnapshotSequence: 1,
+		CompanyID:         companyID,
+		CheckpointPresent: true,
+		SnapshotSequence:  1,
 		Checkpoint: AuditCheckpoint{
 			CompanyID:      companyID,
 			SequenceNumber: 1,
-			LogHash:        "hash",
+			LogHash:        strings.Repeat("a", 64),
 			Version:        1,
 		},
 		Logs: []AuditLog{
@@ -306,15 +313,102 @@ func TestCalculateHashGoldenVector(t *testing.T) {
 	}
 }
 
+func TestCalculateHashCanonicalizesTimestampToStoragePrecision(t *testing.T) {
+	baseTime := time.Date(2026, 11, 22, 3, 34, 42, 123456789, time.UTC)
+	base := AuditLog{
+		SequenceNumber: 1, CompanyID: apiTypes.NewCompanyID(),
+		EntityType: "journal_entry", EntityID: "JE-100", Action: "POST",
+		Timestamp: baseTime, PreviousLogHash: GenesisHash,
+	}
+	truncated := base
+	truncated.Timestamp = baseTime.Truncate(time.Microsecond)
+	if CalculateHash(base) != CalculateHash(truncated) {
+		t.Fatal("sub-microsecond timestamp variants must have the same canonical audit hash")
+	}
+}
+
+func TestCalculateHashProtectsEverySemanticField(t *testing.T) {
+	fixedTime := time.Date(2026, 11, 21, 6, 0, 0, 0, time.UTC)
+	base := AuditLog{
+		SequenceNumber:  1,
+		CompanyID:       apiTypes.NewCompanyID(),
+		EntityType:      "journal_entry",
+		EntityID:        "JE-100",
+		Action:          "POST",
+		ActorID:         "actor-1",
+		Reason:          "approved",
+		CorrelationID:   "corr-1",
+		Timestamp:       fixedTime,
+		Payload:         []byte(`{"amount":"100"}`),
+		PreviousLogHash: GenesisHash,
+	}
+	baseHash := CalculateHash(base)
+
+	mutations := []struct {
+		name string
+		log  AuditLog
+	}{
+		{name: "sequence", log: func() AuditLog { l := base; l.SequenceNumber++; return l }()},
+		{name: "company", log: func() AuditLog { l := base; l.CompanyID = apiTypes.NewCompanyID(); return l }()},
+		{name: "entity type", log: func() AuditLog { l := base; l.EntityType = "reversal"; return l }()},
+		{name: "entity id", log: func() AuditLog { l := base; l.EntityID = "JE-101"; return l }()},
+		{name: "action", log: func() AuditLog { l := base; l.Action = "REVERSE"; return l }()},
+		{name: "actor", log: func() AuditLog { l := base; l.ActorID = "actor-2"; return l }()},
+		{name: "reason", log: func() AuditLog { l := base; l.Reason = "rejected"; return l }()},
+		{name: "correlation", log: func() AuditLog { l := base; l.CorrelationID = "corr-2"; return l }()},
+		{name: "timestamp", log: func() AuditLog { l := base; l.Timestamp = fixedTime.Add(time.Microsecond); return l }()},
+		{name: "payload", log: func() AuditLog { l := base; l.Payload = []byte(`{"amount":"101"}`); return l }()},
+		{name: "previous hash", log: func() AuditLog { l := base; l.PreviousLogHash = strings.Repeat("a", 64); return l }()},
+	}
+
+	for _, test := range mutations {
+		t.Run(test.name, func(t *testing.T) {
+			if got := CalculateHash(test.log); got == baseHash {
+				t.Fatalf("semantic mutation %q did not change audit hash", test.name)
+			}
+		})
+	}
+}
+
+func TestValidateCheckpointRejectsMalformedAnchors(t *testing.T) {
+	companyID := apiTypes.NewCompanyID()
+	validHash := strings.Repeat("a", 64)
+	cases := []struct {
+		name       string
+		checkpoint AuditCheckpoint
+	}{
+		{name: "missing company", checkpoint: AuditCheckpoint{SequenceNumber: 1, Version: 1, LogHash: validHash}},
+		{name: "missing hash", checkpoint: AuditCheckpoint{CompanyID: companyID, SequenceNumber: 1, Version: 1}},
+		{name: "short hash", checkpoint: AuditCheckpoint{CompanyID: companyID, SequenceNumber: 1, Version: 1, LogHash: "abc"}},
+		{name: "non hex hash", checkpoint: AuditCheckpoint{CompanyID: companyID, SequenceNumber: 1, Version: 1, LogHash: strings.Repeat("z", 64)}},
+		{name: "missing version", checkpoint: AuditCheckpoint{CompanyID: companyID, SequenceNumber: 1, LogHash: validHash}},
+		{name: "non genesis at zero", checkpoint: AuditCheckpoint{CompanyID: companyID, SequenceNumber: 0, Version: 1, LogHash: validHash}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := ValidateCheckpoint(tc.checkpoint); !errors.Is(err, ErrInvalidAuditCheckpoint) {
+				t.Fatalf("ValidateCheckpoint(%+v) = %v, want ErrInvalidAuditCheckpoint", tc.checkpoint, err)
+			}
+		})
+	}
+	if err := ValidateCheckpoint(AuditCheckpoint{CompanyID: companyID, SequenceNumber: 3, Version: 1, LogHash: validHash}); err != nil {
+		t.Fatalf("valid checkpoint rejected: %v", err)
+	}
+	if err := ValidateCheckpoint(AuditCheckpoint{CompanyID: companyID, LogHash: GenesisHash}); err != nil {
+		t.Fatalf("valid genesis checkpoint rejected: %v", err)
+	}
+}
+
 func TestVerifyAuditSnapshotSequenceMismatchKillsMutant(t *testing.T) {
 	companyID := apiTypes.NewCompanyID()
 	snapshot := AuditVerificationSnapshot{
-		CompanyID:        companyID,
-		SnapshotSequence: 5, // mismatch with checkpoint SequenceNumber 1
+		CompanyID:         companyID,
+		CheckpointPresent: true,
+		SnapshotSequence:  5, // mismatch with checkpoint SequenceNumber 1
 		Checkpoint: AuditCheckpoint{
 			CompanyID:      companyID,
 			SequenceNumber: 1,
-			LogHash:        "non-empty",
+			LogHash:        strings.Repeat("a", 64),
 			Version:        1,
 		},
 		Logs: make([]AuditLog, 5),

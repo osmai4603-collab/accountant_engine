@@ -49,7 +49,9 @@ func (a *Adapter) Ports() storage.Ports {
 			Mappings:    a.driver,
 		},
 		Private: storage.PrivateExtensions{
-			storage.PostingLockerExtensionKey: a.driver,
+			storage.PostingLockerExtensionKey:    a.driver,
+			storage.AuditConformanceExtensionKey: a.driver,
+			storage.PolicyStoreExtensionKey:      a.driver,
 		},
 	}
 }
