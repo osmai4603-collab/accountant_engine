@@ -29,6 +29,7 @@ func TestMain(m *testing.M) {
 		}
 	}
 	if os.Getenv("CONTRACT_PARITY_SKIP_REPORT") == "1" {
+		fmt.Fprintln(os.Stderr, "WARNING: CONTRACT_PARITY_SKIP_REPORT=1 leaves the checked-in parity report unchanged; this run is NOT evidence of a fresh full suite")
 		os.Exit(code)
 	}
 

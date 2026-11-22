@@ -1,61 +1,43 @@
-# خط الأساس المعتمد للنواة المحاسبية — Kernel Release Baseline v12
+# خط الأساس المعتمد للنواة المحاسبية — Kernel Release Baseline (Phase 12 Final)
 
-> **Superseded (متجاوز):** هذا خط أساس تاريخي لإصدار v12، وليس خط الأساس المعتمد لخطة المعالجة الحالية. المرجع الحالي: [خط أساس المرحلة 0](../../docs/KERNEL_REMEDIATION_BASELINE.md) و[خريطة معمارية المرحلة 1](../../docs/KERNEL_ARCHITECTURE_MAP.md).
-
-- **رمز الوثيقة:** `AE-BASELINE-KERNEL-V12`
-- **الإصدار الأساس السابق:** Kernel v11 (`accountant_engine11.zip`)
-- **الإصدار الحالي المستهدف:** Kernel v12 Final Stabilization & Acceptance
-- **تاريخ الاعتماد:** 2026-11-21
+- **رمز الوثيقة:** `AE-BASELINE-KERNEL-REMEDIATION-FINAL`
+- **الإصدار الأساس السابق:** Kernel v11 / v12 Stabilization Baseline
+- **الإصدار الحالي المستهدف:** Remediation Phase 12 Final Verification & Release
+- **تاريخ الاعتماد:** 2026-11-22
 - **بيئة البناء والاعتماد:** `go version go1.26.3 linux/amd64`
-- **النطاق البرمجي الملزم:** `internal/kernal/` حصراً
+- **النطاق البرمجي الملزم:** `internal/kernal/` بالإضافة إلى عقود SPI ومحولات التخزين لاختبار التكافؤ
+- **الخطة المرجعية:** [`docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../../docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
+- **تقرير التحقق النهائي:** [`docs/KERNEL_FINAL_VERIFICATION_REPORT.md`](../../docs/KERNEL_FINAL_VERIFICATION_REPORT.md)
 
 ---
 
-## 1. جرد ملفات النواة وتصنيفها (إصدار v12)
+## 1. ملخص البوابات العامة للإصدار (Phase 12 Gates)
 
-يحتوي مجلد `internal/kernal/` على 78 ملفاً مصنفة كما يلي:
-
-### 1.1 الوثائق الرسمية للنواة (7 ملفات)
-
-1. `KERNEL_ACCOUNTING_INVARIANTS.md` — الوثيقة المرجعية لقواعد المجال المحاسبي الـ27.
-2. `KERNEL_TRACEABILITY_MATRIX.md` — مصفوفة التتبع بين القواعد والتنفيذ والاختبارات (`AE-TRACE-KERNEL-V12`).
-3. `KERNEL_COMPLETION_REPORT.md` — تقرير الإنجاز النهائي واعتماد 10/10 (`AE-REP-KERNEL-V12`).
-4. `KERNEL_RELEASE_BASELINE.md` — هذه الوثيقة المرجعية لخط الأساس والجرد.
-5. `KERNEL_COVERAGE_EXCEPTIONS.md` — سجل الفروع المستثناة تقنياً وتحليل الدفاع البنيوي.
-6. `KERNEL_MUTATION_REPORT.md` — تقرير اختبارات الطفرات الموجهة وتوثيق معدل القتل (100%).
-7. `KERNEL_V12_CHANGELOG.md` — سجل التغييرات التاريخية للإصدار v12.
-
-### 1.2 الملفات البرمجية والاختبارات (71 ملفاً)
-
-- `doc.go` و `doc_test.go` (فحص النقاء المعماري والاستقلال الذاتي).
-- `apperrors/`: أخطاء النواة المصنفة واختباراتها.
-- `types/`: الحسابات المالية الدقيقة، العملات، الأرقام العشرية، والتقريب، واختبارات الوحدة وFuzz.
-- `journal/`: نموذج القيد والأسطر وحالات القيد والتسويات والنسخ.
-- `posting/`: خط أنابيب الترحيل، التوازن المزدوج، العكس، الأقفال، واختبارات الخصائص وFuzz.
-- `masterdata/`: الشركات، الحسابات، شجرة الحسابات، اليوميات، مراكز التكلفة، والتقويم المالي واختباراته.
-- `policy/`: محرك السياسات وقواعد الأهلية والتحقق الزمني.
-- `valuation/`: سجل أسعار الصرف، تحويل العملات، وإعادة التقييم المالي.
-- `governance/`: سلسلة التدقيق المشفرة، نقاط التحقق، واختبارات اللقطات المتسقة.
-- `ledger/`: نماذج مرجعية خفيفة محصنة وفق `doc.go`.
-
----
-
-## 2. مصفوفة التحقق من بوابات الإصدار (Release Gates)
-
-| البوابة | المتطلب | الحالة | الدليل |
+| البوابة | المتطلب | الحالة | الدليل التنفيذي |
 |---|---|:---:|---|
-| **Gate A — Scope** | الالتزام الصارم بـ `internal/kernal/` | **PASS** | `git diff --name-only` يؤكد عدم تعديل أي ملف خارجي |
-| **Gate B — Invariants** | استيفاء القواعد المحاسبية الـ27 | **PASS** | موثقة في `KERNEL_ACCOUNTING_INVARIANTS.md` |
-| **Gate C — Money** | الدقة والعملات والتقريب المتسق | **PASS** | اجتياز اختبارات الحدود وFuzz وBanker's Rounding |
-| **Gate D — Posting** | خط أنابيب الترحيل المالي الآمن | **PASS** | التحقق الإلزامي من القواعد قبل تفويض المضيف |
-| **Gate E — Lifecycle** | دورة حياة القيود والتسوية والعكس | **PASS** | قيود عكسية وتصنيفات متكاملة واختبارات صافي الأثر صفر |
-| **Gate F — Master/Fiscal** | البيانات المرجعية والتقويم المالي | **PASS** | منع التداخل والفجوات واختبار الفترتين 13 و 14 |
-| **Gate G — Policy** | سياسات الترحيل وتاريخ النفاذ | **PASS** | عزل كامل للشركات ونفاذ زمني حتمي Fail-Closed |
-| **Gate H — Valuation** | تحويل العملات وإعادة التقييم | **PASS** | حتمية كاملة بدون أي استخدام لأعداد عائمة (Float) |
-| **Gate I — Audit** | سلسلة تدقيق مشفرة ومقاومة للعبث | **PASS** | تشفير كنسي، لقطات متسقة، وكشف العبث بنسبة 100% |
-| **Gate J — Tests** | اختبارات الوحدة والتزامن والـ Fuzz | **PASS** | 160 اختباراً، 9 أهداف Fuzz، وخلو تام من Data Races |
-| **Gate K — Coverage** | التغطية الكودية والسلوكية | **PASS** | 93.1% إجمالي، وتوثيق معتمد للفروع المستثناة |
-| **Gate L — Mutation** | اختبارات الطفرات الدلالية الموجهة | **PASS** | قتل 100% من الطفرات الحرجة للقواعد المحاسبية |
-| **Gate M — Traceability** | مصفوفة التتبع الكاملة | **PASS** | مطابقة 66 مرجعاً بنسبة 100% وصفر مرجع مفقود |
-| **Gate N — Docs** | اتساق الوثائق وتحديث الإصدارات | **PASS** | توحيد كافة الوثائق تحت مظلة الإصدار v12 |
-| **Gate O — Defects** | خلو النواة من عيوب P0/P1 مفتوحة | **PASS** | صفر عيوب مفتوحة في سجل التثبيت النهائي |
+| **G1 — Scope** | الالتزام الصارم بالنواة وعقودها | **PASS** | نقاء تام في استيرادات `internal/kernal/` |
+| **G2 — Architecture** | خلو تام من الاعتمادات المحظورة | **PASS** | `./scripts/verify_architecture.sh` (11/11 خضراء) |
+| **G3 — Accounting** | استيفاء القواعد المحاسبية الـ 27 | **PASS** | `KERNEL_ACCOUNTING_INVARIANTS.md` و`doc_test.go` |
+| **G4 — Precision** | دقة حسابية ومنع الفاقد والـ Float | **PASS** | `types` tests + 6 Fuzz targets + Banker's rounding |
+| **G5 — Lifecycle** | دورة حياة القيد وعدم التعديل بعد الترحيل | **PASS** | State machine وWORM triggers على المحولين |
+| **G6 — Posting** | خط أنابيب الترحيل المركزي | **PASS** | `PostingPipeline` مع التحقق الشامل قبل التفويض |
+| **G7 — Atomicity** | ذرية الترحيل ومنع الحالات الجزئية | **PASS** | `phase7_transaction_contract_test.go` |
+| **G8 — Idempotency** | منع تكرار الأثر المالي وفحص البصمات | **PASS** | عقد Idempotency كامل واختبارات التعارض |
+| **G9 — Reversal** | العكس الذري والربط ومنع التكرار | **PASS** | `BuildReversalEntry` و`OriginalEntryID` WORM |
+| **G10 — Isolation** | عزل كامل للشركات وعدم تسرب البيانات | **PASS** | `TestPhase8_*` وRLS على PostgreSQL |
+| **G11 — Concurrency** | خلو من سباق البيانات والتعارض الميت | **PASS** | `go test -race ./... -count=1` خضراء 100% |
+| **G12 — Audit** | تدقيق مشفر ونقاط تفتيش خارجية | **PASS** | `governance` tests + `test/dr` backup/restore drill |
+| **G13 — Rebuild** | إعادة بناء GL حتمية من القيود المعتمدة | **PASS** | `phase12_gl_rebuild_contract_test.go` متطابقة مع المحولات |
+| **G14 — Adapter Parity** | تكافؤ محولات التخزين Memory وPostgres | **PASS** | `contract_parity_report.md` (90 PASS، 0 FAIL) |
+| **G15 — Evidence** | أدلة مستقلة وقابلة لإعادة الإنتاج | **PASS** | سكربتات آلية وسجلات تشغيل فعلية |
+
+---
+
+## 2. ملخص المقاييس التقنية
+
+- **تغطية كود النواة (Kernel Coverage):** **92.4%** من العبارات البرمجية (`go tool cover -func=/tmp/kernel.cover`).
+- **فحص سباق البيانات (Race Detector):** 0 تحذيرات، 0 أخطاء تحت `go test -race ./... -count=1`.
+- **اختبار الطفرات الدلالية الموجهة (Mutation Score):** **100.0%** (8/8 طفرات قُتلت عبر `scripts/run_mutation_tests.sh`).
+- **فحص الفازينج (Fuzz Targets):** **16/16 هدفاً** اجتازت الفحص بـ 0 panics عبر `scripts/run_fuzz_all.sh`.
+- **أداء المعاملات (Microbenchmarks):** تحسن ملحوظ بنسبة 30% إلى 300% عن خط الأساس القديم في جميع المسارات الساخنة.
+- **توافق الواجهات العامة (API/SPI Compatibility):** اجتياز `./scripts/check_api_compat.sh` دون أي كسر غير معلن.

@@ -229,6 +229,20 @@ func NewPolicyEngine() *PolicyEngine {
 	}
 }
 
+// ClearCompanyPolicies removes every policy version registered for one
+// company. The engine never calls it by itself: it exists so a host can replace
+// a previously applied legacy fallback with an authoritative versioned history
+// without stale windows surviving in the same process.
+func (e *PolicyEngine) ClearCompanyPolicies(companyID apiTypes.CompanyID) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	delete(e.policies, companyID)
+	delete(e.currencyPolicies, companyID)
+}
+
 func (e *PolicyEngine) SetPolicy(policy PostingPolicy) error {
 	if e == nil {
 		return ErrPolicyEngineRequired

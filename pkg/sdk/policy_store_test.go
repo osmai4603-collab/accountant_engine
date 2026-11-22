@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,12 +19,15 @@ import (
 )
 
 type policyStoreFake struct {
+	mu       sync.Mutex
 	versions map[storage.PolicyKind][]storage.PolicyVersion
 	lists    int
 	failWith error
 }
 
 func (f *policyStoreFake) AppendVersion(_ context.Context, version storage.PolicyVersion) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.failWith != nil {
 		return f.failWith
 	}
@@ -32,11 +36,19 @@ func (f *policyStoreFake) AppendVersion(_ context.Context, version storage.Polic
 }
 
 func (f *policyStoreFake) ListVersions(_ context.Context, _ types.CompanyID, kind storage.PolicyKind) ([]storage.PolicyVersion, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.lists++
 	if f.failWith != nil {
 		return nil, f.failWith
 	}
 	return append([]storage.PolicyVersion(nil), f.versions[kind]...), nil
+}
+
+func (f *policyStoreFake) listCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lists
 }
 
 type policyTestMasterData struct {
@@ -130,12 +142,135 @@ func TestVersionedPoliciesLoadEveryHistoricalVersionOnce(t *testing.T) {
 		t.Fatalf("stored policies not effective: %v", err)
 	}
 
-	before := store.lists
+	before := store.listCount()
 	if err := app.loadVersionedPolicies(context.Background(), companyID); err != nil {
 		t.Fatalf("reload stored policies: %v", err)
 	}
-	if store.lists != before {
-		t.Fatalf("stored policies were reloaded: lists = %d, want %d", store.lists, before)
+	if store.listCount() != before {
+		t.Fatalf("stored policies were reloaded: lists = %d, want %d", store.listCount(), before)
+	}
+}
+
+// versionedPolicyFixtures returns one valid posting and one valid currency
+// version so tests can exercise the exact moment a store becomes authoritative.
+func versionedPolicyFixtures(t *testing.T, companyID types.CompanyID, start time.Time, maxBackdating int) (storage.PolicyVersion, storage.PolicyVersion) {
+	t.Helper()
+	return storage.PolicyVersion{
+			CompanyID:     companyID,
+			PolicyID:      uuid.New(),
+			Kind:          storage.PolicyKindPosting,
+			Version:       1,
+			EffectiveFrom: start,
+			Payload:       policyVersionJSON(t, storage.PostingPolicyPayload{MaxBackdatingDays: maxBackdating}),
+		}, storage.PolicyVersion{
+			CompanyID:     companyID,
+			PolicyID:      uuid.New(),
+			Kind:          storage.PolicyKindCurrency,
+			Version:       1,
+			EffectiveFrom: start,
+			Payload: policyVersionJSON(t, storage.CurrencyPolicyPayload{
+				FunctionalCurrency:   "USD",
+				PresentationCurrency: "USD",
+				RoundingMethod:       string(policy.RoundingBankers),
+				AllowedCurrencies:    []string{"USD"},
+			}),
+		}
+}
+
+func TestLegacyPoliciesAreReplacedWhenStoreBecomesAuthoritative(t *testing.T) {
+	companyID := types.CompanyID(uuid.New())
+	store := &policyStoreFake{versions: map[storage.PolicyKind][]storage.PolicyVersion{}}
+	masterData := policyTestMasterData{company: publicmasterdata.Company{
+		ID:                   companyID,
+		Code:                 "TRANSITION",
+		LegalName:            "Transition Co",
+		FunctionalCurrency:   "USD",
+		PresentationCurrency: "USD",
+		Active:               true,
+	}}
+	app := &applicationService{
+		ports:          storage.Ports{MasterData: masterData},
+		policyEngine:   policy.NewPolicyEngine(),
+		policyStore:    store,
+		policiesLoaded: make(map[types.CompanyID]bool),
+	}
+	ctx := context.Background()
+
+	// A store with zero versions has not been opted into yet: the legacy
+	// 2000-01-01 fallback is still available.
+	asOf := time.Date(2025, time.June, 1, 0, 0, 0, 0, time.UTC)
+	if err := app.ensurePolicies(ctx, companyID, asOf); err != nil {
+		t.Fatalf("legacy fallback before opt-in: %v", err)
+	}
+	if _, err := app.policyEngine.PostingPolicyFor(companyID, asOf); err != nil {
+		t.Fatalf("legacy fallback policy missing: %v", err)
+	}
+
+	// The host appends the first stored version. Starting exactly at the
+	// synthetic date must not collide with the fallback that was just removed.
+	start := time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	postingVersion, currencyVersion := versionedPolicyFixtures(t, companyID, start, 5)
+	postingVersion.EffectiveTo = &end
+	currencyVersion.EffectiveTo = &end
+	for _, version := range []storage.PolicyVersion{postingVersion, currencyVersion} {
+		if err := store.AppendVersion(ctx, version); err != nil {
+			t.Fatalf("append stored version: %v", err)
+		}
+	}
+	if err := app.ensurePolicies(ctx, companyID, asOf); err != nil {
+		t.Fatalf("load stored policy after opt-in: %v", err)
+	}
+	loaded, err := app.policyEngine.PostingPolicyFor(companyID, asOf)
+	if err != nil {
+		t.Fatalf("stored policy after opt-in: %v", err)
+	}
+	if loaded.MaxBackdatingDays != 5 {
+		t.Fatalf("MaxBackdatingDays = %d, want stored 5", loaded.MaxBackdatingDays)
+	}
+
+	// A date no stored version covers must fail closed; the removed synthetic
+	// window must not answer it.
+	uncovered := time.Date(2027, time.June, 1, 0, 0, 0, 0, time.UTC)
+	if err := app.ensurePolicies(ctx, companyID, uncovered); err == nil {
+		t.Fatal("uncovered date accepted after the store became authoritative")
+	}
+}
+
+func TestVersionedPoliciesLoadOnceUnderConcurrentPosts(t *testing.T) {
+	companyID := types.CompanyID(uuid.New())
+	start := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	postingVersion, currencyVersion := versionedPolicyFixtures(t, companyID, start, 0)
+	store := &policyStoreFake{versions: map[storage.PolicyKind][]storage.PolicyVersion{
+		storage.PolicyKindPosting:  {postingVersion},
+		storage.PolicyKindCurrency: {currencyVersion},
+	}}
+	app := &applicationService{
+		policyEngine:   policy.NewPolicyEngine(),
+		policyStore:    store,
+		policiesLoaded: make(map[types.CompanyID]bool),
+	}
+	asOf := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+
+	const workers = 16
+	var wg sync.WaitGroup
+	errs := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- app.ensurePolicies(context.Background(), companyID, asOf)
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent ensurePolicies: %v", err)
+		}
+	}
+	if got := store.listCount(); got != 2 {
+		t.Fatalf("ListVersions called %d times, want exactly 2 (one per kind)", got)
 	}
 }
 
@@ -251,5 +386,53 @@ func TestPhase11PolicyAndRevaluationErrorsAreClassified(t *testing.T) {
 				t.Fatalf("classified = %v, want %v", classified, tc.want)
 			}
 		})
+	}
+}
+
+func TestFailedVersionedPolicyRegistrationRollsBackAndCanRetry(t *testing.T) {
+	companyID := types.CompanyID(uuid.New())
+	start := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	postingVersion, currencyVersion := versionedPolicyFixtures(t, companyID, start, 7)
+	// Structurally valid JSON that the kernel rejects: the adapter's append
+	// contract cannot know every semantic rule of the private policy types.
+	currencyVersion.Payload = policyVersionJSON(t, storage.CurrencyPolicyPayload{
+		FunctionalCurrency:   "ZZZ",
+		PresentationCurrency: "USD",
+		RoundingMethod:       string(policy.RoundingBankers),
+		AllowedCurrencies:    []string{"USD"},
+	})
+	store := &policyStoreFake{versions: map[storage.PolicyKind][]storage.PolicyVersion{
+		storage.PolicyKindPosting:  {postingVersion},
+		storage.PolicyKindCurrency: {currencyVersion},
+	}}
+	app := &applicationService{
+		policyEngine:   policy.NewPolicyEngine(),
+		policyStore:    store,
+		policiesLoaded: make(map[types.CompanyID]bool),
+	}
+	asOf := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+	ctx := context.Background()
+
+	if err := app.ensurePolicies(ctx, companyID, asOf); err == nil {
+		t.Fatal("invalid stored currency policy was accepted")
+	}
+	if _, err := app.policyEngine.PostingPolicyFor(companyID, asOf); !errors.Is(err, policy.ErrPolicyNotFound) {
+		t.Fatalf("posting version survived a failed load: %v", err)
+	}
+
+	_, repaired := versionedPolicyFixtures(t, companyID, start, 7)
+	store.mu.Lock()
+	store.versions[storage.PolicyKindCurrency][0].Payload = repaired.Payload
+	store.mu.Unlock()
+
+	if err := app.ensurePolicies(ctx, companyID, asOf); err != nil {
+		t.Fatalf("retry after repairing the stored version: %v", err)
+	}
+	loaded, err := app.policyEngine.PostingPolicyFor(companyID, asOf)
+	if err != nil {
+		t.Fatalf("posting policy after retry: %v", err)
+	}
+	if loaded.MaxBackdatingDays != 7 {
+		t.Fatalf("MaxBackdatingDays = %d, want 7", loaded.MaxBackdatingDays)
 	}
 }

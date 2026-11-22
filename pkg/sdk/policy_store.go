@@ -115,22 +115,40 @@ func (s *applicationService) loadVersionedPolicies(ctx context.Context, companyI
 		return fmt.Errorf("company %s: %w", companyID.String(), errNoVersionedPolicies)
 	}
 
+	// The store has just become authoritative. Any legacy fallback registered
+	// earlier for this company must be removed first: otherwise its synthetic
+	// 2000-01-01 window would keep answering dates the store does not cover,
+	// and a first stored version starting on that date would collide with it.
+	if s.syntheticPolicies[companyID] {
+		s.policyEngine.ClearCompanyPolicies(companyID)
+		delete(s.syntheticPolicies, companyID)
+	}
+
+	// Registration is all-or-nothing from the engine's point of view. A
+	// conversion or registration failure must not leave earlier versions
+	// behind: with policiesLoaded still false, the next call would try to
+	// register them again and fail forever on duplicate effective dates.
+	rollback := func(err error) error {
+		s.policyEngine.ClearCompanyPolicies(companyID)
+		return err
+	}
+
 	for _, version := range postingVersions {
 		converted, err := postingPolicyFromVersion(version)
 		if err != nil {
-			return err
+			return rollback(err)
 		}
 		if err := s.policyEngine.SetPolicy(converted); err != nil {
-			return fmt.Errorf("register stored posting policy version %d: %w", version.Version, err)
+			return rollback(fmt.Errorf("register stored posting policy version %d: %w", version.Version, err))
 		}
 	}
 	for _, version := range currencyVersions {
 		converted, err := currencyPolicyFromVersion(version)
 		if err != nil {
-			return err
+			return rollback(err)
 		}
 		if err := s.policyEngine.SetCurrencyPolicy(converted); err != nil {
-			return fmt.Errorf("register stored currency policy version %d: %w", version.Version, err)
+			return rollback(fmt.Errorf("register stored currency policy version %d: %w", version.Version, err))
 		}
 	}
 

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
@@ -203,6 +205,26 @@ type applicationService struct {
 	pipeline       *posting.PostingPipeline
 	policyStore    storage.PolicyStore
 	policiesLoaded map[types.CompanyID]bool
+
+	// Policy configuration is process-wide state. Locks are per company so
+	// unrelated tenants do not block each other on first load.
+	policyLocksMu     sync.Mutex
+	policyLocks       map[types.CompanyID]*sync.Mutex
+	syntheticPolicies map[types.CompanyID]bool
+}
+
+func (s *applicationService) companyPolicyLock(companyID types.CompanyID) *sync.Mutex {
+	s.policyLocksMu.Lock()
+	defer s.policyLocksMu.Unlock()
+	if s.policyLocks == nil {
+		s.policyLocks = make(map[types.CompanyID]*sync.Mutex)
+	}
+	lock, ok := s.policyLocks[companyID]
+	if !ok {
+		lock = &sync.Mutex{}
+		s.policyLocks[companyID] = lock
+	}
+	return lock
 }
 
 var _ publicapplication.Service = (*applicationService)(nil)
@@ -215,12 +237,14 @@ func newApplication(ports storage.Ports, config PostingConfig, authorizer public
 	mdAdapter := masterDataReaderAdapter{reader: ports.MasterData}
 
 	app := &applicationService{
-		ports:          ports,
-		config:         config,
-		authorizer:     authorizer,
-		policyEngine:   policyEngine,
-		policyStore:    policyStoreFromPorts(ports),
-		policiesLoaded: make(map[types.CompanyID]bool),
+		ports:             ports,
+		config:            config,
+		authorizer:        authorizer,
+		policyEngine:      policyEngine,
+		policyStore:       policyStoreFromPorts(ports),
+		policiesLoaded:    make(map[types.CompanyID]bool),
+		policyLocks:       make(map[types.CompanyID]*sync.Mutex),
+		syntheticPolicies: make(map[types.CompanyID]bool),
 	}
 
 	// Optional capabilities are detected, never assumed. A reader that exposes
@@ -331,6 +355,10 @@ func commitIdempotency(opts posting.PostOptions, operation storage.PostingOperat
 }
 
 func (s *applicationService) ensurePolicies(ctx context.Context, companyID types.CompanyID, asOf time.Time) error {
+	lock := s.companyPolicyLock(companyID)
+	lock.Lock()
+	defer lock.Unlock()
+
 	// When the host supplies an authoritative policy history it is the single
 	// source of truth: load every version once and fail closed for dates that
 	// no stored version covers. No synthetic 2000-01-01 policy is created.
@@ -355,19 +383,31 @@ func (s *applicationService) ensurePolicies(ctx context.Context, companyID types
 		return err
 	}
 
+	registeredSynthetic := false
 	if _, err := s.policyEngine.CurrencyPolicyFor(companyID, asOf); errors.Is(err, policy.ErrPolicyNotFound) {
+		allowed := make([]string, 0, 2)
+		for _, currency := range []string{company.FunctionalCurrency, company.PresentationCurrency} {
+			currency = strings.ToUpper(strings.TrimSpace(currency))
+			if currency == "" {
+				continue
+			}
+			if !slices.Contains(allowed, currency) {
+				allowed = append(allowed, currency)
+			}
+		}
 		curPolicy := policy.CurrencyPolicy{
 			CompanyID:                     companyID,
 			FunctionalCurrency:            company.FunctionalCurrency,
 			PresentationCurrency:          company.PresentationCurrency,
 			RoundingMethod:                policy.RoundingBankers,
-			AllowedCurrencies:             []string{company.FunctionalCurrency, company.PresentationCurrency},
+			AllowedCurrencies:             allowed,
 			AutoSettleRoundingDifferences: false,
 			EffectiveDate:                 time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
 		}
 		if err := s.policyEngine.SetCurrencyPolicy(curPolicy); err != nil {
 			return fmt.Errorf("register fallback currency policy: %w", err)
 		}
+		registeredSynthetic = true
 	}
 
 	if _, err := s.policyEngine.PostingPolicyFor(companyID, asOf); errors.Is(err, policy.ErrPolicyNotFound) {
@@ -378,8 +418,15 @@ func (s *applicationService) ensurePolicies(ctx context.Context, companyID types
 		if err := s.policyEngine.SetPolicy(postPolicy); err != nil {
 			return fmt.Errorf("register fallback posting policy: %w", err)
 		}
+		registeredSynthetic = true
 	}
 
+	if registeredSynthetic {
+		if s.syntheticPolicies == nil {
+			s.syntheticPolicies = make(map[types.CompanyID]bool)
+		}
+		s.syntheticPolicies[companyID] = true
+	}
 	return nil
 }
 

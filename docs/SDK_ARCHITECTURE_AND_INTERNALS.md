@@ -343,6 +343,7 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
    - `Operation: storage.OperationPost` أو `storage.OperationReverse`.
    - `OriginalEntryID` يُرسل فقط في حالة العكس.
    - `ActorID` / `Reason` / `CorrelationID` من `PostOptions`.
+   - `Idempotency` من `commitIdempotency`: ينسخ نطاق النواة الخاتم والبصمة المستقرة لمساري `post`/`reverse`؛ التلميح المحقَّق `revaluation` يُحفظ كما هو ولا يُعاد تعيينه إلى `post`. لا يوجد use-case عام لإعادة التقييم في SDK (المرحلة 11، `G-024`، ADR P11-01).
 3. `ports.Posting.CommitPosting(ctx, commit)` — الذرية مسؤولية المحوّل.
 4. إلحاق سجل تدقيق عبر `ports.Audit.AppendAudit` إن وُجد. بعد المرحلة 11 يُلحق Adapter سجل التدقيق ذرياً في نفس معاملة القيد؛ إلحاق SDK منفصل كان قد يترك دليلاً غير متوازن.
 
@@ -355,7 +356,7 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
 | `CurrencyPolicy` | `FunctionalCurrency` و`PresentationCurrency` من الشركة، `RoundingBankers`، عملات مسموح بهما فقط، `AutoSettleRoundingDifferences = false`، سريان من 2000-01-01 |
 | `PostingPolicy` | سياسة فارغة للشركة، سريان من 2000-01-01 |
 
-هذا المسار **للتوافق فقط** عندما لا يوفّر المضيف مخزن سياسات، أو عندما يكون المخزن موجوداً بصفر نسخة لهذه الشركة (أي أنها لم تشترك بعد في السياسات المؤرخة). أخطاء `SetCurrencyPolicy` / `SetPolicy` **تُعاد ولا تُبتلع** بعد المرحلة 11 (`G-021`). بمجرد إلحاق أول نسخة يصبح المخزن مصدر الحقيقة ولا يعود المسار القدامي متاحاً.
+هذا المسار **للتوافق فقط** عندما لا يوفّر المضيف مخزن سياسات، أو عندما يكون المخزن موجوداً بصفر نسخة لهذه الشركة (أي أنها لم تشترك بعد في السياسات المؤرخة). أخطاء `SetCurrencyPolicy` / `SetPolicy` **تُعاد ولا تُبتلع** بعد المرحلة 11 (`G-021`). بمجرد إلحاق أول نسخة يصبح المخزن مصدر الحقيقة ولا يعود المسار القدامي متاحاً؛ تُمسَح السياسات الاصطناعية المسجَّلة سابقاً لهذه الشركة قبل تسجيل النسخ المخزَّنة، حتى لا تُجيب التواريخ غير المغطاة ولا يتعارض أول إصدار يبدأ عند 2000-01-01. التحميل محمي بقفل لكل شركة لمنع التسجيل المزدوج عند التزامن.
 
 عند وجود `ports.Private[storage.PolicyStoreExtensionKey]` (`G-020`) تُحمَّل كل نسخ الشركة مرة واحدة (`loadVersionedPolicies`) وتُسجَّل بنوافذها الأصلية؛ لا تُشتق سياسة اصطناعية، والغياب عن تاريخ القيد يُفشل مغلقاً (`ensureVersionedPoliciesIsEffective`). تعارض الإصدارات يُترجم إلى `ErrConflict` وغياب النسخة إلى `ErrNotFound`. التفاصيل في [ADR P11-04](./ard/P11_04_versioned_policy_store.md).
 
