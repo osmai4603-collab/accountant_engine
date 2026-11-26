@@ -18,7 +18,7 @@
 | `InternalScale` | `12` | مقياس القسمة والتجميع الوسيط | ثابت | `Divide` → `DivRound(scalar, 12)` | `money.go:23`, `money.go:205-210` |
 | `MaximumSignificantDigits` | `28` | عدد الخانات ذات الدلالة بعد إزالة الأصفار الزائدة | `1..28` | `precisionDigits(amount)` | `money.go:24`, `money.go:74-76`, `money.go:99-106` |
 | `MaximumIntegerDigits` | `28` | عدد الخانات يسار الفاصلة | `0..28` | `integerDigits(amount)` | `money.go:25`, `money.go:77-79`, `money.go:108-118` |
-| `MaximumRepresentationalScale` | `28` | عدد الخانات يمين الفاصلة في التمثيل الداخلي | `0..28` | `amount.Exponent() >= -28` | `money.go:26`, `money.go:71-73` |
+| `MaximumRepresentationalScale` | `28` | الحد التمثيلي لمقياس الخانات يمين الفاصلة في مكتبة التخزين (وفق `MONEY v2.6.1 §2.3`، بينما يُقاس حد الأس المعياري في `MONEY-007` على Normalized MSD Exponent ضمن `[-28, +28]`) | `0..28` | `amount.Exponent() >= -28` | `money.go:26`, `money.go:71-73` |
 | `Currency` | `Code`, `NumericCode`, `Symbol`, `Name`, `MinorUnit` | سجل ISO 4217 ثابت | `MinorUnit` من `0` إلى `4` في السجل الحالي | `LookupCurrency`, `LookupCurrencyByNumericCode`, `AllCurrencies` | `types/currency.go:182-308` |
 | `CurrencyCode` | `string` | رمز عملة مكوّن من 3 أحرف | رموز السجل + `XXX` كعلامة منع | `normalizeCurrency` (upper + trim) | `currency.go:180`, `currency.go:302-308` |
 | `XXX` | `"999"` sentinel | عملة محظورة مالياً | `MinorUnit = 0`, رمز فارغ | `LookupCurrency` succeeds, لكن بناء `Money` يفشل بـ`ErrInvalidCurrency` | `currency.go:275`, `money.go:67-70` |

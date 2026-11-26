@@ -1,230 +1,245 @@
-# Accounting Policy Domain Specification
+# مواصفات مجال السياسات المحاسبية (Accounting Policy Domain Specification)
 
-**Version:** 1.0.0  
-**Document type:** Standalone domain specification  
-**Conformance status:** Normative  
-**Scope:** Company-scoped effective-dated posting and currency policies, non-overlapping policy registration, account and dimension eligibility rules, and canonical policy fingerprinting.
-
----
-
-## 1. Purpose
-
-This document defines the externally observable domain contract for accounting policies and eligibility evaluation within the kernel. It specifies how `PostingPolicy` and `CurrencyPolicy` versions are registered, selected deterministically for a given `(CompanyID, EffectiveDate)`, validated against overlaps or missing coverage, and fingerprinted onto posted entries for historical auditability.
-
-This document does not prescribe a programming language, policy storage backend, or user-facing policy administration UI.
-
-### 1.1 Normative language
-
-The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as normative requirement terms per RFC 2119 and RFC 8174:
-
-- **MUST / MUST NOT:** absolute requirement or prohibition for conformance.
-- **SHOULD / SHOULD NOT:** recommended requirement; deviations require a documented reason.
-- **MAY:** permitted behavior.
-
-### 1.2 Scope boundary
-
-This specification governs policy versioning, deterministic policy resolution, account/dimension eligibility checks, and canonical policy fingerprinting within the kernel. Fiscal period close-state ownership belongs to `MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md`. Rounding arithmetic belongs to `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`, while entry-level rounding settlement execution belongs to `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. Role-based access control (RBAC) and approval workflows belong outside the kernel.
+**الإصدار:** 1.1.0  
+**نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة المطابقة:** معياري إلزامي (Normative)  
+**النطاق:** سياسات الترحيل والعملات المقيدة بالشركة والمؤرخة بالنفاذ (`Effective-dated posting and currency policies`)، وتسجيل السياسات غير المتداخل، وقواعد أهلية الحسابات والأبعاد، والبصمة القانونية للسياسة (`Canonical policy fingerprinting`).
 
 ---
 
-## 2. Conformance
+## 1. الغرض (Purpose)
 
-An implementation conforms to this specification only when all applicable normative requirements are satisfied.
+يُعرّف هذا المستند العقد المجالي القابل للملاحظة خارجياً للسياسات المحاسبية وتقييم الأهلية داخل النواة (`Kernel`). وهو يحدد كيفية تسجيل إصدارات `PostingPolicy` و`CurrencyPolicy`، واختيارها بشكل حتمي لزوج `(CompanyID, EffectiveDate)` محدد، والتحقق من عدم تداخلها أو غياب تغطيتها، وختم بصمتها على القيود المرحّلة لضمان قابلية التدقيق التاريخي (`Historical auditability`).
 
-### 2.1 Conformance requirements
+لا يفرض هذا المستند لغة برمجة، أو محرك تخزين للسياسات، أو واجهة مستخدم لإدارة السياسات.
 
-A conforming implementation:
+### 1.1 اللغة المعيارية (Normative language)
 
-1. MUST satisfy every normative rule in §§4–7.
-2. MUST enforce half-open effective-date windows `[EffectiveDate, EffectiveTo)` per company.
-3. MUST reject overlapping or duplicate policy effective dates upon registration.
-4. MUST fail closed when no policy covers `(CompanyID, EffectiveDate)`.
-5. MUST produce deterministic, order-independent canonical `PolicyFingerprint` digests.
+تُفسَّر المصطلحات **يجب (MUST)**، و**يجب ألّا (MUST NOT)**، و**ينبغي (SHOULD)**، و**ينبغي ألّا (SHOULD NOT)**، و**يجوز (MAY)** بوصفها مصطلحات متطلبات معيارية وفق `RFC 2119` و`RFC 8174`:
 
-### 2.2 Conformance evidence
+- **يجب / يجب ألّا (MUST / MUST NOT):** متطلب أو حظر مُطلَق للمطابقة.
+- **ينبغي / ينبغي ألّا (SHOULD / SHOULD NOT):** متطلب مُوصى به؛ وأي انحراف عنه يتطلب سبباً موثقاً.
+- **يجوز (MAY):** سلوك مسموح به.
 
-Conformance can be demonstrated through:
+### 1.2 حدود النطاق (Scope boundary)
 
-- effective-date boundary tests (`start <= asOf < end`, adjacent windows, and uncovered gaps);
-- overlap and duplicate registration rejection tests;
-- fail-closed resolution tests when no policy is registered;
-- account eligibility decision-matrix tests (active, effective-dated, control account, cost center, currency);
-- canonical fingerprint stability and permutation-invariance tests;
-- concurrent read/registration safety tests.
-
-### 2.3 Partial conformance
-
-An implementation that satisfies only a subset of the requirements MUST NOT be described as fully conformant. Any claimed partial conformance MUST identify the omitted rules and affected behaviors.
+تحكم هذه المواصفات إصدار السياسات، والاستخلاص الحتمي للسياسات، وفحوصات أهلية الحسابات والأبعاد، والبصمة القانونية للسياسة داخل النواة. تعود ملكية حالة إقفال الفترات المالية إلى `MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md`. وتعود حسابات التقريب إلى `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`، بينما يعود تنفيذ تسوية التقريب على مستوى القيد إلى `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. أما التحكم في الوصول القائم على الأدوار (`RBAC`) وسير عمل الموافقات فيقعان خارج النواة.
 
 ---
 
-## 3. Terms and definitions
+## 2. المطابقة (Conformance)
 
-- **Posting Policy:** A company-scoped, effective-dated rule set governing posting constraints such as `AllowSoftClosedPosting`, mandatory dimension requirements, and account-type/posting rules.
-- **Currency Policy:** A company-scoped, effective-dated rule set governing `FunctionalCurrency`, allowed transaction currencies, `AutoSettleRoundingDifferences`, and `RoundingDifferenceAccountID`.
-- **Half-Open Effective Window (`[EffectiveDate, EffectiveTo)`):** An interval inclusive of `EffectiveDate` (start) and exclusive of `EffectiveTo` (end); `EffectiveTo == nil` denotes open-ended validity until a subsequent version or indefinitely.
-- **Policy Fingerprint:** A canonical `sha256:<hex>` digest of the resolved `PostingPolicy` and `CurrencyPolicy` fields stamped onto a posted `JournalEntry` for historical reproducibility.
+لا يُعدّ أي تنفيذ مطابقاً لهذه المواصفات إلّا عند استيفاء جميع المتطلبات المعيارية المنطبقة.
 
----
+### 2.1 متطلبات المطابقة (Conformance requirements)
 
-## 4. Policy versioning, selection, and isolation
+التنفيذ المطابق:
 
-### POL-001 — Company-scoped policy isolation
+1. **يجب (MUST)** أن يستوفي كل قاعدة معيارية في الأقسام من §4 إلى §7.
+2. **يجب (MUST)** أن يفرض نوافذ سريان نصف مفتوحة `[EffectiveDate, EffectiveTo)` لكل شركة.
+3. **يجب (MUST)** أن يرفض تواريخ سريان السياسات المتداخلة أو المكررة عند التسجيل.
+4. **يجب (MUST)** أن يفشل مغلقاً (`Fail closed`) عند عدم تغطية أي سياسة للزوج `(CompanyID, EffectiveDate)`.
+5. **يجب (MUST)** أن يُنتج خلاصات `PolicyFingerprint` قانونية حتمية مستقلة عن الترتيب وعن رقم إصدار المخزن.
 
-All `PostingPolicy` and `CurrencyPolicy` registrations and lookups MUST be strictly scoped by a non-zero `CompanyID`. A policy registered for Company A MUST NEVER be resolved for Company B.
+### 2.2 أدلة المطابقة (Conformance evidence)
 
-**Acceptance criteria**
+يمكن إثبات المطابقة من خلال:
 
-- Querying a policy with zero `CompanyID` or for a company with no registered policies fails closed (`ErrCompanyScopeRequired` or `ErrPolicyNotFound`).
+- اختبارات حدود تاريخ السريان (`start <= asOf < end`، النوافذ المتجاورة، والفجوات غير المغطاة)؛
+- اختبارات رفض التسجيل المتداخل والمكرر؛
+- اختبارات الفشل المغلق عند عدم تسجيل أي سياسة؛
+- اختبارات مصفوفة قرار أهلية الحساب (نشط، مؤرخ النفاذ، حساب رقابة، مركز تكلفة، عملة)؛
+- اختبارات استقرار البصمة القانونية وعدم تأثرها بتبديل الترتيب أو رقم الإصدار؛
+- اختبارات سلامة القراءة والتسجيل المتزامن.
 
-### POL-002 — Half-open effective window `[EffectiveDate, EffectiveTo)`
+### 2.3 المطابقة الجزئية (Partial conformance)
 
-Policy validity windows MUST be evaluated as half-open intervals `[EffectiveDate, EffectiveTo)` in UTC:
-
-- A policy matches `asOf` if and only if `EffectiveDate <= asOf` and (`EffectiveTo == nil` or `asOf < EffectiveTo`).
-- Adjacent windows where `prev.EffectiveTo == next.EffectiveDate` MUST be permitted without overlap.
-- Uncovered gaps between windows MUST be permitted at registration and MUST fail closed with `ErrPolicyNotFound` when queried.
-
-**Acceptance criteria**
-
-- At `asOf == EffectiveTo`, the prior policy is no longer selected and the adjacent successor (if any) is selected.
-- Querying a date inside a gap returns `ErrPolicyNotFound`.
-
-### POL-003 — Non-overlapping deterministic registration
-
-For a given `CompanyID` and policy kind, registering a policy whose `EffectiveDate` duplicates an existing version or whose `[EffectiveDate, EffectiveTo)` window overlaps any existing version MUST be rejected with `ErrPolicyOverlap`. Concurrent registrations for the same effective start MUST yield at most one winner.
-
-**Acceptance criteria**
-
-- Registering two policies with identical `(CompanyID, EffectiveDate)` or overlapping ranges returns `ErrPolicyOverlap`.
-
-### POL-004 — Fail-closed absence of default policy
-
-The kernel MUST NOT synthesize a default or fallback `PostingPolicy` or `CurrencyPolicy` when none is registered for `(CompanyID, EffectiveDate)`. Absence MUST return `ErrPolicyNotFound`.
-
-**Acceptance criteria**
-
-- Posting without registered policies fails with `ErrPolicyNotFound` before any executor call.
-
-### POL-005 — Defensive isolation of stored policies
-
-Policy registration and lookup MUST defensively copy mutable slices and pointer fields (such as `AllowedCurrencies` and `EffectiveTo`) so caller mutations after registration or resolution cannot corrupt internal policy state.
-
-**Acceptance criteria**
-
-- Mutating the caller's `AllowedCurrencies` slice after registering a `CurrencyPolicy` does not alter subsequent policy evaluations.
+**يجب ألّا (MUST NOT)** يُوصَف التنفيذ الذي يستوفي مجموعة فرعية فقط من المتطلبات بأنه مطابق بالكامل. و**يجب (MUST)** أن يُحدّد أي ادعاء بالمطابقة الجزئية القواعد المُغفلة والسلوكيات المتأثرة.
 
 ---
 
-## 5. Account, currency, and dimension eligibility
+## 3. المصطلحات والتعاريف (Terms and definitions)
 
-### POL-006 — Currency policy enforcement
-
-Every line's `TransactionCurrency` MUST be permitted by the resolved `CurrencyPolicy`. If `AutoSettleRoundingDifferences` is enabled, `RoundingDifferenceAccountID` MUST be non-zero and eligible for posting; otherwise, rounding settlement MUST NOT proceed.
-
-**Acceptance criteria**
-
-- A transaction currency disallowed by `CurrencyPolicy` fails with `ErrCurrencyNotAllowed`.
-- Enabling `AutoSettleRoundingDifferences` without a valid `RoundingDifferenceAccountID` fails rounding validation.
-
-### POL-007 — Account posting eligibility
-
-`CheckAccountEligibility` MUST evaluate the effective-dated account snapshot resolved at `entry.EffectiveDate` and MUST reject posting if any of the following hold:
-
-1. The account belongs to a different `CompanyID` than the entry.
-2. The account is not effective at `entry.EffectiveDate` (`ErrAccountNotEffective`).
-3. The account is inactive (`IsActive == false`) or suspended.
-4. The account is a header account (`IsHeader == true`).
-5. The account is a control account (`IsControlAccount == true`) (`ErrControlAccountNotPostable`).
-6. The account is restricted to a specific currency that does not match the line's currency.
-7. The account specifies `RequiresCostCenter == true` (or policy requires cost centers) and the line lacks a valid `CostCenterID`.
-
-**Acceptance criteria**
-
-- A control account, inactive account, or out-of-window account is rejected explicitly even if the entry is balanced.
-- Account-level `RequiresCostCenter` is enforced even when company-wide policy does not mandate cost centers globally.
-
-### POL-008 — Soft-close policy delegation
-
-The `PostingPolicy.AllowSoftClosedPosting` flag governs whether a `SOFT_CLOSED` fiscal period is accepted during posting. The policy engine MUST NOT enforce user roles, manager approvals, or `HARD_CLOSED` overrides; period close-state enforcement remains owned by `masterdata`.
-
-**Acceptance criteria**
-
-- `AllowSoftClosedPosting == true` permits posting into a `SOFT_CLOSED` period, whereas `HARD_CLOSED` remains unconditionally rejected.
+- **سياسة الترحيل (`Posting Policy`):** مجموعة قواعد مقيدة بالشركة ومؤرخة بالنفاذ تحكم قيود الترحيل مثل `AllowSoftClosedPosting`، ومتطلبات الأبعاد الإلزامية، وقواعد نوع الحساب والترحيل.
+- **سياسة العملة (`Currency Policy`):** مجموعة قواعد مقيدة بالشركة ومؤرخة بالنفاذ تحكم `FunctionalCurrency`، وعملات المعاملات المسموحة، و`AutoSettleRoundingDifferences`، و`RoundingDifferenceAccountID`.
+- **نافذة النفاذ نصف المفتوحة (`Half-Open Effective Window [EffectiveDate, EffectiveTo)`):** فترة تشمل `EffectiveDate` (البداية) وتستثني `EffectiveTo` (النهاية)؛ وتدل قيمة `EffectiveTo` غير المعيّنة على صلاحية مفتوحة النهاية حتى الإصدار اللاحق أو إلى ما لا نهاية.
+- **بصمة السياسة (`Policy Fingerprint`):** خلاصة قانونية بصيغة `sha256:<hex>` لحقول `PostingPolicy` و`CurrencyPolicy` المحلولة تُختم على `JournalEntry` المرحّل لضمان قابلية إعادة الإنتاج التاريخية.
 
 ---
 
-## 6. Canonical policy fingerprinting
+## 4. إصدار السياسات واختيارها وعزلها
 
-### POL-009 — Deterministic content-bound `PolicyFingerprint`
+### POL-001 — عزل السياسات على مستوى الشركة (Company-scoped policy isolation)
 
-Upon successful validation, the posting pipeline MUST compute and stamp `PolicyFingerprint` (`sha256:<hex>`) onto the frozen `JournalEntry` from the canonical representation of the resolved `PostingPolicy` and `CurrencyPolicy` fields (company, effective dates, limits, rounding settings, allowed currencies, dimension rules, soft-close flag).
+**يجب (MUST)** أن تكون جميع عمليات تسجيل وبحث `PostingPolicy` و`CurrencyPolicy` مقيدةً بصرامة بمعرّف `CompanyID` غير صفري. و**يجب ألّا (MUST NOT)** تُحل سياسة مسجلة للشركة (أ) أبداً لصالح الشركة (ب).
 
-- The digest MUST be independent of slice ordering (e.g., `AllowedCurrencies` MUST be sorted canonically before hashing).
-- `PolicyFingerprint` is audit evidence only and MUST be covered by post-posting immutability checks.
+**معايير القبول**
 
-**Acceptance criteria**
+- يفشل الاستعلام عن سياسة بمعرّف `CompanyID` صفري أو لشركة ليس لها سياسات مسجلة فشلاً مغلقاً (`ErrCompanyScopeRequired` أو `ErrPolicyNotFound`).
 
-- Reordering `AllowedCurrencies` produces the exact same `PolicyFingerprint`.
-- Changing any semantic policy field produces a distinct `PolicyFingerprint`.
+### POL-002 — نافذة النفاذ نصف المفتوحة `[EffectiveDate, EffectiveTo)`
 
----
+**يجب (MUST)** تقييم نوافذ صلاحية السياسة بوصفها فترات نصف مفتوحة `[EffectiveDate, EffectiveTo)` بتوقيت UTC:
 
-## 7. Error Contract
+- تطابق السياسة التاريخ `asOf` إذا وفقط إذا كان `EffectiveDate <= asOf` و(`EffectiveTo` غير معيّنة أو `asOf < EffectiveTo`).
+- **يجب (MUST)** السماح بالنوافذ المتجاورة حيث `prev.EffectiveTo == next.EffectiveDate` دون تداخل.
+- **يجب (MUST)** السماح بالفجوات غير المغطاة بين النوافذ عند التسجيل و**يجب (MUST)** أن تفشل مغلقاً بخطأ `ErrPolicyNotFound` عند الاستعلام ضمنها.
 
-| Error Category | Trigger Condition | Detection Timing |
-| --- | --- | --- |
-| `ErrPolicyNotFound` | No policy covers `(CompanyID, EffectiveDate)` | Policy resolution |
-| `ErrPolicyOverlap` | Duplicate `EffectiveDate` or overlapping window | Policy registration |
-| `ErrCurrencyNotAllowed` | Line currency excluded by `CurrencyPolicy` | Line currency check |
-| `ErrAccountNotEffective` | Account not effective at `entry.EffectiveDate` | Account eligibility |
-| `ErrControlAccountNotPostable` | Direct posting to `IsControlAccount == true` | Account eligibility |
-| `ErrCostCenterRequired` | Missing `CostCenterID` when required by account/policy | Account eligibility |
+**معايير القبول**
 
----
+- عند `asOf == EffectiveTo`، لا يعود اختيار السياسة السابقة ويُختار الخلف المجاور (إن وُجد).
+- يُرجع الاستعلام عن تاريخ يقع داخل فجوة الخطأ `ErrPolicyNotFound`.
 
-## 8. References
+### POL-003 — التسجيل الحتمي غير المتداخل (Non-overlapping deterministic registration)
 
-### REF-001 — Accountant Engine Policy ADR & Rules
+بالنسبة إلى `CompanyID` ونوع سياسة محددين، **يجب (MUST)** رفض تسجيل سياسة يكرر تاريخها `EffectiveDate` إصداراً قائماً أو تتداخل نافذتها `[EffectiveDate, EffectiveTo)` مع أي إصدار قائم، وذلك بخطأ `ErrPolicyOverlap`. و**يجب (MUST)** أن تسفر عمليات التسجيل المتزامنة لنفس بداية النفاذ عن فائز واحد على الأكثر.
 
-- **Internal sources:** `docs/ard/P5_01_policy_selection_and_historical_interpretation.md`, `docs/ard/P11_04_versioned_policy_store.md`, `docs/ACCOUNTING_BUSINESS_RULES.md` (§5), `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` (§3).
-- **Used for:** Half-open effective windows, overlap rejection, fail-closed resolution, eligibility matrix, and canonical policy fingerprinting (`POL-001–009`).
+**معايير القبول**
 
-### Reference-to-rule index
+- يُرجع تسجيل سياستين لهما نفس `(CompanyID, EffectiveDate)` أو نطاقان متداخلان الخطأ `ErrPolicyOverlap`.
 
-| Rule(s) | Primary reference(s) | Nature of relationship |
-| --- | --- | --- |
-| POL-001–005 | REF-001 (ADR P5-01, P11-04) | Project policy versioning and isolation rules |
-| POL-006–008 | REF-001 (AE-RULE-ACC-001) | Project eligibility and soft-close delegation |
-| POL-009 | REF-001 (ADR P5-01) | Project historical auditability fingerprint |
+### POL-004 — الفشل المغلق عند غياب السياسة الافتراضية (Fail-closed absence of default policy)
 
----
+**يجب ألّا (MUST NOT)** تُصنّع النواة سياسة `PostingPolicy` أو `CurrencyPolicy` افتراضية أو بديلة عند عدم وجود سياسة مسجلة للزوج `(CompanyID, EffectiveDate)`. و**يجب (MUST)** أن يُرجع الغياب الخطأ `ErrPolicyNotFound`.
 
-## 9. Appendices
+**معايير القبول**
 
-### Appendix A — Informative implementation guidance
+- يفشل الترحيل دون سياسات مسجلة بخطأ `ErrPolicyNotFound` قبل أي استدعاء للمنفّذ (`Executor`).
 
-- Host adapters implementing `storage.PolicyStore` should persist policy versions in append-only, non-overlapping history tables so historical `PolicyFingerprint` values remain verifiable after process restarts.
+### POL-005 — العزل الدفاعي للسياسات المخزنة (Defensive isolation of stored policies)
 
-### Appendix B — Rule traceability
+**يجب (MUST)** أن يقوم تسجيل السياسات والبحث عنها بنسخ القوائم القابلة للتعديل والحقول المرجعية دفاعياً (مثل `AllowedCurrencies` و`EffectiveTo`) بحيث لا تؤدي تعديلات المستدعي بعد التسجيل أو الحل إلى إفساد حالة السياسة الداخلية.
 
-| Rule ID | Summary | Classification | Source / Decision | Verification |
-| --- | --- | --- | --- | --- |
-| POL-001 | Company-scoped policy isolation | PROJECT-DECISION | ADR P5-01 | `TestPolicySelectionIsScopedAndFailsClosed` |
-| POL-002 | Half-open `[EffectiveDate, EffectiveTo)` window | PROJECT-DECISION | ADR P5-01 | `TestPolicyEffectiveDateBoundaryMatrix` |
-| POL-003 | Non-overlapping registration | PROJECT-DECISION | ADR P5-01 | `TestPolicyEngineRejectsUnresolvedOverlaps` |
-| POL-004 | Fail-closed when no policy exists | PROJECT-DECISION | ADR P5-01 | `TestPostEntryFailsClosedWithoutRegisteredPolicies` |
-| POL-005 | Defensive copy of stored policies | DERIVED-REQUIREMENT | Isolation invariant | `TestStoredPoliciesAreIsolatedFromSharedSlicesAndPointers` |
-| POL-006 | Currency policy & rounding account check | PROJECT-DECISION | AE-RULE-ACC-001 §3–4 | `TestCurrencyPolicyValidationAndRoundingAudit` |
-| POL-007 | Account eligibility matrix | PROJECT-DECISION | ADR P5-01 / AE-RULE-ACC-001 | `TestAccountEligibilityDecisionMatrix` |
-| POL-008 | Soft-close delegation to policy | PROJECT-DECISION | ADR P5-01 | `TestSelectedPostingPolicyControlsSoftCloseOnly` |
-| POL-009 | Canonical `PolicyFingerprint` | PROJECT-DECISION | ADR P5-01 | `TestPolicyFingerprintIsCanonicalAndContentBound` |
+**معايير القبول**
+
+- لا يؤدي تعديل قائمة `AllowedCurrencies` لدى المستدعي بعد تسجيل `CurrencyPolicy` إلى تغيير تقييمات السياسة اللاحقة.
 
 ---
 
-## 10. Version history
+## 5. أهلية الحساب والعملة والأبعاد
+
+### POL-006 — إنفاذ سياسة العملة (Currency policy enforcement)
+
+**يجب (MUST)** أن تكون عملة المعاملة `TransactionCurrency` لكل سطر مسموحاً بها بموجب `CurrencyPolicy` المحلولة. وإذا كان خيار `AutoSettleRoundingDifferences` مفعّلاً، **يجب (MUST)** أن يكون `RoundingDifferenceAccountID` غير صفري ومؤهلاً للترحيل؛ وإلا **يجب ألّا (MUST NOT)** تمضي تسوية التقريب قدماً.
+
+**معايير القبول**
+
+- تفشل عملة المعاملة غير المسموحة في `CurrencyPolicy` بخطأ `ErrCurrencyNotAllowed`.
+- يفشل تفعيل `AutoSettleRoundingDifferences` دون `RoundingDifferenceAccountID` صالح في التحقق من التقريب.
+
+### POL-007 — أهلية ترحيل الحساب (Account posting eligibility)
+
+**يجب (MUST)** أن يقيّم فحص أهلية الحساب لقطة الحساب مؤرخة النفاذ المحلولة عند `entry.EffectiveDate` و**يجب (MUST)** أن يرفض الترحيل إذا تحقق أي مما يلي:
+
+1. ينتمي الحساب إلى `CompanyID` مختلف عن القيد.
+2. الحساب غير نافذ عند `entry.EffectiveDate` (`ErrAccountNotEffective`).
+3. الحساب غير نشط (`IsActive == false`) أو موقوف (`Suspended`).
+4. الحساب حساب تجميعي رئيسي (`IsHeader == true`).
+5. الحساب حساب رقابة (`IsControlAccount == true`) (`ErrControlAccountNotPostable`).
+6. الحساب مقيد بعملة محددة لا تطابق عملة السطر.
+7. الحساب يحدد `RequiresCostCenter == true` (أو تشترط السياسة مراكز التكلفة) ويفتقر السطر إلى `CostCenterID` صالح.
+
+**معايير القبول**
+
+- يُرفض حساب الرقابة أو الحساب غير النشط أو الخارج عن نافذة النفاذ صراحةً حتى لو كان القيد متوازناً.
+- يُفرض شرط `RequiresCostCenter` على مستوى الحساب حتى عندما لا تفرض سياسة الشركة مراكز التكلفة بصورة عامة.
+
+### POL-008 — تفويض سياسة الإقفال الناعم (Soft-close policy delegation)
+
+تحكم الراية `PostingPolicy.AllowSoftClosedPosting` ما إذا كانت الفترة المالية بحالة `SOFT_CLOSED` مقبولة أثناء الترحيل. و**يجب ألّا (MUST NOT)** يفرض محرك السياسات أدوار المستخدمين، أو موافقات المديرين، أو تجاوزات `HARD_CLOSED`؛ وتظل ملكية إنفاذ حالة إقفال الفترة تابعةً لحزمة `masterdata`.
+
+**معايير القبول**
+
+- تسمح `AllowSoftClosedPosting == true` بالترحيل في فترة `SOFT_CLOSED`، بينما تظل `HARD_CLOSED` مرفوضة دون شروط.
+
+---
+
+## 6. البصمة القانونية للسياسة (Canonical policy fingerprinting)
+
+### POL-009 — بصمة `PolicyFingerprint` الحتمية المرتبطة بالمحتوى
+
+عند نجاح التحقق، **يجب (MUST)** أن يحسب أنبوب الترحيل ويثبت `PolicyFingerprint` (`sha256:<hex>`) على القيد المجمد من التمثيل القانوني الموحد (`Canonical representation`) للحقول الدلالية التالية في `PostingPolicy` و`CurrencyPolicy` المحلولتين:
+
+- `CompanyID`، وتاريخا `EffectiveDate` و`EffectiveTo` لكل سياسة؛
+- `AllowSoftClosedPosting`، وإلزامية الأبعاد، وحدود الترحيل المعتمدة؛
+- `FunctionalCurrency`، وقائمة `AllowedCurrencies` (مفروزةً معجمياً)، و`AutoSettleRoundingDifferences`، و`RoundingDifferenceAccountID`، وطريقة التقريب.
+
+**يجب ألّا (MUST NOT)** يدخل رقم إصدار التخزين (`Version` في `PolicyVersion`) ضمن مدخلات البصمة (`ADR P11-04 §7`)، و**يجب (MUST)** أن تكون `PolicyFingerprint` دليل تدقيق فقط تشمله فحوصات عدم القابلية للتعديل بعد الترحيل.
+
+**معايير القبول**
+
+- ينتج عن إعادة ترتيب `AllowedCurrencies` أو تغيير رقم إصدار التخزين دون تغيير دلالي نفس `PolicyFingerprint` بالضبط.
+- ينتج عن تغيير أي حقل دلالي في السياسة بصمة `PolicyFingerprint` مختلفة.
+
+---
+
+## 7. عقد الأخطاء (Error Contract)
+
+| فئة الخطأ | شرط التحفيز | توقيت الاكتشاف |
+|---|---|---|
+| `ErrPolicyNotFound` | لا توجد سياسة تغطي `(CompanyID, EffectiveDate)` | حل السياسة |
+| `ErrPolicyOverlap` | تكرار `EffectiveDate` أو تداخل نافذة | تسجيل السياسة |
+| `ErrCurrencyNotAllowed` | عملة السطر مستبعدة من `CurrencyPolicy` | فحص عملة السطر |
+| `ErrAccountNotEffective` | الحساب غير نافذ عند `entry.EffectiveDate` | أهلية الحساب |
+| `ErrControlAccountNotPostable` | ترحيل مباشر على `IsControlAccount == true` | أهلية الحساب |
+| `ErrCostCenterRequired` | غياب `CostCenterID` عند إلزاميته بالحساب أو السياسة | أهلية الحساب |
+
+---
+
+## 8. المراجع (References)
+
+### REF-001 — RFC 2119 & RFC 8174
+
+- **العنوان الكامل:** Key words for use in RFCs to Indicate Requirement Levels (RFC 2119); Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words (RFC 8174).
+- **الجهة الناشرة:** IETF.
+- **الروابط الرسمية:** <https://www.rfc-editor.org/rfc/rfc2119>, <https://www.rfc-editor.org/rfc/rfc8174>
+- **القيود:** يحدد اللغة المعيارية فقط.
+
+### REF-002 — قرارات الهندسة المعمارية وقواعد السياسات في Accountant Engine
+
+- **المصادر الداخلية:** `docs/ard/P5_01_policy_selection_and_historical_interpretation.md`، `docs/ard/P11_04_versioned_policy_store.md`، `docs/ACCOUNTING_BUSINESS_RULES.md` (§5)، `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` (§3).
+- **مستخدم في:** نوافذ النفاذ نصف المفتوحة، رفض التداخل، الحل الفاشل مغلقاً، مصفوفة الأهلية، وبصمة السياسة القانونية (`POL-001–009`).
+
+### فهرس ربط المراجع بالقواعد
+
+| القاعدة/القواعد | المرجع الأساسي | طبيعة العلاقة |
+|---|---|---|
+| POL-001–005 | REF-002 (ADR P5-01, P11-04) | قواعد المشروع لإصدار السياسات وعزلها |
+| POL-006–008 | REF-002 (AE-RULE-ACC-001) | قواعد المشروع للأهلية وتفويض الإقفال الناعم |
+| POL-009 | REF-002 (ADR P5-01, ADR P11-04 §7) | بصمة المشروع لقابلية التدقيق التاريخي واستبعاد رقم الإصدار |
+
+---
+
+## 9. الملاحق (Appendices)
+
+### الملحق أ — سجل القرارات الهندسية (Decision Log)
+
+- **DEC-POL-001 (النوافذ نصف المفتوحة):** اعتماد `[EffectiveDate, EffectiveTo)` للسياسات (`ADR P5-01`) لتسهيل سلاسل الإصدارات المتعاقبة والفجوات الفاشلة مغلقاً.
+- **DEC-POL-002 (استبعاد رقم الإصدار من `PolicyFingerprint`):** تضمين الحقول الدلالية فقط دون رقم إصدار قاعدة البيانات (`ADR P11-04 §7`).
+
+### الملحق ب — تتبع القواعد (Rule traceability)
+
+| معرّف القاعدة | الملخص | التصنيف | المصدر / القرار | معيار التحقق |
+|---|---|---|---|---|
+| POL-001 | عزل السياسة على مستوى الشركة | PROJECT-DECISION | ADR P5-01 | اختبار فشل `CompanyID` صفري أو غير مسجل |
+| POL-002 | نافذة `[EffectiveDate, EffectiveTo)` نصف مفتوحة | PROJECT-DECISION | ADR P5-01 | اختبار حدود `asOf == EffectiveTo` والفجوات |
+| POL-003 | تسجيل غير متداخل | PROJECT-DECISION | ADR P5-01 | اختبار رفض التداخل والتكرار والتزامن |
+| POL-004 | فشل مغلق عند غياب السياسة | PROJECT-DECISION | ADR P5-01 | اختبار غياب السياسة دون تصنيع افتراضي |
+| POL-005 | نسخ دفاعي للسياسات المخزنة | DERIVED-REQUIREMENT | ثابت العزل | اختبار تعديل شريحة المستدعي بعد التسجيل |
+| POL-006 | سياسة العملة وفحص حساب التقريب | PROJECT-DECISION | AE-RULE-ACC-001 §3–4 | اختبار العملة الممنوعة وحساب التقريب |
+| POL-007 | مصفوفة أهلية الحساب | PROJECT-DECISION | ADR P5-01 / AE-RULE-ACC-001 | اختبار مصفوفة شروط الأهلية السبعة |
+| POL-008 | تفويض الإقفال الناعم للسياسة | PROJECT-DECISION | ADR P5-01 | اختبار `SOFT_CLOSED` مقابل `HARD_CLOSED` |
+| POL-009 | بصمة `PolicyFingerprint` القانونية | PROJECT-DECISION | ADR P5-01 / P11-04 | اختبار ثبات البصمة واستقلالها عن الترتيب |
+
+---
+
+## 10. سجل الإصدارات (Version history)
+
+### v1.1.0
+
+- حصر الحقول الدلالية الداخلة في `PolicyFingerprint` وتوثيق استبعاد رقم الإصدار في `POL-009` (`ADR P11-04 §7`).
+- استيفاء مراجع `RFC 2119/8174` وتجريد المتن من أسماء دوال واختبارات Go، وإضافة سجل القرارات.
 
 ### v1.0.0
 
-- Initial standalone normative specification for the kernel accounting policy domain.
-
+- المواصفة المعيارية المستقلة الأولية لمجال السياسات المحاسبية في النواة.

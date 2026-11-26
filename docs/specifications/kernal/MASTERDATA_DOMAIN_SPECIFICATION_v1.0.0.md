@@ -1,306 +1,333 @@
-# Master Data Domain Specification
+# مواصفات مجال البيانات الرئيسية (Master Data Domain Specification)
 
-**Version:** 1.0.0  
-**Document type:** Standalone domain specification  
-**Conformance status:** Normative  
-**Scope:** Company scope, Chart of Accounts, account classification and hierarchy, journals, fiscal calendars, adjustment periods (13 and 14), analytical dimensions, and effective-dating contracts.
-
----
-
-## 1. Purpose
-
-This document defines the externally observable domain contract for accounting master data within the kernel. It governs the structural validity, company isolation, hierarchical integrity, fiscal calendar boundaries, and effective-dated lookup semantics for companies, accounts, journals, fiscal years/periods, cost centers, and analytical dimensions.
-
-This document does not prescribe a programming language, database schema, caching mechanism, or adapter implementation.
-
-### 1.1 Normative language
-
-The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as normative requirement terms per RFC 2119 and RFC 8174:
-
-- **MUST / MUST NOT:** absolute requirement or prohibition for conformance.
-- **SHOULD / SHOULD NOT:** recommended requirement; deviations require a documented reason.
-- **MAY:** permitted behavior.
-
-### 1.2 Scope boundary
-
-This specification governs master data domain rules and read-port contracts within the accounting kernel. Posting pipeline execution belongs to `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. Policy selection and account eligibility engines belong to `ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md`. Physical storage, SQL schemas, Row-Level Security (RLS), and master data CRUD APIs belong to the host/adapter layers.
+**الإصدار:** 1.1.0  
+**نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة المطابقة:** معياري إلزامي (Normative)  
+**النطاق:** نطاق الشركة (`Company scope`)، شجرة الحسابات (`Chart of Accounts`)، تصنيف الحسابات وتقييد عملتها وتسلسلها الهرمي، اليوميات (`Journals`)، التقويمات المالية (`Fiscal calendars`) وعدم تداخل السنوات المالية، فترات التسوية (`13` و`14`)، الأبعاد التحليلية (`Analytical dimensions`)، وعقود التأريخ بالنفاذ (`Effective-dating contracts`) وتطبيع أيام UTC.
 
 ---
 
-## 2. Conformance
+## 1. الغرض (Purpose)
 
-An implementation conforms to this specification only when all applicable normative requirements are satisfied.
+يُعرّف هذا المستند العقد المجالي القابل للملاحظة خارجياً للبيانات المالية الرئيسية (`Accounting master data`) داخل النواة. وهو يحكم الصلاحية البنيوية، وعزل الشركة، والسلامة الهرمية، وحدود التقويم المالي، ودلالات البحث المؤرخ بالنفاذ للشركات، والحسابات، واليوميات، والسنوات/الفترات المالية، ومراكز التكلفة، والأبعاد التحليلية.
 
-### 2.1 Conformance requirements
+لا يفرض هذا المستند لغة برمجة، أو مخطط قاعدة بيانات، أو آلية تخزين مؤقت، أو تنفيذ محول (`Adapter implementation`).
 
-A conforming implementation:
+### 1.1 اللغة المعيارية (Normative language)
 
-1. MUST satisfy every normative rule in §§4–8.
-2. MUST enforce company-scope isolation before any repository read.
-3. MUST enforce closed/non-inverted effective-date ranges and acyclic hierarchies.
-4. MUST treat adjustment periods 13 and 14 as procedural containers excluded from calendar date matching.
-5. MUST fail closed when required master data or readers are missing, inactive, or mismatched.
+تُفسَّر المصطلحات **يجب (MUST)**، و**يجب ألّا (MUST NOT)**، و**ينبغي (SHOULD)**، و**ينبغي ألّا (SHOULD NOT)**، و**يجوز (MAY)** بوصفها مصطلحات متطلبات معيارية وفق `RFC 2119` و`RFC 8174`:
 
-### 2.2 Conformance evidence
+- **يجب / يجب ألّا (MUST / MUST NOT):** متطلب أو حظر مُطلَق للمطابقة.
+- **ينبغي / ينبغي ألّا (SHOULD / SHOULD NOT):** متطلب مُوصى به؛ وأي انحراف عنه يتطلب سبباً موثقاً.
+- **يجوز (MAY):** سلوك مسموح به.
 
-Conformance can be demonstrated through:
+### 1.2 حدود النطاق (Scope boundary)
 
-- zero `CompanyID` fail-closed tests before reader access;
-- COA hierarchy cycle-detection and cross-company rejection tests;
-- fiscal calendar boundary, non-1st-of-month start, and period 13/14 `Contains(date)` tests;
-- close-state matrix tests (`OPEN`, `SOFT_CLOSED`, `HARD_CLOSED`) for both period and year;
-- effective-dating boundary tests using injected clocks and versioned account readers.
-
-### 2.3 Partial conformance
-
-An implementation that omits `EffectiveAccountReader` or `AdjustmentPeriodReader` MUST disclose that historical account versioning or adjustment periods 13/14 are unsupported, and MUST fail closed when those capabilities are invoked.
+تحكم هذه المواصفات قواعد مجال البيانات الرئيسية وعقود منافذ القراءة داخل النواة المحاسبية. ويعود تنفيذ أنبوب الترحيل إلى `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. ويعود اختيار السياسات ومحركات أهلية الحسابات إلى `ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md`. أما التخزين المادي، ومخططات `SQL`، وأمن مستوى الصفوف (`RLS`)، وواجهات CRUD للبيانات الرئيسية فتعود إلى طبقات المضيف/المحول.
 
 ---
 
-## 3. Terms and definitions
+## 2. المطابقة (Conformance)
 
-- **Chart of Accounts (COA):** The hierarchical catalog of accounts belonging to a single company.
-- **Header Account:** A non-postable structural/grouping account (`IsHeader == true`) used for hierarchy and reporting aggregation.
-- **Leaf (Postable) Account:** A non-header account (`IsHeader == false`) eligible to receive journal entry postings.
-- **Control Account:** A postable account (`IsControlAccount == true`) reserved for specialized subledger integration and prohibited from general-ledger direct posting.
-- **Fiscal Year:** A contiguous accounting period span for a company with explicit `StartDate`, `EndDate`, and close state.
-- **Fiscal Period:** A numbered accounting period within a fiscal year. Regular periods are typically 1–12; adjustment periods are 13 and 14.
-- **Adjustment Period (13 / 14):** Procedural year-end (13) or external-audit (14) period anchored to the fiscal year end date and selectable only by explicit target period number.
-- **Effective-Dating:** Associating master data records with `[EffectiveFrom, EffectiveTo]` validity bounds so historical transactions are validated against the version active at their `EffectiveDate`.
+لا يُعدّ أي تنفيذ مطابقاً لهذه المواصفات إلّا عند استيفاء جميع المتطلبات المعيارية المنطبقة.
 
----
+### 2.1 متطلبات المطابقة (Conformance requirements)
 
-## 4. Company scope and isolation
+التنفيذ المطابق:
 
-### MD-001 — Fail-closed company scope
+1. **يجب (MUST)** أن يستوفي كل قاعدة معيارية في الأقسام من §4 إلى §8.
+2. **يجب (MUST)** أن يفرض عزل نطاق الشركة قبل أي قراءة من المستودع.
+3. **يجب (MUST)** أن يفرض نطاقات تاريخ سريان مغلقة غير معكوسة وغير متداخلة لإصدارات الحسابات (`AccountVersion`) وتسلسلات هرمية خالية من الدورات.
+4. **يجب (MUST)** أن يعامل فترتي التسوية 13 و14 بوصفهما وعاءين إجرائيين مستبعدين من مطابقة التواريخ التقويمية.
+5. **يجب (MUST)** أن يفشل مغلقاً عند فقدان البيانات الرئيسية المطلوبة أو القراء أو عدم نشاطها أو عدم تطابقها.
 
-Every master data validation or read path MUST reject a zero `CompanyID` with `ErrCompanyScopeRequired` before invoking any external reader or repository.
+### 2.2 أدلة المطابقة (Conformance evidence)
 
-**Acceptance criteria**
+يمكن إثبات المطابقة من خلال:
 
-- Passing a zero `CompanyID` to scope, account, journal, or period validation returns `ErrCompanyScopeRequired` without calling the reader.
+- اختبارات الفشل المغلق لـ `CompanyID` الصفري قبل الوصول إلى القارئ؛
+- اختبارات اكتشاف الدورات في التسلسل الهرمي لشجرة الحسابات (`COA`) ورفض الاختلاط عبر الشركات؛
+- اختبارات تطبيع أيام UTC ورفض تداخل إصدارات الحساب؛
+- اختبارات حدود التقويم المالي، وعدم تداخل السنوات المالية، والبداية في غير اليوم الأول من الشهر، والفترتين 13/14؛
+- اختبارات مصفوفة حالات الإقفال (`OPEN`, `SOFT_CLOSED`, `HARD_CLOSED`) لكل من الفترة والسنة؛
+- اختبارات حدود التأريخ بالنفاذ باستخدام ساعات محقونة وقراء حسابات مؤرخين.
 
-### MD-002 — Mandatory functional currency on company
+### 2.3 المطابقة الجزئية (Partial conformance)
 
-Every valid company record MUST define a valid, active ISO 4217 `FunctionalCurrency` (excluding `XXX`). A company missing a functional currency or configured with `XXX` MUST fail validation.
-
-**Acceptance criteria**
-
-- A company with empty or `XXX` functional currency is rejected before posting.
-
-### MD-003 — Cross-company entity rejection
-
-Any account, journal, fiscal year, fiscal period, cost center, or analytical dimension whose `CompanyID` does not match the target `CompanyID` MUST be rejected explicitly (e.g., `ErrAccountIdentityMismatch` or `ErrCompanyScopeRequired`).
-
-**Acceptance criteria**
-
-- An account belonging to Company B cannot be resolved or posted to in an operation scoped to Company A.
+**يجب (MUST)** على التنفيذ الذي يغفل قارئ الحسابات المؤرخ (`EffectiveAccountReader`) أو قارئ فترات التسوية (`AdjustmentPeriodReader`) الإفصاح عن أن الإصدارات التاريخية للحسابات أو فترتي التسوية 13/14 غير مدعومة، و**يجب (MUST)** أن يفشل مغلقاً عند استدعاء تلك القدرات.
 
 ---
 
-## 5. Chart of Accounts and hierarchies
+## 3. المصطلحات والتعاريف (Terms and definitions)
 
-### MD-004 — Five-element accounting classification
-
-Every account MUST belong to exactly one of the five canonical account types with its standard normal balance:
-
-1. `Asset` (Debit normal)
-2. `Liability` (Credit normal)
-3. `Equity` (Credit normal)
-4. `Revenue` (Credit normal)
-5. `Expense` (Debit normal)
-
-**Acceptance criteria**
-
-- An account with an unrecognized or empty account type fails validation.
-
-### MD-005 — Header accounts are non-postable
-
-Header accounts (`IsHeader == true`) MUST NOT accept postings. Posting validation MUST reject any line referencing a header account (`ErrHeaderAccountPosting`).
-
-**Acceptance criteria**
-
-- Attempting to validate or post to an account with `IsHeader == true` fails explicitly.
-
-### MD-006 — Acyclic single-company hierarchy
-
-A Chart of Accounts hierarchy and Cost Center hierarchy MUST be a forest/tree free of cycles (direct self-parenting or multi-hop cycles). Furthermore, a parent account or cost center MUST belong to the same `CompanyID` as its child; cross-company parent links MUST be rejected (`ErrAccountIdentityMismatch`).
-
-**Acceptance criteria**
-
-- A cycle `A -> B -> A` or `A -> A` is detected and rejected in both COA and Cost Center hierarchies.
-- A COA snapshot mixing accounts from two different companies is rejected before tree construction.
-
-### MD-007 — Account effective-dating range
-
-Account validity windows `[EffectiveFrom, EffectiveTo]` MUST NOT be inverted (`EffectiveTo < EffectiveFrom` fails with `ErrInvalidEffectiveRange`). Both bounds are inclusive; `EffectiveTo == nil` indicates open-ended validity.
-
-**Acceptance criteria**
-
-- An account with `EffectiveTo` earlier than `EffectiveFrom` fails `Validate()`.
-- An account queried at `asOf` outside `[EffectiveFrom, EffectiveTo]` fails with `ErrAccountNotCurrent`.
-
-### MD-008 — Versioned account resolution without system clock
-
-Domain validation MUST NOT read `time.Now()` directly; it MUST use the transaction's `EffectiveDate` (via `ValidateCanPostToAccountAsOf`) or an injected `Clock`. When the adapter implements `EffectiveAccountReader`, the kernel MUST resolve the account version via `GetAccountAsOf(ctx, companyID, accountID, asOf)`.
-
-**Acceptance criteria**
-
-- Historical posting uses the account version effective at `EffectiveDate`, not the current wall-clock state.
+- **شجرة الحسابات (`Chart of Accounts` / `COA`):** الفهرس الهرمي للحسابات التابعة لشركة واحدة.
+- **الحساب التجميعي الرئيسي (`Header Account`):** حساب بنيوي/تجميعي غير قابل للترحيل (`IsHeader == true`) يُستخدم للهيكلة وتجميع التقارير.
+- **الحساب الطرفي القابل للترحيل (`Leaf / Postable Account`):** حساب غير تجميعي (`IsHeader == false`) مؤهل لتلقي ترحيلات قيود اليومية.
+- **حساب الرقابة (`Control Account`):** حساب قابل للترحيل (`IsControlAccount == true`) مخصص لتكامل الدفاتر الفرعية المتخصصة ومحظور من الترحيل المباشر في الأستاذ العام.
+- **السنة المالية (`Fiscal Year`):** مدى زمني محاسبي متصل لشركة مع `StartDate` و`EndDate` وحالة إقفال صريحة.
+- **الفترة المالية (`Fiscal Period`):** فترة محاسبية مرقمة داخل سنة مالية. الفترات الاعتيادية عادةً من 1 إلى 12؛ وفترتا التسوية هما 13 و14.
+- **فترة التسوية (`Adjustment Period 13 / 14`):** فترة إجرائية لنهاية السنة (13) أو لمراجعة التدقيق الخارجي (14) مثبتة عند تاريخ نهاية السنة المالية وقابلة للاختيار حصراً برقم الفترة المستهدف الصريح.
+- **التأريخ بالنفاذ (`Effective-Dating`):** ربط سجلات البيانات الرئيسية بحدود صلاحية مغلقة `[EffectiveFrom, EffectiveTo]` بتوقيت UTC بحيث تُحقق المعاملات التاريخية مقابل الإصدار النافذ عند `EffectiveDate` الخاص بها.
 
 ---
 
-## 6. Journals and analytical dimensions
+## 4. نطاق الشركة والعزل
 
-### MD-009 — Journal scope, currency, and allow-list enforcement
+### MD-001 — نطاق الشركة الفاشل مغلقاً (Fail-closed company scope)
 
-Every posting MUST reference a valid, active journal belonging to the same `CompanyID` and effective at `EffectiveDate`. If the journal defines currency or account allow-lists (non-empty), every line's transaction currency and account MUST be permitted by those lists; duplicate entries in allow-lists MUST be rejected. An empty allow-list imposes no restriction.
+**يجب (MUST)** أن يرفض كل مسار تحقق أو قراءة للبيانات الرئيسية معرّف `CompanyID` صفرياً بخطأ `ErrCompanyScopeRequired` قبل استدعاء أي قارئ خارجي أو مستودع.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- A journal from another company or outside its effective window fails validation.
-- A line using a currency or account excluded from a non-empty journal allow-list fails with `ErrJournalCurrency` or `ErrJournalAccount`.
+- يُرجع تمرير `CompanyID` صفري إلى تحقق النطاق أو الحساب أو اليومية أو الفترة الخطأ `ErrCompanyScopeRequired` دون استدعاء القارئ.
 
-### MD-010 — Cost centers and analytical dimensions
+### MD-002 — العملة الوظيفية الإلزامية على الشركة
 
-When a line specifies a `CostCenterID` or other analytical dimension IDs, the corresponding repository MUST be available and MUST confirm that the dimension exists, belongs to the same `CompanyID`, and is active (`IsActive == true`) at the transaction date.
+**يجب (MUST)** أن يحدد كل سجل شركة صالح عملة `FunctionalCurrency` صالحة ونشطة وفق `ISO 4217` (باستثناء `XXX`). و**يجب (MUST)** أن تفشل الشركة التي تفتقر إلى عملة وظيفية أو المضبوطة على `XXX` في التحقق.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- Specifying a dimension ID when its repository is nil fails with `ErrDimensionReaderRequired`.
-- Specifying an inactive or cross-company dimension fails with `ErrInactiveFinancialDimension` or a scope mismatch error.
+- تُرفض الشركة ذات العملة الوظيفية الفارغة أو `XXX` قبل الترحيل.
 
----
+### MD-003 — رفض الكيان العابر للشركات (Cross-company entity rejection)
 
-## 7. Fiscal calendars, close states, and adjustment periods
+**يجب (MUST)** رفض أي حساب، أو يومية، أو سنة مالية، أو فترة مالية، أو مركز تكلفة، أو بُعد تحليلي لا يطابق `CompanyID` الخاص به معرّف `CompanyID` المستهدف صراحةً (مثل `ErrAccountIdentityMismatch` أو `ErrCompanyScopeRequired`).
 
-### MD-011 — Dual fiscal period and year validation
+**معايير القبول**
 
-Every posting MUST fall within a valid, company-scoped `FiscalPeriod` and its parent `FiscalYear`. Validation MUST verify that:
-
-1. `CompanyID`, `FiscalPeriodID`, and `FiscalYearID` are non-zero and mutually consistent.
-2. The period's date range lies within the fiscal year's `[StartDate, EndDate]`.
-3. For regular periods (1–12), `EffectiveDate` falls within the period's `[StartDate, EndDate]`.
-
-**Acceptance criteria**
-
-- A period belonging to a different year or company, or whose boundaries exceed its fiscal year, is rejected.
-
-### MD-012 — Calendar continuity and non-1st-of-month fiscal years
-
-Fiscal calendars MUST support fiscal years starting on any calendar day (not only the 1st of a month) without month-end drift, overlapping periods, or uncovered date gaps.
-
-**Acceptance criteria**
-
-- A fiscal year starting mid-month produces contiguous, non-overlapping periods covering the entire year without gaps.
-
-### MD-013 — Close-state matrix (`OPEN`, `SOFT_CLOSED`, `HARD_CLOSED`)
-
-Both `FiscalPeriod` and `FiscalYear` support three close states:
-
-- `OPEN`: posting is permitted.
-- `SOFT_CLOSED`: posting is rejected by default (`ErrClosedPeriod`) and permitted **only** when the effective `PostingPolicy` explicitly sets `AllowSoftClosedPosting == true`. No user-role or manager-approval check exists in the kernel.
-- `HARD_CLOSED`: posting is unconditionally prohibited.
-
-**Acceptance criteria**
-
-- `HARD_CLOSED` on either the period or the year always rejects posting regardless of policy.
-- `SOFT_CLOSED` rejects posting unless `AllowSoftClosedPosting == true` in the selected policy.
-
-### MD-014 — Audited period reopening without kernel RBAC
-
-Reopening a closed period within the kernel MUST record `ActorID` and a non-empty `Reason` for auditability. The kernel MUST NOT enforce RBAC or approval workflows for reopening; authorization belongs to the host.
-
-**Acceptance criteria**
-
-- Reopening without an `ActorID` or `Reason` is rejected.
-
-### MD-015 — Adjustment periods 13 and 14 invariant
-
-Adjustment periods 13 (year-end adjustments) and 14 (external audit adjustments) are procedural containers anchored to `FiscalYear.EndDate` rather than calendar date ranges:
-
-1. `FiscalPeriod.Contains(date)` MUST always return `false` for periods 13 and 14.
-2. Regular calendar-date period lookup MUST NOT select periods 13 or 14.
-3. Periods 13 and 14 MUST ONLY be targeted by explicit `TargetPeriodNumber` (13 or 14) paired with compatible entry classification metadata.
-
-**Acceptance criteria**
-
-- Calling `Contains(date)` on period 13 or 14 returns `false` for all dates, including `FiscalYear.EndDate`.
-- Posting to period 13 or 14 without explicit target period number and matching classification fails with `ErrInvalidAdjustmentPeriod`.
+- لا يمكن حل حساب تابع للشركة (ب) أو الترحيل إليه في عملية مقيدة بنطاق الشركة (أ).
 
 ---
 
-## 8. Error Contract
+## 5. شجرة الحسابات والتسلسلات الهرمية
 
-| Error Category | Trigger Condition | Detection Timing |
-| --- | --- | --- |
-| `ErrCompanyScopeRequired` | Zero `CompanyID` or cross-company mismatch | Before any reader call |
-| `ErrAccountIdentityMismatch` | Cross-company account or parent link | Account/COA validation |
-| `ErrHeaderAccountPosting` | Posting to account with `IsHeader == true` | Account eligibility/validation |
-| `ErrInvalidEffectiveRange` | `EffectiveTo < EffectiveFrom` | Master data validation |
-| `ErrAccountNotCurrent` | `asOf` outside account `[EffectiveFrom, EffectiveTo]` | Account validation |
-| `ErrJournalReaderRequired` / `ErrInvalidJournal` | Missing journal reader, unknown journal, or out-of-range journal | Journal validation |
-| `ErrJournalCurrency` / `ErrJournalAccount` | Line violates journal allow-list | Journal allow-list check |
-| `ErrDimensionReaderRequired` / `ErrInactiveFinancialDimension` | Missing dimension reader or inactive/invalid dimension | Dimension validation |
-| `ErrClosedPeriod` / `ErrPeriodNotFound` | Period/year closed or no matching period | Fiscal period validation |
-| `ErrInvalidAdjustmentPeriod` | Invalid period 13/14 targeting or classification mismatch | Adjustment period validation |
+### MD-004 — التصنيف المحاسبي الخماسي وتقييد عملة الحساب
 
----
+**يجب (MUST)** أن ينتمي كل حساب إلى واحد بالضبط من أنواع الحسابات القانونية الخمسة مع رصيده الطبيعي القياسي (`Conceptual Framework 2018 Ch. 4`):
 
-## 9. References
+1. `Asset` (مدين طبيعي)
+2. `Liability` (دائن طبيعي)
+3. `Equity` (دائن طبيعي)
+4. `Revenue` (دائن طبيعي)
+5. `Expense` (مدين طبيعي)
 
-### REF-001 — Accountant Engine Business Rules & Architecture
+إذا حدد الحساب عملة مقيدة (`Restricted Currency`)، **يجب (MUST)** أن تكون رمز `ISO 4217` صالحاً ونشطاً (وليست `XXX`).
 
-- **Internal sources:** `docs/ACCOUNTING_BUSINESS_RULES.md` (§§5–6), `docs/KERNEL_ARCHITECTURE_MAP.md`, `docs/ard/P3_01_masterdata_effective_dating.md`, `docs/ard/P1_03_reference_model_duality.md`.
-- **Used for:** Company scope, COA hierarchy, effective-dating ports, fiscal calendar, and adjustment period invariants (`MD-001–015`).
+**معايير القبول**
 
-### REF-002 — Conceptual Framework for Financial Reporting (IASB)
+- يفشل الحساب ذو نوع الحساب غير المعترف به أو الفارغ في التحقق.
+- يُرفض تقييد الحساب بعملة `XXX` أو برمز غير صالح.
 
-- **Title:** Conceptual Framework for Financial Reporting (2018), Chapter 4 (The Elements of Financial Statements).
-- **Used for:** Five-element classification (Assets, Liabilities, Equity, Income/Revenue, Expenses) in `MD-004`.
+### MD-005 — حظر الترحيل على الحسابات التجميعية (`Header accounts`)
 
-### Reference-to-rule index
+**يجب ألّا (MUST NOT)** تقبل الحسابات التجميعية (`IsHeader == true`) الترحيلات. و**يجب (MUST)** أن يرفض التحقق من الترحيل أي سطر يشير إلى حساب تجميعي (`ErrHeaderAccountPosting`).
 
-| Rule(s) | Primary reference(s) | Nature of relationship |
-| --- | --- | --- |
-| MD-001–003 | REF-001 | Project multi-tenancy and fail-closed scope policy |
-| MD-004 | REF-002 | Standard accounting element classification |
-| MD-005–015 | REF-001 | Project COA, journal, dimension, and fiscal calendar rules |
+**معايير القبول**
 
----
+- تفشل محاولة التحقق أو الترحيل إلى حساب يحمل `IsHeader == true` صراحةً.
 
-## 10. Appendices
+### MD-006 — التسلسل الهرمي الخالي من الدورات لشركة واحدة
 
-### Appendix A — Informative implementation guidance
+**يجب (MUST)** أن يكون التسلسل الهرمي لشجرة الحسابات (`COA`) والتسلسل الهرمي لمراكز التكلفة غابة/شجرةً خاليةً من الدورات (التبعية المباشرة للذات أو الدورات متعددة القفزات). وعلاوة على ذلك، **يجب (MUST)** أن ينتمي الحساب الأب أو مركز التكلفة الأب إلى نفس `CompanyID` الخاص بفرعه؛ و**يجب (MUST)** رفض الروابط الأبوية العابرة للشركات (`ErrAccountIdentityMismatch`).
 
-- Host adapters should store effective-dated snapshots of accounts, journals, and periods so historical postings remain reproducible without mutating past interpretations.
-- Reference DTOs in `ledger` exist for public API compatibility and must not drift from `masterdata` canonical models.
+**معايير القبول**
 
-### Appendix B — Rule traceability
+- تُكتشف وتُرفض الدورة `A -> B -> A` أو `A -> A` في كل من التسلسل الهرمي لـ COA ومراكز التكلفة.
+- تُرفض لقطة COA التي تخلط حسابات من شركتين مختلفتين قبل بناء الشجرة.
 
-| Rule ID | Summary | Classification | Source / Decision | Verification |
-| --- | --- | --- | --- | --- |
-| MD-001 | Fail-closed zero CompanyID | PROJECT-DECISION | ADR P3-01 | `TestCompanyScopeFailsClosedWithoutRepositoryAccess` |
-| MD-002 | Valid functional currency on company | PROJECT-DECISION | AE-RULE-ACC-001 §1 | Company validation tests |
-| MD-003 | Cross-company entity rejection | PROJECT-DECISION | ADR P3-01 | Scope mismatch tests |
-| MD-004 | Five-element account classification | SOURCE-MANDATED | REF-002 Ch. 4 | Account type validation tests |
-| MD-005 | Header accounts non-postable | PROJECT-DECISION | AE-RULE-ACC-001 §5 | Header posting rejection tests |
-| MD-006 | Acyclic single-company hierarchy | PROJECT-DECISION | ADR P3-01 | Cycle & cross-company tests |
-| MD-007 | Non-inverted effective range | PROJECT-DECISION | ADR P3-01 | `FuzzEffectiveRangeValidationNeverPanics` |
-| MD-008 | Injected clock & versioned reader | PROJECT-DECISION | ADR P3-01 | Effective-dating tests |
-| MD-009 | Journal scope & allow-lists | PROJECT-DECISION | AE-RULE-ACC-001 §5 | Journal allow-list tests |
-| MD-010 | Dimension reader & active check | PROJECT-DECISION | Posting flow step 13 | Dimension rejection tests |
-| MD-011 | Dual period & year validation | PROJECT-DECISION | AE-RULE-ACC-001 §6 | Fiscal calendar matrix tests |
-| MD-012 | Non-1st-of-month continuity | PROJECT-DECISION | AE-RULE-ACC-001 §6 | Calendar boundary tests |
-| MD-013 | Close-state matrix | PROJECT-DECISION | ADR P3-01 / P5-01 | Close-state matrix tests |
-| MD-014 | Audited reopening without RBAC | PROJECT-DECISION | AE-RULE-ACC-001 §6–7 | Reopen audit tests |
-| MD-015 | Adjustment periods 13/14 invariant | PROJECT-DECISION | AE-RULE-ACC-001 §6 | Adjustment period tests |
+### MD-007 — نطاق التأريخ بالنفاذ للحساب وتطبيع أيام UTC وعدم التداخل
+
+**يجب (MUST)** أن تكون نوافذ صلاحية الحساب `[EffectiveFrom, EffectiveTo]` مغلقة الطرفين بتوقيت UTC (على عكس النوافذ نصف المفتوحة للسياسات في `POL-002` حتى يظل آخر يوم من الصلاحية شاملاً وفق `ADR P11-02`):
+
+1. **تطبيع الحدود اليومية:** يُطبَّع `EffectiveFrom` إلى منتصف ليل UTC (`00:00:00Z`) ويُطبَّع `EffectiveTo` (إن وُجد) إلى آخر نانو ثانية من يوم UTC (`23:59:59.999999999Z`). ويمثل غياب `EffectiveTo` صلاحيةً مفتوحة النهاية.
+2. **منع الانعكاس:** **يجب ألّا (MUST NOT)** يكون النطاق معكوساً (`EffectiveTo < EffectiveFrom` يفشل بخطأ `ErrInvalidEffectiveRange`).
+3. **منع تداخل الإصدارات:** **يجب (MUST)** رفض حفظ أو تسجيل إصدار حساب (`AccountVersion`) تتداخل نافذته مع أي إصدار قائم لنفس `(CompanyID, AccountID)`؛ ويجب أن يكون كل إصدار لقطةً كاملةً غير قابلة للتعديل.
+
+**معايير القبول**
+
+- يفشل الحساب الذي يسبق فيه `EffectiveTo` قيمة `EffectiveFrom` في التحقق.
+- يفشل الحساب المستعلم عنه عند `asOf` خارج `[EffectiveFrom, EffectiveTo]` بخطأ `ErrAccountNotCurrent`.
+- يُرفض حفظ إصدار حساب متداخل زمنياً مع إصدار قائم لنفس الشركة والحساب.
+
+### MD-008 — حل الحساب المؤرخ دون ساعة النظام
+
+**يجب ألّا (MUST NOT)** يقرأ التحقق المجالي ساعة النظام مباشرةً؛ بل **يجب (MUST)** أن يستخدم `EffectiveDate` الخاص بالمعاملة أو ساعةً محقونة (`Injected Clock`). وعندما ينفذ المحول قارئ الحسابات المؤرخ (`EffectiveAccountReader`)، **يجب (MUST)** أن تحل النواة إصدار الحساب النافذ عند `EffectiveDate`.
+
+**معايير القبول**
+
+- يستخدم الترحيل التاريخي إصدار الحساب النافذ عند `EffectiveDate`، وليس حالة ساعة الحائط الحالية.
 
 ---
 
-## 11. Version history
+## 6. اليوميات والأبعاد التحليلية
+
+### MD-009 — نطاق اليومية، والعملة، وإنفاذ القوائم السماحية
+
+**يجب (MUST)** أن يشير كل ترحيل إلى يومية صالحة ونشطة تنتمي إلى نفس `CompanyID` ونافذة عند `EffectiveDate`. وإذا حددت اليومية قوائم سماحية للعملات أو الحسابات (غير فارغة)، **يجب (MUST)** أن تسمح تلك القوائم بعملة المعاملة وحساب كل سطر؛ و**يجب (MUST)** رفض الإدخالات المكررة في القوائم السماحية. ولا تفرض القائمة السماحية الفارغة أي قيد.
+
+**معايير القبول**
+
+- تفشل اليومية من شركة أخرى أو خارج نافذة نفاذها في التحقق.
+- يفشل السطر الذي يستخدم عملة أو حساباً مستبعداً من قائمة سماحية غير فارغة لليومية بخطأ `ErrJournalCurrency` أو `ErrJournalAccount`.
+
+### MD-010 — مراكز التكلفة والأبعاد التحليلية
+
+عندما يحدد السطر `CostCenterID` أو معرّفات أبعاد تحليلية أخرى، **يجب (MUST)** أن يكون المستودع المقابل متاحاً و**يجب (MUST)** أن يؤكد أن البُعد موجود، وينتمي إلى نفس `CompanyID`، ونشط (`IsActive == true`) في تاريخ المعاملة.
+
+**معايير القبول**
+
+- يفشل تحديد معرّف بُعد عندما يكون مستودعه غير متاح (`nil`) بخطأ `ErrDimensionReaderRequired`.
+- يفشل تحديد بُعد غير نشط أو عابر للشركات بخطأ `ErrInactiveFinancialDimension` أو خطأ عدم تطابق النطاق.
+
+---
+
+## 7. التقويمات المالية، وحالات الإقفال، وفترات التسوية
+
+### MD-011 — التحقق الثنائي من الفترة المالية والسنة المالية
+
+**يجب (MUST)** أن يقع كل ترحيل ضمن `FiscalPeriod` صالحة ومقيدة بالشركة وضمن `FiscalYear` الأب لها. و**يجب (MUST)** أن يتحقق الفحص من أن:
+
+1. `CompanyID` و`FiscalPeriodID` و`FiscalYearID` غير صفرية ومتسقة فيما بينها.
+2. يقع النطاق الزمني للفترة ضمن `[StartDate, EndDate]` للسنة المالية.
+3. بالنسبة للفترات الاعتيادية (1–12)، يقع `EffectiveDate` ضمن `[StartDate, EndDate]` للفترة.
+
+**معايير القبول**
+
+- تُرفض الفترة التابعة لسنة أو شركة مختلفة، أو التي تتجاوز حدودها سنتها المالية.
+
+### MD-012 — استمرارية التقويم وعدم تداخل السنوات المالية
+
+**يجب (MUST)** أن تدعم التقويمات المالية سنوات مالية تبدأ في أي يوم تقويمي (وليس في اليوم الأول من الشهر فقط) دون انزياح نهايات الأشهر، أو فترات متداخلة، أو فجوات تاريخ غير مغطاة. و**يجب ألّا (MUST NOT)** تتداخل السنوات المالية لنفس الشركة زمنياً.
+
+**معايير القبول**
+
+- تُنتج السنة المالية التي تبدأ في منتصف الشهر فترات متصلة غير متداخلة تغطي السنة بأكملها دون فجوات.
+- يُرفض تسجيل سنة مالية تتداخل حدودها مع سنة مالية قائمة لنفس الشركة.
+
+### MD-013 — مصفوفة حالات الإقفال (`OPEN`, `SOFT_CLOSED`, `HARD_CLOSED`)
+
+تدعم كل من `FiscalPeriod` و`FiscalYear` ثلاث حالات إقفال:
+
+- `OPEN`: الترحيل مسموح به.
+- `SOFT_CLOSED`: يُرفض الترحيل افتراضياً (`ErrClosedPeriod`) ويُسمح به **فقط** عندما تعيّن `PostingPolicy` النافذة صراحةً `AllowSoftClosedPosting == true`. ولا يوجد فحص دور مستخدم أو موافقة مدير داخل النواة.
+- `HARD_CLOSED`: الترحيل محظور دون شروط.
+
+**معايير القبول**
+
+- ترفض حالة `HARD_CLOSED` على أي من الفترة أو السنة الترحيل دائماً بغض النظر عن السياسة.
+- ترفض حالة `SOFT_CLOSED` الترحيل ما لم يكن `AllowSoftClosedPosting == true` في السياسة المختارة.
+
+### MD-014 — إعادة فتح الفترة المدقّق دون RBAC في النواة
+
+**يجب (MUST)** أن تسجل إعادة فتح فترة مغلقة داخل النواة قيمة `ActorID` وقيمة `Reason` غير فارغة لقابلية التدقيق. و**يجب ألّا (MUST NOT)** تفرض النواة `RBAC` أو سير عمل الموافقات لإعادة الفتح؛ إذ يعود التفويض إلى المضيف.
+
+**معايير القبول**
+
+- تُرفض إعادة الفتح دون `ActorID` أو `Reason`.
+
+### MD-015 — ثابت فترتي التسوية 13 و14 والقيود الافتتاحية
+
+فترتا التسوية 13 (تسويات نهاية السنة) و14 (تسويات التدقيق الخارجي) وعاءان إجرائيان مثبتان عند `FiscalYear.EndDate` بدلاً من كونهما نطاقي تواريخ تقويمية:
+
+1. **يجب (MUST)** أن تُرجع دالة احتواء التاريخ (`Contains`) دائماً القيمة `false` للفترتين 13 و14.
+2. **يجب ألّا (MUST NOT)** يختار البحث الاعتيادي بالتاريخ التقويمي الفترة 13 أو 14.
+3. **يجب (MUST)** ألّا تُستهدف الفترتان 13 و14 إلّا عبر `TargetPeriodNumber` صريح (13 أو 14) مقترن ببيانات تصنيف القيد الوصفية المتوافقة (`adjusting`/`closing` للفترة 13، و`audit_adjustment` للفترة 14)، مع توفر قارئ فترات التسوية (وإلا يفشل مغلقاً).
+4. **يجب (MUST)** أن تستهدف قيود `Opening` الفترة 1 من السنة المالية المستهدفة ضمن حدودها الزمنية.
+
+**معايير القبول**
+
+- يُرجع فحص احتواء التاريخ على الفترة 13 أو 14 القيمة `false` لجميع التواريخ، بما فيها `FiscalYear.EndDate`.
+- يفشل الترحيل إلى الفترة 13 أو 14 دون رقم فترة مستهدف صريح وتصنيف مطابق بخطأ `ErrInvalidAdjustmentPeriod`.
+
+---
+
+## 8. عقد الأخطاء (Error Contract)
+
+| فئة الخطأ | شرط التحفيز | توقيت الاكتشاف |
+|---|---|---|
+| `ErrCompanyScopeRequired` | `CompanyID` صفري أو عدم تطابق عبر الشركات | قبل أي استدعاء للقارئ |
+| `ErrAccountIdentityMismatch` | حساب أو رابط أب عابر للشركات | التحقق من الحساب/COA |
+| `ErrHeaderAccountPosting` | الترحيل على حساب يحمل `IsHeader == true` | أهلية/تحقق الحساب |
+| `ErrInvalidEffectiveRange` | `EffectiveTo < EffectiveFrom` أو تداخل إصدارات | التحقق من البيانات الرئيسية |
+| `ErrAccountNotCurrent` | `asOf` خارج `[EffectiveFrom, EffectiveTo]` للحساب | التحقق من الحساب |
+| `ErrJournalReaderRequired` / `ErrInvalidJournal` | قارئ يومية مفقود، يومية مجهولة، أو خارج النطاق | التحقق من اليومية |
+| `ErrJournalCurrency` / `ErrJournalAccount` | انتهاك السطر للقائمة السماحية لليومية | فحص القائمة السماحية لليومية |
+| `ErrDimensionReaderRequired` / `ErrInactiveFinancialDimension` | قارئ بُعد مفقود أو بُعد غير نشط/غير صالح | التحقق من البُعد |
+| `ErrClosedPeriod` / `ErrPeriodNotFound` | فترة/سنة مغلقة أو عدم وجود فترة مطابقة | التحقق من الفترة المالية |
+| `ErrInvalidAdjustmentPeriod` | استهداف غير صالح للفترة 13/14 أو عدم تطابق التصنيف | التحقق من فترة التسوية |
+
+---
+
+## 9. المراجع (References)
+
+### REF-001 — الإطار المفاهيمي للتقارير المالية (IASB)
+
+- **العنوان الكامل:** Conceptual Framework for Financial Reporting (2018), Chapter 4 (The Elements of Financial Statements).
+- **الجهة الناشرة:** International Accounting Standards Board (IASB) — IFRS Foundation.
+- **تاريخ الإصدار والمراجعة:** مارس 2018؛ روجع في 2026-11-27.
+- **الرابط الرسمي:** <https://www.ifrs.org/issued-standards/list-of-standards/conceptual-framework/>
+- **النطاق المستخدم:** الفصل الرابع (تعريف عناصر القوائم المالية: الأصول، الالتزامات، حقوق الملكية، الدخل، المصروفات) في `MD-004`.
+- **القيود:** لا يحدد رموز الحسابات أو تدرجها أو تقويم الفترات المالية.
+
+### REF-002 — RFC 2119 & RFC 8174
+
+- **العنوان الكامل:** Key words for use in RFCs to Indicate Requirement Levels (RFC 2119); Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words (RFC 8174).
+- **الجهة الناشرة:** IETF.
+- **الروابط الرسمية:** <https://www.rfc-editor.org/rfc/rfc2119>, <https://www.rfc-editor.org/rfc/rfc8174>
+- **القيود:** يحدد اللغة المعيارية فقط.
+
+### REF-003 — قواعد العمل والمعمارية في Accountant Engine
+
+- **المصادر الداخلية:** `docs/ACCOUNTING_BUSINESS_RULES.md` (§§5–6)، `docs/KERNEL_ARCHITECTURE_MAP.md`، `docs/ard/P3_01_masterdata_effective_dating.md`، `docs/ard/P1_03_reference_model_duality.md`، `docs/ard/P11_02_effective_account_and_dimensions.md`.
+- **مستخدم في:** نطاق الشركة، تسلسل COA الهرمي، منافذ التأريخ بالنفاذ وتطبيع أيام UTC، التقويم المالي، وثوابت فترات التسوية (`MD-001–015`).
+
+### فهرس ربط المراجع بالقواعد
+
+| القاعدة/القواعد | المرجع الأساسي | طبيعة العلاقة |
+|---|---|---|
+| MD-001–003 | REF-003 | سياسة المشروع لتعدد المستأجرين والنطاق الفاشل مغلقاً |
+| MD-004 | REF-001 (الفصل 4), REF-003 | تصنيف العناصر المحاسبية القياسي وتقييد العملة |
+| MD-005–015 | REF-003 (ADR P3-01, P11-02) | قواعد المشروع لشجرة الحسابات واليوميات والأبعاد والتقويم المالي |
+
+---
+
+## 10. الملاحق (Appendices)
+
+### الملحق أ — سجل القرارات الهندسية (Decision Log)
+
+- **DEC-MD-001 (النوافذ المغلقة في `masterdata` مقابل نصف المفتوحة في `policy`):** استخدام `[EffectiveFrom, EffectiveTo]` مغلقاً مع تطبيع أيام UTC في الحسابات (`ADR P11-02`) حتى يكون آخر يوم صلاحية مشمولاً، بخلاف نوافذ السياسات نصف المفتوحة `[EffectiveDate, EffectiveTo)`.
+- **DEC-MD-002 (عزل فترات 13 و14 إجرائياً):** حظر اختيارها عبر البحث التقويمي (`Contains == false`) لمنع تسرب قيود التشغيل اليومية إليها.
+
+### الملحق ب — تتبع القواعد (Rule traceability)
+
+| معرّف القاعدة | الملخص | التصنيف | المصدر / القرار | معيار التحقق |
+|---|---|---|---|---|
+| MD-001 | فشل مغلق لـ `CompanyID` الصفري | PROJECT-DECISION | ADR P3-01 | اختبار رفض `CompanyID` صفري قبل استدعاء القارئ |
+| MD-002 | عملة وظيفية صالحة على الشركة | PROJECT-DECISION | AE-RULE-ACC-001 §1 | اختبار رفض عملة فارغة أو `XXX` |
+| MD-003 | رفض الكيان العابر للشركات | PROJECT-DECISION | ADR P3-01 | اختبار عزل الكيانات بين شركتين |
+| MD-004 | تصنيف الحساب الخماسي وتقييد عملته | SOURCE-MANDATED / PROJECT-DECISION | REF-001 Ch. 4 / تقييد العملة | اختبار أنواع الحسابات الخمسة ورفض `XXX` |
+| MD-005 | حظر الترحيل على الحسابات التجميعية | PROJECT-DECISION | AE-RULE-ACC-001 §5 | اختبار رفض الترحيل على `IsHeader == true` |
+| MD-006 | تسلسل هرمي خالٍ من الدورات لشركة واحدة | PROJECT-DECISION | ADR P3-01 | اختبار اكتشاف الدورات واختلاط الشركات |
+| MD-007 | تطبيع أيام UTC ومنع التداخل والانعكاس | PROJECT-DECISION | ADR P3-01 / P11-02 | اختبارات الحدود اليومية ورفض التداخل |
+| MD-008 | ساعة محقونة وقارئ مؤرخ | PROJECT-DECISION | ADR P3-01 | اختبار حل الحساب بتاريخ `EffectiveDate` |
+| MD-009 | نطاق اليومية والقوائم السماحية | PROJECT-DECISION | AE-RULE-ACC-001 §5 | اختبارات القوائم السماحية لليومية |
+| MD-010 | قارئ الأبعاد وفحص النشاط | PROJECT-DECISION | خطوة الترحيل 13 | اختبارات رفض البُعد غير النشط أو غياب القارئ |
+| MD-011 | التحقق الثنائي من الفترة والسنة | PROJECT-DECISION | AE-RULE-ACC-001 §6 | اختبارات مصفوفة التقويم المالي |
+| MD-012 | استمرارية البدء في غير أول الشهر ومنع تداخل السنوات | PROJECT-DECISION | AE-RULE-ACC-001 §6 | اختبارات حدود التقويم وتداخل السنوات |
+| MD-013 | مصفوفة حالات الإقفال | PROJECT-DECISION | ADR P3-01 / P5-01 | اختبارات `OPEN`/`SOFT_CLOSED`/`HARD_CLOSED` |
+| MD-014 | إعادة فتح مدقّق دون RBAC | PROJECT-DECISION | AE-RULE-ACC-001 §6–7 | اختبار اشتراط `ActorID` و`Reason` |
+| MD-015 | ثابت فترتي التسوية 13/14 والقيود الافتتاحية | PROJECT-DECISION | AE-RULE-ACC-001 §6 | اختبارات فترات التسوية و`Opening` |
+
+---
+
+## 11. سجل الإصدارات (Version history)
+
+### v1.1.0
+
+- إضافة تطبيع أيام UTC ومنع تداخل إصدارات الحساب في `MD-007` (`ADR P11-02`).
+- إضافة تقييد عملة الحساب في `MD-004`، ومنع تداخل السنوات المالية في `MD-012`، وقواعد `Opening` في `MD-015`.
+- استيفاء سجل المصادر الرسمية وتجريد المتن من تفاصيل لغة Go وإضافة سجل القرارات.
 
 ### v1.0.0
 
-- Initial standalone normative specification for the kernel master data domain.
-
+- المواصفة المعيارية المستقلة الأولية لمجال البيانات الرئيسية في النواة.

@@ -1,228 +1,253 @@
-# Journal Entry Domain Specification
+# مواصفات مجال قيد اليومية (Journal Entry Domain Specification)
 
-**Version:** 1.0.0  
-**Document type:** Standalone domain specification  
-**Conformance status:** Normative  
-**Scope:** Journal entry aggregate structure, entry lines, entry classifications, lifecycle states, reversal links, defensive cloning, and post-posting immutability.
-
----
-
-## 1. Purpose
-
-This document defines the externally observable domain contract for the `JournalEntry` aggregate and its constituent `EntryLine` items within the accounting kernel. It establishes the canonical accounting record structure, permitted lifecycle transitions, line-level structural invariants, and immutability guarantees.
-
-This document does not prescribe a programming language, database table layout (`account_moves` / `account_move_lines`), JSON column encoding, or persistence adapter.
-
-### 1.1 Normative language
-
-The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as normative requirement terms per RFC 2119 and RFC 8174:
-
-- **MUST / MUST NOT:** absolute requirement or prohibition for conformance.
-- **SHOULD / SHOULD NOT:** recommended requirement; deviations require a documented reason.
-- **MAY:** permitted behavior.
-
-### 1.2 Scope boundary
-
-This specification governs the `JournalEntry` aggregate definition, line structure, lifecycle state machine, defensive copying, and immutability checks. Double-entry balancing, rounding settlement, policy evaluation, and the posting execution pipeline belong to `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. Monetary representation belongs to `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`. Persistence triggers (WORM) and storage mapping belong to host adapters.
+**الإصدار:** 1.1.0  
+**نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة المطابقة:** معياري إلزامي (Normative)  
+**النطاق:** بنية مجموع قيد اليومية (`JournalEntry aggregate`)، أسطر القيد (`Entry lines`)، قواعد سعر الصرف على السطر، تصنيفات القيود (بما فيها `Opening` و`Adjusting` و`Reversing`)، حالات دورة الحياة (بما فيها `Cancelled`)، روابط العكس، الاستنساخ الدفاعي (`Defensive cloning`)، وعدم القابلية للتعديل بعد الترحيل (`Post-posting immutability`).
 
 ---
 
-## 2. Conformance
+## 1. الغرض (Purpose)
 
-An implementation conforms to this specification only when all applicable normative requirements are satisfied.
+يُعرّف هذا المستند العقد المجالي القابل للملاحظة خارجياً لمجموع `JournalEntry` وعناصر `EntryLine` المكونة له داخل النواة المحاسبية. وهو يرسّخ بنية السجل المحاسبي القانونية، وانتقالات دورة الحياة المسموح بها، والثوابت البنيوية على مستوى السطر، وضمانات عدم القابلية للتعديل.
 
-### 2.1 Conformance requirements
+لا يفرض هذا المستند لغة برمجة، أو تخطيط جداول قاعدة بيانات، أو ترميز أعمدة `JSON`، أو محول حفظ (`Persistence adapter`).
 
-A conforming implementation:
+### 1.1 اللغة المعيارية (Normative language)
 
-1. MUST satisfy every normative rule in §§4–7.
-2. MUST enforce strict line-level structural invariants (single-sided, positive amounts, non-zero IDs).
-3. MUST enforce the `Draft -> Posted -> Reversed` lifecycle and prohibit mutation or deletion of posted/reversed entries.
-4. MUST provide deep defensive cloning so caller mutations after submission cannot alter validated kernel state.
+تُفسَّر المصطلحات **يجب (MUST)**، و**يجب ألّا (MUST NOT)**، و**ينبغي (SHOULD)**، و**ينبغي ألّا (SHOULD NOT)**، و**يجوز (MAY)** بوصفها مصطلحات متطلبات معيارية وفق `RFC 2119` و`RFC 8174`:
 
-### 2.2 Conformance evidence
+- **يجب / يجب ألّا (MUST / MUST NOT):** متطلب أو حظر مُطلَق للمطابقة.
+- **ينبغي / ينبغي ألّا (SHOULD / SHOULD NOT):** متطلب مُوصى به؛ وأي انحراف عنه يتطلب سبباً موثقاً.
+- **يجوز (MAY):** سلوك مسموح به.
 
-Conformance can be demonstrated through:
+### 1.2 حدود النطاق (Scope boundary)
 
-- line-level negative, zero-sided, and two-sided rejection tests;
-- lifecycle state transition and immutability rejection tests;
-- deep-clone isolation tests covering all pointer fields and line slices;
-- classification and reversal-link consistency tests.
-
-### 2.3 Partial conformance
-
-An implementation that satisfies only a subset of the requirements MUST NOT be described as fully conformant. Any claimed partial conformance MUST identify the omitted rules and affected behaviors.
+تحكم هذه المواصفات تعريف مجموع `JournalEntry`، وبنية السطر، وآلة حالات دورة الحياة، والنسخ الدفاعي، وفحوصات عدم القابلية للتعديل. أما توازن القيد المزدوج، وتسوية التقريب، وتقييم السياسات، وأنبوب تنفيذ الترحيل فتعود إلى `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. ويعود التمثيل النقدي إلى `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`. بينما تعود مشغلات الحفظ (`WORM`) وربط التخزين إلى محولات المضيف.
 
 ---
 
-## 3. Terms and definitions
+## 2. المطابقة (Conformance)
 
-- **Journal Entry:** The canonical accounting aggregate representing a balanced economic event, consisting of a header and two or more `EntryLine` items.
-- **Entry Line:** An individual debit or credit leg referencing an account, monetary amounts (transaction and functional), currency, and optional analytical dimensions.
-- **Entry Status:** The lifecycle state of a journal entry (`Draft`, `Posted`, `Reversed`, `Cancelled`).
-- **Entry Classification:** The accounting purpose of the entry (e.g., `Standard`, `Opening`, `Adjusting`, `Closing`, `Reversing`).
-- **Immutability:** The invariant that once an entry reaches `Posted` (or `Reversed`), its financial, structural, and audit-stamped fields cannot be modified or deleted.
+لا يُعدّ أي تنفيذ مطابقاً لهذه المواصفات إلّا عند استيفاء جميع المتطلبات المعيارية المنطبقة.
 
----
+### 2.1 متطلبات المطابقة (Conformance requirements)
 
-## 4. Aggregate and line structure
+التنفيذ المطابق:
 
-### JRN-001 — Canonical source of truth
+1. **يجب (MUST)** أن يستوفي كل قاعدة معيارية في الأقسام من §4 إلى §7.
+2. **يجب (MUST)** أن يفرض ثوابت بنيوية صارمة على مستوى السطر (أحادي الجانب، مبالغ موجبة، سعر صرف صالح، معرّفات غير صفرية).
+3. **يجب (MUST)** أن يفرض دورة الحياة `Draft -> Posted -> Reversed` و`Draft -> Cancelled` ويحظر تعديل أو حذف أو إلغاء القيود المرحلة أو المعكوسة.
+4. **يجب (MUST)** أن يوفر استنساخاً دفاعياً عميقاً (`Deep defensive cloning`) بحيث لا تؤثر تعديلات المستدعي بعد التقديم على حالة النواة المتحقق منها.
 
-A posted `JournalEntry` (including `Reversed` entries) and its `EntryLine` items constitute the sole canonical source of accounting truth within the kernel. Derived balances, ledger projections, and audit logs are secondary projections or evidence and MUST NOT override or contradict posted journal entries.
+### 2.2 أدلة المطابقة (Conformance evidence)
 
-**Acceptance criteria**
+يمكن إثبات المطابقة من خلال:
 
-- Account balances and movement projections are deterministically derivable from posted journal entries alone.
+- اختبارات رفض السطر السالب، والصفري الجانبين، وثنائي الجانبين، وسعر الصرف غير الصالح؛
+- اختبارات انتقال حالات دورة الحياة (بما فيها `Draft -> Cancelled` ورفض إلغاء `Posted`/`Reversed`) ورفض التعديل؛
+- اختبارات عزل الاستنساخ العميق التي تغطي جميع الحقول المرجعية وشرائح الأسطر؛
+- اختبارات اتساق التصنيف (`Opening`, `Adjusting`, `Closing`, `Reversing`) وروابط العكس.
 
-### JRN-002 — Minimum entry composition
+### 2.3 المطابقة الجزئية (Partial conformance)
 
-A valid `JournalEntry` MUST contain at least **two** `EntryLine` items, including at least one debit line and at least one credit line. Single-line, zero-line, debit-only, or credit-only entries MUST be rejected.
-
-**Acceptance criteria**
-
-- An entry with 0 or 1 lines, or 2 debit lines and 0 credit lines, fails structural validation.
-
-### JRN-003 — Single-sided positive line invariant
-
-Every `EntryLine` MUST be strictly single-sided:
-
-- It MUST have either a strictly positive `FunctionalDebit` (`> 0`) with zero `FunctionalCredit`, **or** a strictly positive `FunctionalCredit` (`> 0`) with zero `FunctionalDebit`.
-- Two-sided lines (both debit and credit non-zero) and zero-sided lines (both zero) MUST be rejected.
-- `TransactionAmount` MUST be strictly positive (`> 0`). Negative amounts MUST NOT be used to reduce or correct accounts; corrections MUST use opposite-sided positive lines or a linked reversal entry.
-
-**Acceptance criteria**
-
-- A line with negative `TransactionAmount`, zero debit and zero credit, or both debit and credit populated is rejected explicitly.
-
-### JRN-004 — Line currency consistency
-
-On every `EntryLine`, the currency of `TransactionAmount` MUST equal `TransactionCurrency`, and the currency of `FunctionalDebit` and `FunctionalCredit` MUST equal the company's `FunctionalCurrency`.
-
-**Acceptance criteria**
-
-- A mismatch between `TransactionAmount.Currency()` and `TransactionCurrency` fails with `ErrTransactionCurrencyMismatch`.
-- A mismatch between `FunctionalDebit`/`FunctionalCredit` currency and `Company.FunctionalCurrency` fails with `ErrFunctionalCurrencyMismatch`.
-
-### JRN-005 — Mandatory entry and line metadata
-
-Every `JournalEntry` submitted for posting MUST have:
-
-- a non-zero `ID`, `CompanyID`, and `JournalID`;
-- a non-zero `EffectiveDate`;
-- unique, non-zero `ID` and non-zero `AccountID` on every `EntryLine`.
-
-**Acceptance criteria**
-
-- Missing `ID`, `JournalID`, `EffectiveDate`, or `AccountID` fails validation before any persistence delegation.
+**يجب ألّا (MUST NOT)** يُوصَف التنفيذ الذي يستوفي مجموعة فرعية فقط من المتطلبات بأنه مطابق بالكامل. و**يجب (MUST)** أن يُحدّد أي ادعاء بالمطابقة الجزئية القواعد المُغفلة والسلوكيات المتأثرة.
 
 ---
 
-## 5. Classifications, lifecycle, and immutability
+## 3. المصطلحات والتعاريف (Terms and definitions)
 
-### JRN-006 — Entry classification metadata integrity
-
-Every `JournalEntry` MUST carry a valid `Classification`. Specialized classifications MUST satisfy their structural metadata requirements:
-
-- `Reversing` entries MUST specify a non-zero `ReversalOfID` and a non-empty trimmed `ReversalReason`.
-- `Adjusting` entries targeting adjustment periods MUST carry valid adjusting metadata (e.g., `audit_adjustment` for period 14; `adjusting`/`closing` for period 13).
-- Legacy aliases (such as legacy audit adjustment labels) MAY be normalized only after defensive cloning.
-
-**Acceptance criteria**
-
-- A `Reversing` entry missing `ReversalOfID` or `ReversalReason` fails with `ErrInvalidReversal` or `ErrReversalReasonRequired`.
-- An `Adjusting` entry missing required metadata fails with `ErrAdjustingEntryMetadataRequired`.
-
-### JRN-007 — Strict lifecycle state machine
-
-A `JournalEntry` MUST enter the posting pipeline exclusively in `Draft` status. Permitted lifecycle transitions are:
-
-- `Draft -> Posted` (only via the central posting pipeline)
-- `Posted -> Reversed` (only via atomic linked reversal)
-- `Draft -> Cancelled` (pre-posting cancellation)
-
-Posting an entry in `Posted`, `Reversed`, or `Cancelled` status MUST fail with `ErrInvalidEntryState`. A `Draft` entry carrying a pre-existing `ReversedByID` MUST be rejected with `ErrInvalidReversal`.
-
-**Acceptance criteria**
-
-- Attempting to post an already `Posted`, `Reversed`, or `Cancelled` entry fails with `ErrInvalidEntryState`.
-- A draft with `ReversedByID != nil` is rejected.
-
-### JRN-008 — Post-posting immutability
-
-Once a `JournalEntry` is `Posted` or `Reversed`, it MUST be immutable. Any attempt to modify its header, lines, amounts, dates, `PolicyFingerprint`, or audit stamps via domain mutation checks MUST fail with `ErrCannotModifyPostedMove`. Corrections MUST be performed solely by creating a new linked reversal or adjusting entry.
-
-**Acceptance criteria**
-
-- Calling `EnsureImmutable` on a `Posted` or `Reversed` entry returns `ErrCannotModifyPostedMove`.
-
-### JRN-009 — Deep defensive cloning
-
-`JournalEntry.Clone()` MUST produce a deep copy of the aggregate, including its line slice and all pointer fields (such as `ReversalOfID`, `ReversedByID`, `FiscalPeriodID`, `PostedAt`, `PostingDate`, and optional dimension IDs). Mutating the original caller-owned struct after `Clone()` MUST NOT affect the cloned snapshot.
-
-**Acceptance criteria**
-
-- Modifying a line amount, pointer field, or `CompanyID` on the caller's original `JournalEntry` after `Clone()` leaves the cloned entry unchanged.
+- **قيد اليومية (`Journal Entry`):** المجموع المحاسبي القانوني الممثل لحدث اقتصادي متوازن، ويتكون من رأس وعنصرين من `EntryLine` فأكثر.
+- **سطر القيد (`Entry Line`):** طرف مدين أو دائن فردي يشير إلى حساب، ومبالغ نقدية (للمعاملة والوظيفية)، وعملة، وسعر صرف، وأبعاد تحليلية اختيارية.
+- **حالة القيد (`Entry Status`):** حالة دورة حياة قيد اليومية (`Draft`، `Posted`، `Reversed`، `Cancelled`).
+- **تصنيف القيد (`Entry Classification`):** الغرض المحاسبي للقيد (`Standard`، `Opening`، `Adjusting`، `Closing`، `Reversing`).
+- **عدم القابلية للتعديل (`Immutability`):** الثابت القاضي بأنه بمجرد وصول القيد إلى حالة `Posted` (أو `Reversed`)، لا يمكن تعديل أو حذف حقوله المالية أو البنيوية أو المختومة تدقيقياً.
 
 ---
 
-## 6. Error Contract
+## 4. بنية المجموع والسطر
 
-| Error Category | Trigger Condition | Detection Timing |
-| --- | --- | --- |
-| `ErrMissingEntryID` / `ErrMissingLineID` / `ErrDuplicateLineID` | Zero entry/line ID or duplicate line ID | Identity validation |
-| `ErrMissingJournalID` / `ErrZeroEntryDate` | Zero `JournalID` or zero `EffectiveDate` | Header validation |
-| `ErrInvalidEntryState` | Entry is not in `Draft` status | Lifecycle check |
-| `ErrCannotModifyPostedMove` | Attempted mutation of `Posted`/`Reversed` entry | Immutability check |
-| `ErrInvalidEntry` / `ErrUnbalancedEntry` | Fewer than 2 lines, missing debit/credit, or invalid line | Structural validation |
-| `ErrInvalidReversal` / `ErrReversalReasonRequired` | Invalid reversal links, `ReversedByID` on draft, or blank reason | Classification validation |
-| `ErrAdjustingEntryMetadataRequired` | Missing metadata for adjusting entry | Classification validation |
-| `ErrTransactionCurrencyMismatch` / `ErrFunctionalCurrencyMismatch` | Line currency inconsistency | Currency validation |
+### JRN-001 — مصدر الحقيقة القانوني (Canonical source of truth)
+
+يشكل `JournalEntry` المرحّل (بما في ذلك القيود بحالة `Reversed`) وعناصر `EntryLine` الخاصة به مصدر الحقيقة المحاسبية القانوني الوحيد داخل النواة. وتُعدّ الأرصدة المشتقة وإسقاطات الأستاذ وسجلات التدقيق إسقاطات أو أدلة ثانوية و**يجب ألّا (MUST NOT)** تتجاوز قيود اليومية المرحلة أو تتناقض معها.
+
+**معايير القبول**
+
+- يمكن اشتقاق أرصدة الحسابات وإسقاطات الحركات حتمياً من قيود اليومية المرحلة وحدها.
+
+### JRN-002 — الحد الأدنى لتكوين القيد (Minimum entry composition)
+
+**يجب (MUST)** أن يحتوي `JournalEntry` الصالح على عنصري `EntryLine` على الأقل، متضمنين سطراً مديناً واحداً على الأقل وسطرأ دائناً واحداً على الأقل. و**يجب (MUST)** رفض القيود أحادية السطر، أو صفرية الأسطر، أو المدينة فقط، أو الدائنة فقط.
+
+**معايير القبول**
+
+- يفشل القيد ذو 0 أو 1 سطر، أو ذو سطرين مدينين و0 دائن، في التحقق البنيوي.
+
+### JRN-003 — ثابت السطر الموجب أحادي الجانب (Single-sided positive line invariant)
+
+**يجب (MUST)** أن يكون كل `EntryLine` أحادي الجانب بصرامة:
+
+- **يجب (MUST)** أن يكون له إما `FunctionalDebit` موجب تماماً (`> 0`) مع `FunctionalCredit` صفري، **أو** `FunctionalCredit` موجب تماماً (`> 0`) مع `FunctionalDebit` صفري.
+- **يجب (MUST)** رفض الأسطر ثنائية الجانبين (المدين والدائن غير صفريين) والأسطر صفرية الجانبين (كلاهما صفري).
+- **يجب (MUST)** أن يكون `TransactionAmount` موجباً تماماً (`> 0`). و**يجب ألّا (MUST NOT)** تُستخدم المبالغ السالبة لتخفيض الحسابات أو تصحيحها؛ بل **يجب (MUST)** أن تستخدم التصحيحات ألسطراً موجبة معاكسة الجانب أو قيداً عكسياً مرتبطاً.
+
+**معايير القبول**
+
+- يُرفض السطر ذو `TransactionAmount` السالب، أو المدين والدائن الصفريين، أو المدين والدائن المعبأين معاً صراحةً.
+
+### JRN-004 — اتساق عملة السطر وسعر الصرف (Line currency and exchange-rate consistency)
+
+في كل `EntryLine`:
+
+1. **يجب (MUST)** أن تساوي عملة `TransactionAmount` قيمة `TransactionCurrency`، و**يجب (MUST)** أن تساوي عملة `FunctionalDebit` و`FunctionalCredit` قيمة `FunctionalCurrency` للشركة.
+2. **يجب (MUST)** أن يكون `ExchangeRate` موجباً تماماً (`> 0`).
+3. عندما تتطابق `TransactionCurrency` مع `FunctionalCurrency` للشركة، **يجب (MUST)** أن يساوي `ExchangeRate` القيمة `1` بالضبط، و**يجب (MUST)** أن يساوي `TransactionAmount` قيمة المبلغ الوظيفي للسطر (`RULE-ACC-012`).
+
+**معايير القبول**
+
+- يفشل عدم التطابق بين `TransactionAmount.Currency()` و`TransactionCurrency` بخطأ `ErrTransactionCurrencyMismatch`.
+- يفشل عدم التطابق بين عملة `FunctionalDebit`/`FunctionalCredit` و`Company.FunctionalCurrency` بخطأ `ErrFunctionalCurrencyMismatch`.
+- يُرفض السطر ذو العملة المحلية بسعر صرف مختلف عن `1` أو بمبلغ وظيفي مختلف عن مبلغ المعاملة.
+
+### JRN-005 — البيانات الوصفية الإلزامية للقيد والسطر
+
+**يجب (MUST)** أن يحتوي كل `JournalEntry` مقدم للترحيل على:
+
+- `ID` و`CompanyID` و`JournalID` غير صفرية؛
+- `EffectiveDate` غير صفري؛
+- `ID` فريد غير صفري و`AccountID` غير صفري في كل `EntryLine`.
+
+**معايير القبول**
+
+- يفشل غياب `ID` أو `JournalID` أو `EffectiveDate` أو `AccountID` في التحقق قبل أي تفويض للحفظ.
 
 ---
 
-## 7. References
+## 5. التصنيفات ودورة الحياة وعدم القابلية للتعديل
 
-### REF-001 — Accountant Engine Architecture & Business Rules
+### JRN-006 — سلامة البيانات الوصفية لتصنيف القيد
 
-- **Internal sources:** `docs/ACCOUNTING_BUSINESS_RULES.md` (§§1–2, §7), `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` (§§3–5), `docs/ard/P1_02_gl_source_of_truth.md`, `docs/ard/P5_01_policy_selection_and_historical_interpretation.md`.
-- **Used for:** Canonical GL truth, line invariants, lifecycle state machine, defensive cloning, and immutability (`JRN-001–009`).
+**يجب (MUST)** أن يحمل كل `JournalEntry` قيمة `Classification` صالحة. و**يجب (MUST)** أن تستوفي التصنيفات المتخصصة متطلبات بياناتها الوصفية البنيوية:
 
-### Reference-to-rule index
+| التصنيف (`Classification`) | الفترة المستهدفة المسموحة | المتطلب الوصفي الإلزامي |
+|---|---|---|
+| `Standard` | فترة اعتيادية (1–12) | لا توجد بيانات إضافية إلزامية |
+| `Opening` | الفترة الافتتاحية (الفترة 1 من السنة المالية المستهدفة عند `StartDate` أو ضمنها) | استهداف حسابات المركز المالي الدائمة (`Asset`, `Liability`, `Equity`) أو الرصيد الافتتاحي المعتمد |
+| `Closing` | فترة الإقفال (12 أو 13) | عند استهداف الفترة 13، يلتزم بتوصيف الإقفال المعتمد |
+| `Adjusting` | فترة اعتيادية أو فترة 13 أو فترة 14 | الفترة 13 تقبل `adjusting` أو `closing` فقط؛ الفترة 14 تقبل `audit_adjustment` فقط |
+| `Reversing` | تُحل من `reversalDate` (اعتيادية أو تسوية وفق تاريخ العكس) | `ReversalOfID` غير صفري و`ReversalReason` غير فارغ بعد الاقتطاع |
 
-| Rule(s) | Primary reference(s) | Nature of relationship |
-| --- | --- | --- |
-| JRN-001 | REF-001 (ADR P1-02) | Project architectural decision on GL source of truth |
-| JRN-002–005 | REF-001 (AE-RULE-ACC-001) | Double-entry and line structural invariants |
-| JRN-006–009 | REF-001 (AE-POST-FLOW-V12) | Lifecycle, immutability, and defensive cloning |
+**يجوز (MAY)** تطبيع الأسماء المستعارة القديمة لتسويات التدقيق فقط بعد الاستنساخ الدفاعي.
+
+**معايير القبول**
+
+- يفشل قيد `Reversing` المفتقر إلى `ReversalOfID` أو `ReversalReason` بخطأ `ErrInvalidReversal` أو `ErrReversalReasonRequired`.
+- يفشل قيد `Adjusting` المفتقر للبيانات الوصفية المطلوبة أو المستهدف لفترة غير متوافقة بخطأ `ErrAdjustingEntryMetadataRequired` أو `ErrInvalidAdjustingEntryPeriod`.
+- يفشل قيد `Opening` المستهدف لفترة غير افتتاحية أو بتاريخ غير متوافق مع بداية السنة المالية.
+
+### JRN-007 — آلة حالات دورة الحياة الصارمة وقواعد الإلغاء
+
+**يجب (MUST)** أن يدخل `JournalEntry` أنبوب الترحيل حصراً في حالة `Draft`. والانتقالات المسموح بها في دورة الحياة هي:
+
+- `Draft -> Posted` (فقط عبر أنبوب الترحيل المركزي)
+- `Posted -> Reversed` (فقط عبر العكس المرتبط الذري، بشرط ألا يكون تصنيف القيد الأصلي `Reversing`)
+- `Draft -> Cancelled` (الإلغاء قبل الترحيل، ويشترط `ActorID` وسبب إلغاء غير فارغين ولا يولّد أثراً مالياً في الأستاذ العام)
+
+**يجب (MUST)** أن يفشل ترحيل قيد في حالة `Posted` أو `Reversed` أو `Cancelled` بخطأ `ErrInvalidEntryState`. و**يجب (MUST)** أن تفشل محاولة إلغاء قيد في حالة `Posted` أو `Reversed` بخطأ `ErrCannotModifyPostedMove` أو `ErrInvalidEntryState`. و**يجب (MUST)** رفض قيد `Draft` يحمل معرّف `ReversedByID` موجوداً مسبقاً بخطأ `ErrInvalidReversal`.
+
+**معايير القبول**
+
+- تفشل محاولة ترحيل قيد بحالة `Posted` أو `Reversed` أو `Cancelled` بخطأ `ErrInvalidEntryState`.
+- يُرفض إلغاء قيد `Posted` أو `Reversed` صراحةً، وتُرفض المسودة التي تحمل `ReversedByID` غير معدوم.
+
+### JRN-008 — عدم القابلية للتعديل بعد الترحيل (Post-posting immutability)
+
+بمجرد أن يصبح `JournalEntry` بحالة `Posted` أو `Reversed`، **يجب (MUST)** أن يكون غير قابل للتعديل. و**يجب (MUST)** أن تفشل أي محاولة لتعديل رأسه أو أسطره أو مبالغه أو تواريخه أو `PolicyFingerprint` أو أختام التدقيق عبر فحوصات التعديل المجالية بخطأ `ErrCannotModifyPostedMove`. و**يجب (MUST)** إجراء التصحيحات حصراً بإنشاء قيد عكسي أو تسوية جديد مرتبط.
+
+**معايير القبول**
+
+- يُرجع فحص عدم القابلية للتعديل على قيد `Posted` أو `Reversed` الخطأ `ErrCannotModifyPostedMove`.
+
+### JRN-009 — الاستنساخ الدفاعي العميق (Deep defensive cloning)
+
+**يجب (MUST)** أن يُنتج الاستنساخ العميق للمجموع نسخةً مستقلةً تماماً شاملةً قائمة أسطره وجميع الحقول المرجعية الاختيارية (مثل `ReversalOfID`، و`ReversedByID`، و`FiscalPeriodID`، و`PostedAt`، و`PostingDate`، ومعرّفات الأبعاد الاختيارية). و**يجب ألّا (MUST NOT)** يؤثر تعديل الكائن الأصلي المملوك للمستدعي بعد الاستنساخ على اللقطة المستنسخة.
+
+**معايير القبول**
+
+- يترك تعديل مبلغ سطر، أو حقل مرجعي، أو `CompanyID` في `JournalEntry` الأصلي لدى المستدعي بعد الاستنساخ القيدَ المستنسخ دون تغيير.
 
 ---
 
-## 8. Appendices
+## 6. عقد الأخطاء (Error Contract)
 
-### Appendix A — Informative implementation guidance
-
-- Host adapters storing `JournalEntry` in relational + JSON representations (e.g., `account_moves` + `account_move_lines`) must preserve `ReversalOfID` and `ReversedByID` without introducing conflicting truth models.
-
-### Appendix B — Rule traceability
-
-| Rule ID | Summary | Classification | Source / Decision | Verification |
-| --- | --- | --- | --- | --- |
-| JRN-001 | Posted entries as canonical GL truth | PROJECT-DECISION | ADR P1-02 | Projection parity tests |
-| JRN-002 | Minimum 2 lines with debit and credit | SOURCE-MANDATED | Double-entry accounting / AE-RULE-ACC-001 | Structural validation tests |
-| JRN-003 | Single-sided positive line amounts | PROJECT-DECISION | AE-RULE-ACC-001 §2 | Line amount tests |
-| JRN-004 | Line currency consistency | PROJECT-DECISION | AE-RULE-ACC-001 §1 | Currency mismatch tests |
-| JRN-005 | Mandatory header and line IDs | PROJECT-DECISION | Posting flow step 1, 3 | Identity validation tests |
-| JRN-006 | Classification metadata integrity | PROJECT-DECISION | Posting flow step 2 | Classification tests |
-| JRN-007 | Strict Draft-to-Posted lifecycle | PROJECT-DECISION | ADR P1-02 | Lifecycle state tests |
-| JRN-008 | Post-posting immutability | PROJECT-DECISION | AE-RULE-ACC-001 §7 | `EnsureImmutable` tests |
-| JRN-009 | Deep defensive cloning | DERIVED-REQUIREMENT | TOCTOU protection (Posting flow §4) | `TestCloneIsDeepAndCoversPointerFields` |
+| فئة الخطأ | شرط التحفيز | توقيت الاكتشاف |
+|---|---|---|
+| `ErrMissingEntryID` / `ErrMissingLineID` / `ErrDuplicateLineID` | معرّف قيد/سطر صفري أو معرّف سطر مكرر | التحقق من الهوية |
+| `ErrMissingJournalID` / `ErrZeroEntryDate` | `JournalID` صفري أو `EffectiveDate` صفري | التحقق من الرأس |
+| `ErrInvalidEntryState` | القيد ليس في حالة `Draft` (أو انتقال دورة حياة غير مشروع) | فحص دورة الحياة |
+| `ErrCannotModifyPostedMove` | محاولة تعديل أو حذف أو إلغاء قيد `Posted`/`Reversed` | فحص عدم القابلية للتعديل |
+| `ErrInvalidEntry` / `ErrUnbalancedEntry` | أقل من سطرين، غياب مدين/دائن، أو سطر غير صالح | التحقق البنيوي |
+| `ErrInvalidReversal` / `ErrReversalReasonRequired` | روابط عكس غير صالحة، `ReversedByID` على مسودة، عكس `Reversing`، أو سبب فارغ | التحقق من التصنيف |
+| `ErrAdjustingEntryMetadataRequired` / `ErrInvalidAdjustingEntryPeriod` | غياب البيانات الوصفية لقيد تسوية أو عدم توافق فترته | التحقق من التصنيف |
+| `ErrTransactionCurrencyMismatch` / `ErrFunctionalCurrencyMismatch` | عدم اتساق عملة السطر أو سعر صرف العملة المحلية | التحقق من العملة |
 
 ---
 
-## 9. Version history
+## 7. المراجع (References)
+
+### REF-001 — RFC 2119 & RFC 8174
+
+- **العنوان الكامل:** Key words for use in RFCs to Indicate Requirement Levels (RFC 2119); Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words (RFC 8174).
+- **الجهة الناشرة:** IETF.
+- **الروابط الرسمية:** <https://www.rfc-editor.org/rfc/rfc2119>, <https://www.rfc-editor.org/rfc/rfc8174>
+- **القيود:** يحدد اللغة المعيارية فقط.
+
+### REF-002 — معمارية وقواعد عمل Accountant Engine
+
+- **المصادر الداخلية:** `docs/ACCOUNTING_BUSINESS_RULES.md` (§§1–2, §4, §7, §8)، `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` (§§3–5)، `docs/ard/P1_02_gl_source_of_truth.md`، `docs/ard/P5_01_policy_selection_and_historical_interpretation.md`.
+- **مستخدم في:** حقيقة الأستاذ العام القانونية، ثوابت الأسطر، قواعد سعر الصرف، آلة حالات دورة الحياة، الاستنساخ الدفاعي، وعدم القابلية للتعديل (`JRN-001–009`).
+
+### فهرس ربط المراجع بالقواعد
+
+| القاعدة/القواعد | المرجع الأساسي | طبيعة العلاقة |
+|---|---|---|
+| JRN-001 | REF-002 (ADR P1-02) | قرار معماري للمشروع حول مصدر حقيقة GL |
+| JRN-002–005 | REF-002 (AE-RULE-ACC-001) | ثوابت القيد المزدوج وبنية السطر وسعر الصرف |
+| JRN-006–009 | REF-002 (AE-POST-FLOW-V12) | دورة الحياة، التصنيف، عدم القابلية للتعديل، والاستنساخ الدفاعي |
+
+---
+
+## 8. الملاحق (Appendices)
+
+### الملحق أ — سجل القرارات الهندسية (Decision Log)
+
+- **DEC-JRN-001 (اسم خطأ الحرمة المحاسبية):** اعتماد `ErrCannotModifyPostedMove` بوصفه الاسم المعتمد في النواة (ومرادفه الوثائقي في قواعد العمل `ErrEntryImmutable`)، واعتماد `ReversalOfID`/`ReversedByID` في نموذج النواة.
+- **DEC-JRN-002 (قواعد الإلغاء قبل الترحيل):** قصر `Cancelled` على المسودات (`Draft`) دون أي أثر مالي، مع إيجابية الإسناد التدقيقي.
+
+### الملحق ب — تتبع القواعد (Rule traceability)
+
+| معرّف القاعدة | الملخص | التصنيف | المصدر / القرار | معيار التحقق |
+|---|---|---|---|---|
+| JRN-001 | القيود المرحلة بوصفها حقيقة GL القانونية | PROJECT-DECISION | ADR P1-02 | اختبار اشتقاق الأرصدة من القيود المرحلة وحدها |
+| JRN-002 | حد أدنى سطران بمدين ودائن | SOURCE-MANDATED | محاسبة القيد المزدوج / AE-RULE-ACC-001 | اختبار رفض 0/1 سطر وغياب أحد الطرفين |
+| JRN-003 | مبالغ سطر موجبة أحادية الجانب | PROJECT-DECISION | AE-RULE-ACC-001 §2 | اختبار رفض السالب والصفري وثنائي الجانبين |
+| JRN-004 | اتساق عملة السطر وسعر صرف العملة المحلية `1` | PROJECT-DECISION | AE-RULE-ACC-001 §1, §4 | اختبار عدم تطابق العملة وسعر الصرف |
+| JRN-005 | معرّفات الرأس والسطر الإلزامية | PROJECT-DECISION | خطوة الترحيل 1، 3 | اختبار رفض المعرّفات الصفرية |
+| JRN-006 | جدول سلامة البيانات الوصفية للتصنيف | PROJECT-DECISION | خطوة الترحيل 2، 10 | اختبارات `Opening` و`Adjusting` و`Reversing` |
+| JRN-007 | دورة حياة صارمة وحظر إلغاء المرحّل | PROJECT-DECISION | ADR P1-02 / RULE-ACC-026 | اختبار حالات `Draft`/`Posted`/`Reversed`/`Cancelled` |
+| JRN-008 | عدم القابلية للتعديل بعد الترحيل | PROJECT-DECISION | AE-RULE-ACC-001 §7 | اختبار رفض التعديل بـ `ErrCannotModifyPostedMove` |
+| JRN-009 | استنساخ دفاعي عميق | DERIVED-REQUIREMENT | الحماية من `TOCTOU` | اختبار عزل اللقطة بعد تعديل الأصل |
+
+---
+
+## 9. سجل الإصدارات (Version history)
+
+### v1.1.0
+
+- إضافة قواعد `ExchangeRate > 0` و`ExchangeRate == 1` للعملة المحلية في `JRN-004`.
+- استكمال جدول التصنيفات (`Opening`, `Adjusting`, `Closing`, `Reversing`) في `JRN-006` وقواعد `Draft -> Cancelled` في `JRN-007`.
+- استيفاء مراجع `RFC 2119/8174` وتجريد المتن من أسماء دوال واختبارات Go، وإضافة سجل القرارات.
 
 ### v1.0.0
 
-- Initial standalone normative specification for the kernel journal entry domain.
-
+- المواصفة المعيارية المستقلة الأولية لمجال قيد اليومية في النواة.

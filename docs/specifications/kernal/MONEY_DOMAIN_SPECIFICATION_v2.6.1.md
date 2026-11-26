@@ -1,816 +1,824 @@
-# Money Domain Specification
+# مواصفات مجال النقود (Money Domain Specification)
 
-**Version:** 2.6.1
-**Document type:** Standalone domain specification  
-**Conformance status:** Normative  
-**Supersedes:** v2.4 (implementation-alignment draft)  
-**Scope:** Money value, currency identity, decimal precision, arithmetic, rounding, exchange rates, currency conversion, formatting, and serialization.
-
----
-
-## 1. Purpose
-
-This document defines the externally observable domain contract for monetary values and exchange rates. It is intended to be understandable and testable without access to a particular source-code implementation.
-
-The specification defines:
-
-- the identity and valid representation of a Money value;
-- decimal precision and range constraints;
-- currency identification and currency metadata;
-- arithmetic and rounding behavior;
-- exchange-rate validation and conversion;
-- formatting and serialization behavior;
-- failure conditions and conformance requirements.
-
-This document does not prescribe a programming language, library, database, class structure, or implementation technique. An implementation may use decimal arithmetic, integer-scaled arithmetic, or another representation, provided that its observable behavior conforms to every applicable requirement. The choice of representation does not itself establish conformance: an implementation MUST disclose any representational limits that restrict the values or operations it can support, and MUST fail explicitly before any such limit can cause loss of monetary precision.
-
-### 1.1 Normative language
-
-The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as normative requirement terms:
-
-- **MUST / MUST NOT:** absolute requirement for conformance.
-- **SHOULD / SHOULD NOT:** recommended requirement; deviations require a documented reason.
-- **MAY:** permitted behavior.
-
-### 1.2 Scope boundary
-
-This specification governs monetary domain behavior. Accounting recognition, measurement, posting, functional-currency policy, tax treatment, and financial-statement presentation belong to the relevant accounting or application specifications unless explicitly stated otherwise here.
+**الإصدار:** 2.6.1  
+**نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة المطابقة:** معياري إلزامي (Normative)  
+**يحلّ محلّ:** الإصدار v2.4 (مسودة المواءمة مع التنفيذ — implementation-alignment draft)  
+**النطاق:** القيمة النقدية (`Money`)، هوية العملة (`Currency identity`)، الدقة العشرية (`Decimal precision`)، العمليات الحسابية، التقريب (`Rounding`)، أسعار الصرف (`Exchange rates`)، تحويل العملات، التنسيق (`Formatting`)، والتسلسل (`Serialization`).
 
 ---
 
-## 2. Conformance
+## 1. الغرض (Purpose)
 
-An implementation conforms to this specification only when all applicable normative requirements are satisfied.
+يُعرّف هذا المستند العقد المجالي القابل للملاحظة خارجيًا (externally observable domain contract) للقيم النقدية وأسعار الصرف. وهو مُعدّ ليكون مفهومًا وقابلًا للاختبار دون الحاجة إلى الوصول إلى تنفيذ برمجي بعينه.
 
-### 2.1 Conformance requirements
+تُحدّد هذه المواصفات ما يلي:
 
-A conforming implementation:
+- هوية قيمة `Money` وتمثيلها الصالح؛
+- قيود الدقة العشرية والنطاق؛
+- تعريف العملة والبيانات الوصفية للعملة (`Currency metadata`)؛
+- سلوك العمليات الحسابية والتقريب؛
+- التحقق من صحة أسعار الصرف وتحويل العملات؛
+- سلوك التنسيق والتسلسل؛
+- شروط الفشل ومتطلبات المطابقة (`Conformance requirements`).
 
-1. MUST satisfy every normative rule in §§3–8.
-2. MUST produce the externally observable outcomes specified by the acceptance criteria.
-3. MUST return a defined failure for invalid inputs and out-of-range results; it MUST NOT silently coerce, truncate, overflow, or substitute values.
-4. MUST preserve the amount and currency identity through supported serialization round trips.
-5. MUST apply rounding only at the boundaries defined by this specification or by an explicit operation contract.
-6. MUST distinguish currency metadata sourced from ISO 4217 from project-specific engineering limits.
-7. MUST NOT require a caller or auditor to inspect source code to determine the expected domain behavior.
+لا يفرض هذا المستند لغة برمجة، أو مكتبة، أو قاعدة بيانات، أو بنية أصناف (`Class structure`)، أو تقنية تنفيذ محددة. يجوز للتنفيذ استخدام الحساب العشري الدقيق (`Exact decimal arithmetic`)، أو الحساب المقيَّس بالأعداد الصحيحة (`Integer-scaled arithmetic`)، أو أي تمثيل آخر، شريطة أن يطابق سلوكه القابل للملاحظة كل متطلب منطبق. ولا يُنشئ اختيار التمثيل بحد ذاته مطابقةً: إذ **يجب (MUST)** على التنفيذ الإفصاح عن أي حدود تمثيلية (`Representational limits`) تُقيّد القيم أو العمليات التي يمكنه دعمها، و**يجب (MUST)** أن يفشل صراحةً قبل أن يتسبب أي حد من هذا القبيل في فقدان الدقة النقدية.
 
-### 2.2 Conformance evidence
+### 1.1 اللغة المعيارية (Normative language)
 
-Conformance can be demonstrated through externally observable tests, including:
+تُفسَّر المصطلحات **يجب (MUST)**، و**يجب ألّا (MUST NOT)**، و**ينبغي (SHOULD)**، و**ينبغي ألّا (SHOULD NOT)**، و**يجوز (MAY)** بوصفها مصطلحات متطلبات معيارية وفق `RFC 2119` و`RFC 8174`:
 
-- valid and invalid input examples;
-- exact arithmetic examples;
-- boundary-value tests;
-- rounding tie cases, including positive and negative values;
-- currency mismatch cases;
-- conversion direction and target-minor-unit cases;
-- serialization and parse/serialize round trips;
-- error-category and error-timing tests.
+- **يجب / يجب ألّا (MUST / MUST NOT):** متطلب مُطلَق للمطابقة.
+- **ينبغي / ينبغي ألّا (SHOULD / SHOULD NOT):** متطلب مُوصى به؛ وأي انحراف عنه يتطلب سببًا موثقًا.
+- **يجوز (MAY):** سلوك مسموح به.
 
-A test suite is evidence of conformance; the existence or success of a test suite alone does not redefine this specification.
+### 1.2 حدود النطاق (Scope boundary)
 
-### 2.3 Partial conformance
-
-An implementation that satisfies only a subset of the requirements MUST NOT be described as fully conformant. Any claimed partial conformance MUST identify the omitted rules and affected behaviors.
-
-If the chosen numeric representation cannot exactly represent or process some values that otherwise satisfy MONEY-005 through MONEY-007, the implementation MUST disclose this as a representational limitation. The disclosure MUST state the maximum effective fractional scale supported, where applicable, and identify the affected value ranges and operations. Such a limitation does not change the normative numeric limits and MUST NOT be presented as an additional domain rule. The implementation MUST reject an unsupported value or result explicitly before returning, persisting, or otherwise exposing it as successful; it MUST NOT round, truncate, underflow, or coerce the value silently.
+تحكم هذه المواصفات سلوك مجال النقود (`Money domain`). أما الاعتراف المحاسبي (`Accounting recognition`)، والقياس (`Measurement`)، والترحيل (`Posting`)، وسياسة العملة الوظيفية (`Functional-currency policy`)، والمعالجة الضريبية، وعرض القوائم المالية فتتبع المواصفات المحاسبية أو التطبيقية ذات الصلة ما لم يُنص على خلاف ذلك صراحةً هنا.
 
 ---
 
-## 3. Core representation and precision
+## 2. المطابقة (Conformance)
 
-### MONEY-001 — Exact monetary representation
+لا يُعدّ أي تنفيذ مطابقًا لهذه المواصفات إلّا عند استيفاء جميع المتطلبات المعيارية المنطبقة.
 
-A Money amount MUST be represented and calculated without binary floating-point being the authoritative monetary value. An implementation MAY use exact decimal arithmetic or an integer-scaled representation.
+### 2.1 متطلبات المطابقة (Conformance requirements)
 
-A binary floating-point input MUST NOT be accepted as an authoritative monetary amount unless its exact intended decimal value is independently and unambiguously established before domain validation, for example through an explicit and documented decimal-conversion contract.
+التنفيذ المطابق:
 
-**Acceptance criteria**
+1. **يجب (MUST)** أن يستوفي كل قاعدة معيارية في الأقسام من §3 إلى §8.
+2. **يجب (MUST)** أن يُنتج النتائج القابلة للملاحظة خارجيًا المحددة في معايير القبول (`Acceptance criteria`).
+3. **يجب (MUST)** أن يُرجع فشلًا مُعرَّفًا للمدخلات غير الصالحة والنتائج الخارجة عن النطاق؛ و**يجب ألّا (MUST NOT)** يقوم بالتحويل القسري الصامت (`Silent coercion`)، أو البتر (`Truncation`)، أو الفيضان (`Overflow`)، أو استبدال القيم.
+4. **يجب (MUST)** أن يحافظ على المبلغ وهوية العملة عبر دورات التسلسل ذهابًا وإيابًا (`Serialization round trips`) المدعومة.
+5. **يجب (MUST)** أن يُطبّق التقريب فقط عند الحدود المُعرَّفة في هذه المواصفات أو بموجب عقد عملية صريح.
+6. **يجب (MUST)** أن يُميّز بين البيانات الوصفية للعملة المستمدة من معيار `ISO 4217` والحدود الهندسية الخاصة بالمشروع.
+7. **يجب ألّا (MUST NOT)** يتطلب من المُستدعي أو المدقّق فحص الشيفرة المصدرية لتحديد السلوك المجالي المتوقع.
 
-- The decimal input `0.1` is represented as exactly one tenth, not as a binary approximation.
-- Adding `0.1` and `0.2` produces the exact decimal result `0.3`.
-- The domain MUST reject or explicitly convert an input whose monetary meaning cannot be recovered exactly.
+### 2.2 أدلة المطابقة (Conformance evidence)
 
-### MONEY-002 — Currency is part of Money identity
+يمكن إثبات المطابقة من خلال اختبارات قابلة للملاحظة خارجيًا، تشمل:
 
-A Money value consists of an amount and a currency identity. Two Money values with different currencies are not equal merely because their numeric amounts are equal.
+- أمثلة مدخلات صالحة وغير صالحة؛
+- أمثلة حسابية دقيقة؛
+- اختبارات القيم الحدية (`Boundary-value tests`)؛
+- حالات التعادل في التقريب (`Rounding tie cases`)، بما في ذلك القيم الموجبة والسالبة؛
+- حالات عدم تطابق العملات (`Currency mismatch cases`)؛
+- حالات اتجاه التحويل والوحدة الفرعية للعملة الهدف؛
+- اختبارات التسلسل ودورات التحليل/التسلسل (`Parse/serialize round trips`)؛
+- اختبارات فئات الأخطاء وتوقيت اكتشاف الأخطاء.
 
-**Acceptance criteria**
+تُعدّ حزمة الاختبارات دليلًا على المطابقة؛ غير أن وجود حزمة اختبارات أو نجاحها وحده لا يُعيد تعريف هذه المواصفات.
 
-- `10.00 USD` and `10.00 EUR` are not equal as Money values.
-- Currency identity is preserved by comparison, arithmetic validation, and serialization.
+### 2.3 المطابقة الجزئية (Partial conformance)
 
-### MONEY-003 — Exact decimal input
+**يجب ألّا (MUST NOT)** يُوصَف التنفيذ الذي يستوفي مجموعة فرعية فقط من المتطلبات بأنه مطابق بالكامل. و**يجب (MUST)** أن يُحدّد أي ادعاء بالمطابقة الجزئية القواعد المُغفلة والسلوكيات المتأثرة.
 
-Decimal monetary inputs MUST be parsed from exact decimal representations, such as decimal strings or integer-scaled values. Parsing MUST NOT introduce binary floating-point artifacts.
-
-**Acceptance criteria**
-
-- Parsing the string `"123.4500"` preserves its numeric value exactly.
-- A malformed decimal string fails validation.
-- A valid decimal input is never silently changed to a nearby representable value.
-
-### MONEY-004 — Internal precision and external precision are distinct
-
-Internal calculation precision and a currency's external minor-unit precision are separate concepts. Intermediate calculations MAY retain more fractional digits than the currency's minor-unit precision. Rounding to the currency minor unit MUST occur only at an explicitly defined external or domain boundary.
-
-**Acceptance criteria**
-
-- A calculation involving a currency with two minor-unit digits MAY retain additional intermediate fractional digits.
-- Merely constructing or adding a Money value MUST NOT automatically round it to the currency's minor unit unless the operation contract explicitly requires that boundary.
-- Conversion output is rounded according to MONEY-028.
-
-### MONEY-005 — Internal significant-digit limit
-
-The supported Money decimal context has a maximum of **28 significant decimal digits**. Inputs and operation results exceeding this limit MUST fail explicitly.
-
-This is a project-level numeric policy. It is not attributed to ISO 4217, IAS 21, IEEE 754, or another external standard.
-
-**Acceptance criteria**
-
-- A value with 28 significant digits is accepted if it also satisfies all other range constraints.
-- A value or result requiring 29 significant digits fails with a precision/range error.
-- The implementation MUST NOT silently round a 29-digit value merely to make it fit.
-
-### MONEY-006 — Internal integer-digit limit
-
-The supported Money decimal context has a maximum of **28 integer digits**. Inputs and operation results exceeding this limit MUST fail explicitly.
-
-This is a project-level numeric policy and is independent of currency minor-unit metadata.
-
-**Acceptance criteria**
-
-- A value with 28 integer digits is accepted if it satisfies the significant-digit and exponent constraints.
-- A value requiring 29 integer digits fails explicitly.
-- The implementation MUST NOT silently clamp or wrap the value.
-
-### MONEY-007 — Internal exponent range
-
-The supported Money decimal exponent range is **[-28, +28]**, inclusive. For purposes of this rule, **exponent** is the exponent applied to the most significant decimal digit of a non-zero value when written in normalized form (one non-zero digit before the decimal point).
-
-Implementations that use a different exponent convention internally MUST map to this definition at the public domain boundary and apply the **[-28, +28]** bound to that mapped value. They MUST NOT rely on an undocumented library-specific interpretation.
-
-This is a project-level numeric policy.
-
-**Acceptance criteria**
-
-- A non-zero value whose normalized most-significant-digit exponent is `-28` or `+28` satisfies the exponent bound, provided all other constraints are satisfied.
-- `1e-28` satisfies the exponent bound.
-- `1e28` satisfies the exponent bound but fails MONEY-006 because it requires 29 integer digits.
-- A non-zero value whose normalized most-significant-digit exponent is below `-28` or above `+28` fails explicitly.
-- Underflow MUST NOT silently turn a non-zero monetary value into zero.
-
-**Informative note — derived effective fractional scale**
-
-The combination of MONEY-005 and MONEY-007 permits, as a mathematical consequence, a value with 28 significant digits whose normalized most-significant-digit exponent is `-28`. In such a value, the 28th significant digit can occur at exponent `-55`, yielding an effective fractional scale of 55 places. For example, `1.234567890123456789012345678e-28` has 28 significant digits and an effective fractional scale of 55.
-
-This is an explanatory consequence of the existing numeric limits, not a separate normative minimum, an independent acceptance threshold, or a new conformance rule. Whether a particular implementation can represent and process such a value exactly depends on its chosen representation. Any limitation that affects values otherwise permitted by the normative numeric limits MUST be disclosed under §2.3 and handled without silent loss of precision under MONEY-008 and §9.
-
-### MONEY-008 — Overflow and precision-boundary handling
-
-An input or operation result that exceeds the supported significant-digit limit, integer-digit limit, exponent range, or representational range MUST produce an explicit failure. Silent overflow, underflow, truncation, wraparound, and lossy coercion are prohibited.
-
-**Acceptance criteria**
-
-- An out-of-range operation returns a failure and does not expose a fabricated monetary result.
-- A failed operation does not mutate an existing Money value.
-- A non-zero value MUST NOT silently become zero through underflow.
+إذا تعذّر على التمثيل الرقمي المختار تمثيل أو معالجة بعض القيم التي تستوفي بخلاف ذلك القواعد من `MONEY-005` إلى `MONEY-007` بدقة، **يجب (MUST)** على التنفيذ الإفصاح عن ذلك بوصفه قيدًا تمثيليًا (`Representational limitation`). و**يجب (MUST)** أن يذكر الإفصاح الحد الأقصى للمقياس الكسري الفعلي (`Maximum effective fractional scale`) المدعوم حيثما ينطبق، وأن يُحدّد نطاقات القيم والعمليات المتأثرة. ولا يُغيّر هذا القيد الحدود الرقمية المعيارية، و**يجب ألّا (MUST NOT)** يُقدَّم بوصفه قاعدة مجالية إضافية. و**يجب (MUST)** على التنفيذ رفض القيمة أو النتيجة غير المدعومة صراحةً قبل إرجاعها أو حفظها أو إظهارها على أنها ناجحة؛ و**يجب ألّا (MUST NOT)** يقوم بتقريب القيمة أو بترها أو فيضانها السفلي (`Underflow`) أو تحويلها قسريًا بصمت.
 
 ---
 
-## 4. Currency identity and registry
+## 3. التمثيل الأساسي والدقة (Core representation and precision)
 
-### MONEY-009 — Currency normalization and validation
+### MONEY-001 — التمثيل النقدي الدقيق (Exact monetary representation)
 
-Currency input MUST be normalized by:
+**يجب (MUST)** تمثيل مبلغ `Money` وحسابه دون أن تكون الفاصلة العائمة الثنائية (`Binary floating-point`) هي القيمة النقدية المرجعية المعتمدة. **يجوز (MAY)** للتنفيذ استخدام الحساب العشري الدقيق أو التمثيل المقيَّس بالأعداد الصحيحة.
 
-1. trimming surrounding whitespace;
-2. converting ASCII letters `a`–`z` to uppercase;
-3. requiring the normalized value to match exactly `[A-Z]{3}`.
+**يجب ألّا (MUST NOT)** يُقبل مُدخَل فاصلة عائمة ثنائية بوصفه مبلغًا نقديًا معتمدًا ما لم تُثبَت قيمته العشرية المقصودة الدقيقة بشكل مستقل وغير ملتبس قبل التحقق المجالي، على سبيل المثال من خلال عقد تحويل عشري صريح وموثق (`Decimal-conversion contract`).
 
-Digits, punctuation, currency symbols, non-ASCII letters, and values that do not produce exactly three ASCII letters MUST be rejected. Implementations MUST NOT transliterate, guess, or silently substitute currency codes.
+**معايير القبول**
 
-Normalization establishes syntactic shape only; it does not establish that a code is assigned, current, or supported.
+- يُمثَّل المُدخَل العشري `0.1` بوصفه عُشرًا بالضبط، لا بوصفه تقريبًا ثنائيًا.
+- ينتج عن جمع `0.1` و`0.2` النتيجة العشرية الدقيقة `0.3`.
+- **يجب (MUST)** أن يرفض المجال، أو يحوّل صراحةً، أي مُدخَل لا يمكن استعادة معناه النقدي بدقة.
 
-**Acceptance criteria**
+### MONEY-002 — العملة جزء من هوية `Money`
 
-- `" usd "` normalizes to `USD`.
-- `"US1"`, `"US$"`, `"US"`, `"USDD"`, and a code containing non-ASCII letters are rejected.
-- A syntactically valid but unassigned or unsupported code is rejected by registry validation.
+تتكون قيمة `Money` من مبلغ وهوية عملة. لا تتساوى قيمتا `Money` بعملتين مختلفتين لمجرد تساوي مبلغيهما الرقميين.
 
-### MONEY-010 — ISO 4217 currency-code lifecycle
+**معايير القبول**
 
-Currency-code assignments and lifecycle metadata MUST be maintained against the authoritative ISO 4217 currency-code registry and its maintenance notices.
+- لا تتساوى `10.00 USD` و`10.00 EUR` بوصفهما قيمتي `Money`.
+- تُحفَظ هوية العملة في المقارنة، والتحقق الحسابي، والتسلسل.
 
-The registry data used by an implementation MUST be versioned or otherwise identifiable so that the applicable currency metadata can be determined. Where historical-date support is provided, the registry MUST distinguish a code's effective lifecycle dates from its current status.
+### MONEY-003 — المُدخَل العشري الدقيق (Exact decimal input)
 
-The codes and lifecycle events mentioned in v2.4—including BGN, ANG/XCG, CUC, and SLL—are examples of changes that require registry maintenance, not a substitute for the current authoritative registry snapshot.
+**يجب (MUST)** تحليل المدخلات النقدية العشرية من تمثيلات عشرية دقيقة، مثل السلاسل النصية العشرية (`Decimal strings`) أو القيم المقيَّسة بالأعداد الصحيحة. و**يجب ألّا (MUST NOT)** يُدخل التحليل شوائب الفاصلة العائمة الثنائية (`Binary floating-point artifacts`).
 
-**Acceptance criteria**
+**معايير القبول**
 
-- A currency code's supported status is determined from controlled registry data, not from a hard-coded assumption scattered across operations.
-- Registry updates can be traced to a particular source snapshot or maintenance notice.
-- A withdrawn or replaced code is not silently treated as a current code.
+- يحافظ تحليل السلسلة النصية `"123.4500"` على قيمتها الرقمية بدقة.
+- تفشل السلسلة النصية العشرية مشوّهة الصيغة في التحقق.
+- لا يُغيَّر المُدخَل العشري الصالح بصمت أبدًا إلى قيمة قريبة قابلة للتمثيل.
 
-### MONEY-011 — Currency minor units
+### MONEY-004 — الدقة الداخلية والدقة الخارجية مفهومان متمايزان
 
-Currency minor-unit metadata MUST be explicit and sourced from the applicable ISO 4217 registry data. Implementations MUST NOT assume that every currency has two minor-unit digits.
+دقة الحساب الداخلية ودقة الوحدة الفرعية الخارجية للعملة (`External minor-unit precision`) مفهومان منفصلان. **يجوز (MAY)** أن تحتفظ الحسابات الوسيطة بأرقام كسرية أكثر من دقة الوحدة الفرعية للعملة. و**يجب (MUST)** ألّا يحدث التقريب إلى الوحدة الفرعية للعملة إلّا عند حد خارجي أو مجالي مُعرَّف صراحةً.
 
-The registry data includes currencies with different minor-unit counts; CLF and UYW are examples identified in the v2.4 source document as having four minor-unit digits. The applicable registry version governs.
+**معايير القبول**
 
-**Acceptance criteria**
+- **يجوز (MAY)** أن تحتفظ عملية حسابية تتضمن عملة ذات رقمين للوحدة الفرعية بأرقام كسرية وسيطة إضافية.
+- **يجب ألّا (MUST NOT)** يؤدي مجرد إنشاء قيمة `Money` أو جمعها إلى تقريبها تلقائيًا إلى الوحدة الفرعية للعملة ما لم يتطلب عقد العملية ذلك الحد صراحةً.
+- تُقرَّب مخرجات التحويل وفقًا للقاعدة `MONEY-028`.
 
-- Formatting and conversion use the configured minor-unit count for the currency.
-- A currency with zero, two, or four minor-unit digits is not forced into a universal two-digit policy.
-- The minor-unit count is traceable to the registry version in use.
+### MONEY-005 — حد الأرقام المعنوية الداخلية (Internal significant-digit limit)
 
-### MONEY-012 — Currency registry lookup
+يبلغ الحد الأقصى لسياق `Money` العشري المدعوم **28 رقمًا عشريًا معنويًا** (`28 significant decimal digits`). و**يجب (MUST)** أن تفشل المدخلات ونتائج العمليات التي تتجاوز هذا الحد صراحةً.
 
-Currency metadata, including minor-unit information and lifecycle status, MUST be obtained from a controlled registry. Unknown or unsupported currencies MUST fail explicit validation.
+هذه سياسة رقمية على مستوى المشروع، ولا تُنسب إلى `ISO 4217` أو `IAS 21` أو `IEEE 754` أو أي معيار خارجي آخر.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- A code that passes the syntactic pattern but is absent from the supported registry fails domain validation.
-- Arithmetic and formatting MUST NOT invent metadata for an unknown code.
+- تُقبل القيمة المكوّنة من 28 رقمًا معنويًا إذا استوفت أيضًا جميع قيود النطاق الأخرى.
+- تفشل القيمة أو النتيجة التي تتطلب 29 رقمًا معنويًا بخطأ دقة/نطاق (`Precision/range error`).
+- **يجب ألّا (MUST NOT)** يقوم التنفيذ بتقريب قيمة من 29 رقمًا بصمت لمجرد جعلها تتناسب مع الحد.
 
-### MONEY-013 — Minor-unit source of truth and overrides
+### MONEY-006 — حد الأرقام الصحيحة الداخلية (Internal integer-digit limit)
 
-ISO 4217 registry data is the default source of truth for currency minor-unit metadata. A disagreement with stale or custom data MUST NOT be resolved silently.
+يبلغ الحد الأقصى لسياق `Money` العشري المدعوم **28 رقمًا صحيحًا** (`28 integer digits`). و**يجب (MUST)** أن تفشل المدخلات ونتائج العمليات التي تتجاوز هذا الحد صراحةً.
 
-Any project override MUST be explicit, documented, versioned, and justified. It MUST identify:
+هذه سياسة رقمية على مستوى المشروع وهي مستقلة عن البيانات الوصفية للوحدة الفرعية للعملة.
 
-- the affected currency;
-- the prior value;
-- the replacement value;
-- the reason;
-- the effective date.
+**معايير القبول**
 
-**Acceptance criteria**
+- تُقبل القيمة المكوّنة من 28 رقمًا صحيحًا إذا استوفت قيود الأرقام المعنوية والأُس.
+- تفشل القيمة التي تتطلب 29 رقمًا صحيحًا صراحةً.
+- **يجب ألّا (MUST NOT)** يقوم التنفيذ بتقييد القيمة (`Clamp`) أو التفافها (`Wrap`) بصمت.
 
-- An override can be identified independently of the base registry value.
-- An undocumented override is non-conformant.
-- Updating the base registry does not silently erase or alter a separately approved override.
+### MONEY-007 — نطاق الأُس الداخلي (Internal exponent range)
 
-### MONEY-014 — Unsupported and special currency codes
+نطاق الأُس العشري المدعوم لقيمة `Money` هو **`[-28, +28]`** شاملًا الطرفين. ولأغراض هذه القاعدة، يُقصد بـ**الأُس (`Exponent`)** الأُس المُطبَّق على الرقم العشري الأكثر أهمية (`Most significant decimal digit`) لقيمة غير صفرية عند كتابتها في الصيغة المُطبَّعة (`Normalized form`) (رقم واحد غير صفري قبل الفاصلة العشرية).
 
-A code representing no currency or a special-purpose denomination, such as `XXX`, MUST NOT be accepted as an ordinary spendable currency unless the domain explicitly models that special-purpose meaning and defines its behavior.
+**يجب (MUST)** على التنفيذات التي تستخدم اصطلاح أُس مختلف داخليًا أن تُحوّله إلى هذا التعريف عند حد المجال العام (`Public domain boundary`) وأن تُطبّق الحد **`[-28, +28]`** على تلك القيمة المُحوَّلة. و**يجب ألّا (MUST NOT)** تعتمد على تفسير غير موثق خاص بمكتبة برمجية.
 
-**Acceptance criteria**
+هذه سياسة رقمية على مستوى المشروع.
 
-- `XXX` is rejected by ordinary spendable-Money construction.
-- If a future domain explicitly supports a special-purpose code, its behavior is separately specified and cannot be inferred from ordinary currency behavior.
+**معايير القبول**
+
+- تستوفي القيمة غير الصفرية التي يكون أُس رقمها الأكثر أهمية في الصيغة المُطبَّعة `-28` أو `+28` حدَّ الأُس، شريطة استيفاء جميع القيود الأخرى.
+- تستوفي `1e-28` حدَّ الأُس.
+- تستوفي `1e28` حدَّ الأُس لكنها تفشل في `MONEY-006` لأنها تتطلب 29 رقمًا صحيحًا.
+- تفشل القيمة غير الصفرية التي يكون أُس رقمها الأكثر أهمية في الصيغة المُطبَّعة أقل من `-28` أو أكبر من `+28` صراحةً.
+- **يجب ألّا (MUST NOT)** يُحوّل الفيضان السفلي (`Underflow`) قيمة نقدية غير صفرية إلى صفر بصمت.
+
+**ملاحظة إعلامية — المقياس الكسري الفعلي المُشتق (derived effective fractional scale)**
+
+يسمح الجمع بين `MONEY-005` و`MONEY-007`، بوصفه نتيجة رياضية، بقيمة تحتوي على 28 رقمًا معنويًا ويكون أُس رقمها الأكثر أهمية في الصيغة المُطبَّعة `-28`. في مثل هذه القيمة، يمكن أن يقع الرقم المعنوي الثامن والعشرون عند الأُس `-55`، مما ينتج عنه مقياس كسري فعلي قدره 55 خانة. على سبيل المثال، تحتوي القيمة `1.234567890123456789012345678e-28` على 28 رقمًا معنويًا ومقياس كسري فعلي قدره 55.
+
+هذا استنتاج توضيحي من الحدود الرقمية القائمة، وليس حدًا أدنى معياريًا منفصلًا، ولا عتبة قبول مستقلة، ولا قاعدة مطابقة جديدة. ويعتمد تمثيل مثل هذه القيمة ومعالجتها بدقة في تنفيذ معين على التمثيل المختار. و**يجب (MUST)** الإفصاح عن أي قيد يؤثر في القيم المسموح بها بخلاف ذلك بموجب الحدود الرقمية المعيارية وفق القسم §2.3 والتعامل معه دون فقدان صامت للدقة بموجب `MONEY-008` والقسم §9.
+
+### MONEY-008 — معالجة الفيضان وحدود الدقة (Overflow and precision-boundary handling)
+
+**يجب (MUST)** أن يُنتج أي مُدخَل أو نتيجة عملية تتجاوز حد الأرقام المعنوية، أو حد الأرقام الصحيحة، أو نطاق الأُس، أو النطاق التمثيلي فشلًا صريحًا. ويُحظر الفيضان الصامت (`Silent overflow`)، والفيضان السفلي (`Underflow`)، والبتر (`Truncation`)، والالتفاف (`Wraparound`)، والتحويل القسري المُفقِد للدقة (`Lossy coercion`).
+
+**معايير القبول**
+
+- تُرجع العملية الخارجة عن النطاق فشلًا ولا تُظهر نتيجة نقدية مُلفَّقة.
+- لا تُعدّل العملية الفاشلة قيمة `Money` قائمة.
+- **يجب ألّا (MUST NOT)** تصبح القيمة غير الصفرية صفرًا بصمت من خلال الفيضان السفلي.
 
 ---
 
-## 5. Arithmetic and rounding
+## 4. هوية العملة والسجل (Currency identity and registry)
 
-### MONEY-015 — Currency compatibility for arithmetic
+### MONEY-009 — تطبيع العملة والتحقق منها (Currency normalization and validation)
 
-Addition, subtraction, comparison, and any other operation requiring a common denomination MUST reject currency mismatches unless an explicit currency-conversion operation is invoked.
+**يجب (MUST)** تطبيع مُدخَل العملة عبر:
 
-**Acceptance criteria**
+1. إزالة المسافات البيضاء المحيطة (`Trimming surrounding whitespace`)؛
+2. تحويل أحرف `ASCII` من `a` إلى `z` إلى أحرف كبيرة (`Uppercase`)؛
+3. اشتراط مطابقة القيمة المُطبَّعة للنمط `[A-Z]{3}` بالضبط.
 
-- Adding `10 USD` to `5 EUR` fails with a currency-mismatch error.
-- Comparing `10 USD` and `10 EUR` as if they were the same denomination fails or returns a clearly defined non-equality result according to the comparison API; it MUST NOT treat the amounts as interchangeable.
-- No implicit exchange rate is selected.
+**يجب (MUST)** رفض الأرقام، وعلامات الترقيم، ورموز العملات، والأحرف غير الواردة في `ASCII`، والقيم التي لا تُنتج ثلاثة أحرف `ASCII` بالضبط. و**يجب ألّا (MUST NOT)** تقوم التنفيذات بالنقحرة (`Transliterate`)، أو التخمين، أو الاستبدال الصامت لرموز العملات.
 
-### MONEY-016 — Addition and subtraction
+يُثبت التطبيع الشكل التركيبي فقط؛ ولا يُثبت أن الرمز مُخصَّص، أو حالي، أو مدعوم.
 
-Addition and subtraction MUST preserve currency identity and use exact decimal arithmetic, subject to the precision and range limits in MONEY-005 through MONEY-008.
+**معايير القبول**
 
-**Acceptance criteria**
+- تُطبَّع `" usd "` إلى `USD`.
+- تُرفَض `"US1"`، و`"US$"`، و`"US"`، و`"USDD"`، وأي رمز يحتوي على أحرف غير `ASCII`.
+- يُرفَض الرمز الصالح تركيبيًا لكنه غير مُخصَّص أو غير مدعوم بواسطة التحقق من السجل (`Registry validation`).
+
+### MONEY-010 — دورة حياة رموز العملات وفق `ISO 4217`
+
+**يجب (MUST)** الحفاظ على تخصيصات رموز العملات والبيانات الوصفية لدورة حياتها استنادًا إلى سجل رموز العملات المعتمد `ISO 4217` وإشعارات صيانته (`Maintenance notices`).
+
+**يجب (MUST)** أن تكون بيانات السجل المستخدمة في التنفيذ مُرقّمة بالإصدار أو قابلة للتحديد بطريقة أخرى بحيث يمكن تعيين البيانات الوصفية المنطبقة للعملة. وعند توفير دعم للتواريخ التاريخية، **يجب (MUST)** أن يُميّز السجل بين تواريخ السريان في دورة حياة الرمز وحالته الحالية.
+
+إن الرموز وأحداث دورة الحياة المذكورة في v2.4 — بما في ذلك `BGN`، و`ANG/XCG`، و`CUC`، و`SLL` — هي أمثلة على التغييرات التي تتطلب صيانة السجل، وليست بديلًا عن لقطة السجل المعتمدة الحالية.
+
+**معايير القبول**
+
+- تُحدَّد حالة دعم رمز العملة من بيانات سجل مُتحكَّم بها، لا من افتراض مُضمَّن صلبًا (`Hard-coded assumption`) مبعثر عبر العمليات.
+- يمكن تتبّع تحديثات السجل إلى لقطة مصدرية محددة أو إشعار صيانة.
+- لا يُعامَل الرمز المسحوب أو المُستبدَل بصمت بوصفه رمزًا حاليًا.
+
+### MONEY-011 — الوحدات الفرعية للعملة (Currency minor units)
+
+**يجب (MUST)** أن تكون البيانات الوصفية للوحدة الفرعية للعملة صريحة ومستمدة من بيانات سجل `ISO 4217` المنطبقة. و**يجب ألّا (MUST NOT)** تفترض التنفيذات أن كل عملة لها رقمان للوحدة الفرعية.
+
+تتضمن بيانات السجل عملات بأعداد مختلفة من الوحدات الفرعية؛ وتُعدّ `CLF` و`UYW` مثالين مُحددين في المستند المصدري v2.4 على أن لهما أربعة أرقام للوحدة الفرعية. ويسود إصدار السجل المنطبق.
+
+**معايير القبول**
+
+- يستخدم التنسيق والتحويل عدد الوحدات الفرعية المُهيَّأ للعملة.
+- لا تُجبر العملة ذات الصفر أو الرقمين أو الأربعة أرقام للوحدة الفرعية على سياسة موحدة من رقمين.
+- يمكن تتبّع عدد الوحدات الفرعية إلى إصدار السجل قيد الاستخدام.
+
+### MONEY-012 — البحث في سجل العملات (Currency registry lookup)
+
+**يجب (MUST)** الحصول على البيانات الوصفية للعملة، بما في ذلك معلومات الوحدة الفرعية وحالة دورة الحياة، من سجل مُتحكَّم به. و**يجب (MUST)** أن تفشل العملات المجهولة أو غير المدعومة في التحقق الصريح.
+
+**معايير القبول**
+
+- يفشل الرمز الذي يجتاز النمط التركيبي لكنه غائب عن السجل المدعوم في التحقق المجالي.
+- **يجب ألّا (MUST NOT)** تختلق العمليات الحسابية والتنسيق بيانات وصفية لرمز مجهول.
+
+### MONEY-013 — مصدر الحقيقة للوحدة الفرعية والتجاوزات (Minor-unit source of truth and overrides)
+
+تُعدّ بيانات سجل `ISO 4217` مصدر الحقيقة الافتراضي للبيانات الوصفية للوحدة الفرعية للعملة. و**يجب ألّا (MUST NOT)** يُحلّ أي تعارض مع بيانات قديمة أو مخصصة بصمت.
+
+**يجب (MUST)** أن يكون أي تجاوز خاص بالمشروع (`Project override`) صريحًا، وموثقًا، ومُرقّمًا بالإصدار، ومُبرَّرًا. و**يجب (MUST)** أن يُحدّد:
+
+- العملة المتأثرة؛
+- القيمة السابقة؛
+- القيمة البديلة؛
+- السبب؛
+- تاريخ السريان (`Effective date`).
+
+**معايير القبول**
+
+- يمكن تحديد التجاوز بشكل مستقل عن قيمة السجل الأساسي.
+- يُعدّ التجاوز غير الموثق غير مطابق.
+- لا يؤدي تحديث السجل الأساسي إلى محو أو تغيير تجاوز مُعتمد بشكل منفصل بصمت.
+
+### MONEY-014 — رموز العملات غير المدعومة والخاصة (Unsupported and special currency codes)
+
+**يجب ألّا (MUST NOT)** يُقبل الرمز الذي يمثل عدم وجود عملة أو رمز اختبار أو فئة ذات غرض خاص، مثل `XXX` (بلا عملة) أو `XTS` (لاختبارات الأنظمة) أو رموز المعادن النفيسة/وحدات السحب الخاصة (`XAU`, `XAG`, `XDR`)، بوصفه عملة عادية قابلة للإنفاق ما لم يُنمذج المجال صراحةً ذلك المعنى ذا الغرض الخاص ويُعرّف سلوكه.
+
+**معايير القبول**
+
+- يُرفَض الرمز `XXX` عند إنشاء قيمة `Money` عادية قابلة للإنفاق.
+- إذا دعم مجال مستقبلي رمزًا ذا غرض خاص صراحةً، فإن سلوكه يُحدَّد بشكل منفصل ولا يمكن استنتاجه من سلوك العملة العادية.
+
+---
+
+## 5. العمليات الحسابية والتقريب (Arithmetic and rounding)
+
+### MONEY-015 — توافق العملات في العمليات الحسابية (Currency compatibility for arithmetic)
+
+**يجب (MUST)** أن يرفض الجمع، والطرح، والمقارنة، وأي عملية أخرى تتطلب فئة نقدية مشتركة عدم تطابق العملات ما لم تُستدعَ عملية تحويل عملة صريحة.
+
+**معايير القبول**
+
+- يفشل جمع `10 USD` إلى `5 EUR` بخطأ عدم تطابق العملات (`Currency-mismatch error`).
+- تفشل مقارنة `10 USD` و`10 EUR` كما لو كانتا من الفئة نفسها، أو تُرجع نتيجة عدم مساواة مُعرَّفة بوضوح وفقًا لواجهة برمجة المقارنة؛ و**يجب ألّا (MUST NOT)** تعامل المبلغين بوصفهما قابلين للتبادل.
+- لا يُختار أي سعر صرف ضمني.
+
+### MONEY-016 — الجمع والطرح (Addition and subtraction)
+
+**يجب (MUST)** أن يحافظ الجمع والطرح على هوية العملة وأن يستخدما الحساب العشري الدقيق، مع مراعاة حدود الدقة والنطاق في القواعد من `MONEY-005` إلى `MONEY-008`.
+
+**معايير القبول**
 
 - `10.25 USD + 2.50 USD = 12.75 USD`.
 - `10.25 USD - 2.50 USD = 7.75 USD`.
-- The same operations with different currencies fail under MONEY-015.
-- An out-of-range result fails rather than being truncated.
+- تفشل العمليات نفسها بعملات مختلفة بموجب `MONEY-015`.
+- تفشل النتيجة الخارجة عن النطاق بدلًا من بترها.
 
-### MONEY-017 — Division
+### MONEY-017 — القسمة (Division)
 
-Division MUST use an internal result scale of **12 fractional decimal places** and the **Half Away From Zero** rounding mode. The rounded result MUST then be checked against the significant-digit, integer-digit, exponent, and representational limits.
+**يجب (MUST)** أن تستخدم القسمة مقياس نتيجة داخليًا من **12 خانة عشرية كسرية** (`12 fractional decimal places`) ووضع التقريب **النصف بعيدًا عن الصفر (`Half Away From Zero`)**. و**يجب (MUST)** بعد ذلك فحص النتيجة المُقرَّبة مقابل حدود الأرقام المعنوية، والأرقام الصحيحة، والأُس، والحدود التمثيلية.
 
-Division by zero MUST fail. A boundary violation MUST fail explicitly; silent truncation or overflow is prohibited.
+**يجب (MUST)** أن تفشل القسمة على صفر. و**يجب (MUST)** أن يفشل أي انتهاك للحدود صراحةً؛ ويُحظر البتر الصامت أو الفيضان.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- `1 / 3` produces `0.333333333333` at the defined division scale.
-- `1 / 8` produces `0.125000000000` when the division result is represented at the fixed 12-place scale; equivalent numeric serialization MAY omit insignificant trailing zeros if the serialization contract permits it.
-- A tie case at the 12th fractional place is rounded Half Away From Zero for both positive and negative results.
-- Division by zero fails before a result is returned.
+- تُنتج `1 / 3` القيمة `0.333333333333` عند مقياس القسمة المُعرَّف.
+- تُنتج `1 / 8` القيمة `0.125000000000` عند تمثيل نتيجة القسمة عند المقياس الثابت ذي الـ 12 خانة؛ و**يجوز (MAY)** للتسلسل الرقمي المكافئ حذف الأصفار اللاحقة غير المعنوية إذا سمح عقد التسلسل بذلك.
+- تُقرَّب حالة التعادل عند الخانة الكسرية الثانية عشرة وفق وضع `Half Away From Zero` لكل من النتائج الموجبة والسالبة.
+- تفشل القسمة على صفر قبل إرجاع أي نتيجة.
 
-**Policy note — rationale for operation-specific rounding**
+**ملاحظة سياساتية — مبررات التقريب الخاص بالعملية (rationale for operation-specific rounding)**
 
-Division uses **Half Away From Zero** at the 12-place intermediate scale, while MONEY-019 and MONEY-028 use **Half-to-Even** at their respective rounding boundaries. This distinction is intentional and is based on the different semantic roles of the results:
+تستخدم القسمة وضع **`Half Away From Zero`** عند المقياس الوسيط ذي الـ 12 خانة، بينما تستخدم `MONEY-019` و`MONEY-028` وضع **`Half-to-Even`** عند حدود التقريب الخاصة بكل منهما. وهذا التمييز مقصود ويستند إلى الأدوار الدلالية المختلفة للنتائج:
 
-1. **Division produces an intermediate value.** A result at the 12-place scale is commonly an intermediate quantity—such as a per-unit amount or ratio—that may be used in subsequent multiplication or aggregation. It is not necessarily a final currency-denominated amount.
-2. **The accumulation-bias concern differs.** Half-to-Even is used for final monetary rounding to reduce systematic cumulative bias. The fixed-scale division result is an intermediate value and is not ordinarily accumulated as a sequence of independently rounded final monetary amounts in the same way.
-3. **The intermediate scale has no parity semantics for callers.** Both modes are symmetric with respect to sign. Half Away From Zero avoids making the intermediate tie result depend on the parity of the last retained digit, whose even/odd status has no intended domain meaning to callers at the 12-place intermediate scale.
-4. **The behavior is explicit, not implicit.** MONEY-020 requires the operation-specific mode to be declared. Callers therefore cannot rely on an undocumented library default or infer a different mode.
+1. **تُنتج القسمة قيمة وسيطة.** تكون النتيجة عند المقياس ذي الـ 12 خانة عادةً كمية وسيطة — مثل مبلغ لكل وحدة أو نسبة — قد تُستخدم في عمليات ضرب أو تجميع لاحقة، وليست بالضرورة مبلغًا نهائيًا مقومًا بعملة.
+2. **يختلف هاجس تحيّز التراكم (`Accumulation-bias`).** يُستخدم `Half-to-Even` للتقريب النقدي النهائي لتقليل التحيّز التراكمي المنهجي. أما نتيجة القسمة ذات المقياس الثابت فهي قيمة وسيطة ولا تُراكم عادةً بوصفها تسلسلًا من المبالغ النقدية النهائية المُقرَّبة بشكل مستقل بالطريقة نفسها.
+3. **لا يحمل المقياس الوسيط دلالات زوجية/فردية (`Parity semantics`) للمُستدعين.** كلا الوضعين متماثلان بالنسبة للإشارة. ويتجنب `Half Away From Zero` جعل نتيجة التعادل الوسيطة تعتمد على زوجية أو فردية آخر رقم مُحتفَظ به، إذ لا تحمل حالته الزوجية/الفردية معنىً مجاليًا مقصودًا للمُستدعين عند المقياس الوسيط ذي الـ 12 خانة.
+4. **السلوك صريح، لا ضمني.** تتطلب `MONEY-020` التصريح بالوضع الخاص بالعملية. وبذلك لا يمكن للمُستدعين الاعتماد على إعداد افتراضي غير موثق للمكتبة أو استنتاج وضع مختلف.
 
-Accordingly, applying the MONEY-019 default mode to division, or silently unifying all rounding operations under one mode, does not conform to MONEY-017. An implementation that does so MUST identify MONEY-017 as an omitted or non-conformant rule when making a partial-conformance claim under §2.3.
+وبناءً عليه، فإن تطبيق الوضع الافتراضي `MONEY-019` على القسمة، أو توحيد جميع عمليات التقريب بصمت تحت وضع واحد، لا يطابق `MONEY-017`. و**يجب (MUST)** على التنفيذ الذي يفعل ذلك تحديد `MONEY-017` بوصفها قاعدة مُغفلة أو غير مطابقة عند تقديم ادعاء مطابقة جزئية بموجب القسم §2.3.
 
-### MONEY-018 — Multiplication
+### MONEY-018 — الضرب (Multiplication)
 
-Multiplication MUST use exact decimal arithmetic for the intermediate result. It MUST NOT round merely because the product has more fractional digits than the currency's minor unit. Rounding occurs only at a boundary explicitly defined by an operation contract. The result MUST satisfy the precision and range constraints.
+**يجب (MUST)** أن يستخدم الضرب الحساب العشري الدقيق للنتيجة الوسيطة. و**يجب ألّا (MUST NOT)** يُقرّب لمجرد أن حاصل الضرب يحتوي على أرقام كسرية أكثر من الوحدة الفرعية للعملة. ولا يحدث التقريب إلّا عند حد مُعرَّف صراحةً بموجب عقد عملية. و**يجب (MUST)** أن تستوفي النتيجة قيود الدقة والنطاق.
 
-**Acceptance criteria**
+**معايير القبول**
 
 - `1.25 USD × 2 = 2.50 USD`.
-- Multiplication preserves exact intermediate decimal value when within supported bounds.
-- A product exceeding supported bounds fails explicitly.
-- Multiplication does not apply an undocumented currency-minor-unit rounding step.
+- يحافظ الضرب على القيمة العشرية الوسيطة الدقيقة متى كانت ضمن الحدود المدعومة.
+- يفشل حاصل الضرب الذي يتجاوز الحدود المدعومة صراحةً.
+- لا يُطبّق الضرب خطوة تقريب غير موثقة إلى الوحدة الفرعية للعملة.
 
-### MONEY-019 — Default rounding mode
+### MONEY-019 — وضع التقريب الافتراضي (Default rounding mode)
 
-The default rounding mode for operations that require rounding is **Half-to-Even (Banker's rounding)** unless a rule explicitly specifies another mode.
+وضع التقريب الافتراضي للعمليات التي تتطلب تقريبًا هو **النصف إلى الزوجي (`Half-to-Even` / `Banker's rounding`)** ما لم تُحدّد قاعدةٌ وضعًا آخر صراحةً.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- Under Half-to-Even, `2.5` rounded to an integer becomes `2`.
-- Under Half-to-Even, `3.5` rounded to an integer becomes `4`.
-- Under Half-to-Even, `-2.5` rounded to an integer becomes `-2`.
-- Under Half-to-Even, `-3.5` rounded to an integer becomes `-4`.
-- Negative tie cases follow the same nearest-even rule symmetrically.
-- An operation-specific rounding rule takes precedence over this default only when it explicitly declares the alternative mode.
+- بموجب `Half-to-Even`، تصبح `2.5` عند تقريبها إلى عدد صحيح `2`.
+- بموجب `Half-to-Even`، تصبح `3.5` عند تقريبها إلى عدد صحيح `4`.
+- بموجب `Half-to-Even`، تصبح `-2.5` عند تقريبها إلى عدد صحيح `-2`.
+- بموجب `Half-to-Even`، تصبح `-3.5` عند تقريبها إلى عدد صحيح `-4`.
+- تتبع حالات التعادل السالبة قاعدة أقرب عدد زوجي نفسها بشكل متماثل.
+- لا تتقدم قاعدة تقريب خاصة بعملية على هذا الوضع الافتراضي إلّا عندما تُصرّح بالوضع البديل صراحةً.
 
-### MONEY-020 — Explicit rounding mode
+### MONEY-020 — وضع التقريب الصريح (Explicit rounding mode)
 
-Any operation using a rounding mode other than the default MUST declare that mode in its domain contract. Callers MUST NOT rely on undocumented or implicit rounding behavior.
+**يجب (MUST)** على أي عملية تستخدم وضع تقريب غير الافتراضي أن تُصرّح بذلك الوضع في عقدها المجالي. و**يجب ألّا (MUST NOT)** يعتمد المُستدعون على سلوك تقريب غير موثق أو ضمني.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- The division contract explicitly identifies Half Away From Zero.
-- The conversion contract explicitly identifies Half-to-Even.
-- An operation that requires rounding but declares no mode uses MONEY-019.
+- يُحدّد عقد القسمة صراحةً وضع `Half Away From Zero`.
+- يُحدّد عقد التحويل صراحةً وضع `Half-to-Even`.
+- تستخدم العملية التي تتطلب تقريبًا ولا تُصرّح بأي وضع القاعدة `MONEY-019`.
 
-### MONEY-021 — Rounding boundary
+### MONEY-021 — حد التقريب (Rounding boundary)
 
-Rounding MUST occur only at an explicit operation or domain boundary. The currency minor-unit boundary is one such external boundary. Internal calculation precision remains governed by MONEY-004 through MONEY-008 and the specific operation contract.
+**يجب (MUST)** ألّا يحدث التقريب إلّا عند حد عملية أو حد مجالي صريح. ويُعدّ حد الوحدة الفرعية للعملة أحد هذه الحدود الخارجية. وتظل دقة الحساب الداخلية محكومة بالقواعد من `MONEY-004` إلى `MONEY-008` وبعقد العملية المحدد.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- Intermediate calculations do not repeatedly round after each sub-operation unless the operation contract explicitly requires it.
-- Conversion rounds at the final target-currency boundary.
-- Formatting rounds only the displayed representation and does not mutate the Money value.
+- لا تُقرّب الحسابات الوسيطة بشكل متكرر بعد كل عملية فرعية ما لم يتطلب عقد العملية ذلك صراحةً.
+- يُقرّب التحويل عند حد العملة الهدف النهائي.
+- يُقرّب التنسيق التمثيلَ المعروض فقط ولا يُعدّل قيمة `Money`.
 
-### MONEY-022 — Rounding is not truncation
+### MONEY-022 — التقريب ليس بترًا (Rounding is not truncation)
 
-When a rule requires rounding, the declared rounding mode MUST be applied. Truncation MUST NOT be used as a substitute and MUST NOT occur silently.
+عندما تتطلب قاعدةٌ تقريبًا، **يجب (MUST)** تطبيق وضع التقريب المُصرَّح به. و**يجب ألّا (MUST NOT)** يُستخدم البتر بوصفه بديلًا و**يجب ألّا (MUST NOT)** يحدث بصمت.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- A value requiring rounding is rounded according to the declared mode.
-- A value is not shortened by simply discarding excess fractional digits.
-- If an input exceeds a hard precision limit, it is rejected where the applicable rule requires rejection; it is not silently rounded to fit.
-
----
-
-## 6. Exchange rates and currency conversion
-
-### MONEY-023 — Exchange-rate positivity
-
-An exchange rate MUST be strictly greater than zero. Zero and negative rates are invalid.
-
-**Acceptance criteria**
-
-- A positive rate is eligible for subsequent validation.
-- Zero and negative rates fail validation.
-- A failed rate validation cannot be used for conversion.
-
-### MONEY-024 — Exact exchange-rate representation
-
-An ExchangeRate value MUST use an exact decimal representation. Binary floating-point MUST NOT be its authoritative value.
-
-**Acceptance criteria**
-
-- The decimal string `"1.2345"` is represented exactly.
-- Exchange-rate calculations do not introduce binary floating-point artifacts.
-- An inexact floating-point value is not accepted as an authoritative rate without an exact conversion contract.
-
-### MONEY-025 — Exchange-rate fractional precision limit
-
-A validated exchange-rate value MUST contain no more than **12 fractional decimal places**. A value with more than 12 fractional decimal places MUST be rejected. Validation MUST NOT silently round or truncate the supplied value to fit the limit.
-
-This is a project engineering policy chosen to bound and standardize exchange-rate input precision. It is not a precision requirement imposed by ISO 4217 or IAS 21.
-
-MONEY-025 is the authoritative normative requirement. MONEY-034 records the decision history and does not create a second requirement.
-
-**Acceptance criteria**
-
-- `1.123456789012` is accepted if all other rate constraints are satisfied.
-- `1.1234567890123` is rejected.
-- The rejected value is not silently changed to `1.123456789012`.
-
-### MONEY-026 — Exchange-rate magnitude and decimal bounds
-
-An exchange rate MUST satisfy the supported decimal significant-digit, integer-digit, exponent, and magnitude bounds. A value outside those bounds MUST be rejected explicitly.
-
-For this specification, the general decimal context limits in MONEY-005 through MONEY-007 apply to ExchangeRate unless a future, explicitly versioned rule defines a narrower ExchangeRate-specific bound. The additional 12-fractional-place limit in MONEY-025 also applies.
-
-**Acceptance criteria**
-
-- A rate satisfying the 12-fractional-place rule but exceeding the general decimal bounds is rejected.
-- A rate satisfying the general decimal bounds but exceeding 12 fractional places is rejected.
-- No rate is silently clamped to a supported magnitude.
-
-### MONEY-027 — Conversion direction
-
-A conversion MUST identify the source currency, target currency, and rate direction explicitly. The rate direction MUST define which currency units are represented by one unit of the other currency; for example, target-currency units per one source-currency unit.
-
-Direction MUST NOT be inferred ambiguously from currency-code ordering or caller assumptions.
-
-**Acceptance criteria**
-
-- A conversion contract states whether the rate is target units per source unit or the inverse.
-- Reversing source and target currencies requires an explicitly supplied inverse rate or an explicitly defined inversion operation.
-- A rate with ambiguous direction is rejected or cannot be used.
-
-### MONEY-028 — Conversion rounding
-
-Currency conversion MUST calculate using the exact rate and preserve intermediate precision within the supported decimal context. The final converted amount MUST be rounded to the target currency's minor-unit precision using **Half-to-Even**, then validated against the supported result bounds.
-
-**Acceptance criteria**
-
-- Converting `10.00 USD` at `0.9 EUR per USD` produces `9.00 EUR`.
-- If the target currency has three minor-unit digits, the final converted amount is rounded to three digits, not two.
-- A tie at the target minor-unit boundary follows Half-to-Even.
-- The source Money value is not mutated by conversion.
-
-### MONEY-029 — Accounting boundary and IAS 21 integration
-
-Functional-currency determination, foreign-operation translation, transaction-date and reporting-date rate selection, exchange differences, recognition, and accounting treatment under IAS 21 are accounting integration concerns, not rules of the pure Money primitive.
-
-The Money domain MAY provide exact arithmetic, currency identity, and conversion primitives used by an accounting or valuation layer. The accounting layer MUST define the applicable accounting policy and rate-selection behavior.
-
-**Acceptance criteria**
-
-- The Money primitive does not independently decide which accounting-date exchange rate an entity must use.
-- IAS 21 accounting treatment is specified in the relevant accounting/valuation specification.
-- Integration code supplies an explicit rate and conversion direction to the Money operation.
+- تُقرَّب القيمة التي تتطلب تقريبًا وفقًا للوضع المُصرَّح به.
+- لا تُختصر القيمة بمجرد طرح الأرقام الكسرية الزائدة.
+- إذا تجاوز مُدخَل حدَّ دقة صارمًا، فإنه يُرفَض حيثما تتطلب القاعدة المنطبقة الرفض؛ ولا يُقرَّب بصمت ليتناسب مع الحد.
 
 ---
 
-## 7. Formatting and serialization
+## 6. أسعار الصرف وتحويل العملات (Exchange rates and currency conversion)
 
-### MONEY-030 — String and display formatting
+### MONEY-023 — إيجابية سعر الصرف (Exchange-rate positivity)
 
-Display formatting MAY round to an explicitly requested scale or to a currency-defined display scale. Half-to-Even is the default rounding mode for display formatting unless the formatter contract explicitly declares another mode.
+**يجب (MUST)** أن يكون سعر الصرف أكبر من الصفر تمامًا. وتُعدّ الأسعار الصفرية والسالبة غير صالحة.
 
-Formatting MUST NOT mutate the underlying Money value.
+**معايير القبول**
 
-**Acceptance criteria**
+- يكون السعر الموجب مؤهلًا للتحقق اللاحق.
+- تفشل الأسعار الصفرية والسالبة في التحقق.
+- لا يمكن استخدام سعر فشل في التحقق لأغراض التحويل.
 
-- Formatting `12.345 USD` to two fractional digits produces the display string `12.34` under Half-to-Even.
-- Formatting does not change the underlying amount from `12.345`.
-- Formatting to a requested scale does not change the Money currency identity.
+### MONEY-024 — التمثيل الدقيق لسعر الصرف (Exact exchange-rate representation)
 
-### MONEY-031 — Formatting scale
+**يجب (MUST)** أن تستخدم قيمة `ExchangeRate` تمثيلًا عشريًا دقيقًا. و**يجب ألّا (MUST NOT)** تكون الفاصلة العائمة الثنائية هي قيمتها المرجعية المعتمدة.
 
-Formatting scale MUST be explicit or derived from currency metadata under a documented formatter contract. Formatting MUST NOT silently alter the stored amount or its scale/value.
+**معايير القبول**
 
-**Acceptance criteria**
+- تُمثَّل السلسلة النصية العشرية `"1.2345"` بدقة.
+- لا تُدخل حسابات أسعار الصرف شوائب الفاصلة العائمة الثنائية.
+- لا يُقبَل أي سعر فاصلة عائمة غير دقيق بوصفه سعرًا معتمدًا دون عقد تحويل دقيق.
 
-- A formatter using currency defaults obtains the minor-unit count from the controlled currency registry.
-- A caller-requested display scale is applied only to the formatted representation.
-- Formatting the same Money value at two display scales does not change the stored Money value.
+### MONEY-025 — حد الدقة الكسرية لسعر الصرف (Exchange-rate fractional precision limit)
 
-### MONEY-032 — JSON representation
+**يجب (MUST)** ألّا تحتوي قيمة سعر الصرف المُتحقَّق منها على أكثر من **12 خانة عشرية كسرية**. و**يجب (MUST)** رفض القيمة التي تحتوي على أكثر من 12 خانة عشرية كسرية. و**يجب ألّا (MUST NOT)** يقوم التحقق بتقريب القيمة المُقدَّمة أو بترها بصمت لتتناسب مع الحد.
 
-Money amounts in JSON MUST be serialized as exact decimal strings, not JSON floating-point numbers. Currency identity MUST be serialized explicitly according to the public API contract.
+هذه سياسة هندسية للمشروع اختيرت لتحديد دقة مدخلات أسعار الصرف وتوحيدها، وليست متطلب دقة مفروضًا من `ISO 4217` أو `IAS 21`.
 
-**Acceptance criteria**
+تُعدّ `MONEY-025` المتطلب المعياري المعتمد. أما `MONEY-034` فتسجل تاريخ القرار ولا تُنشئ متطلبًا ثانيًا.
 
-- The amount `123.4500` is represented as a JSON string, for example `"123.4500"`, rather than a JSON numeric token.
-- Currency identity is present as an explicit field or equivalent unambiguous contract element.
-- A consumer does not need to infer the currency from locale or display text.
+**معايير القبول**
 
-### MONEY-033 — Parse/serialize round trip
+- تُقبَل `1.123456789012` إذا استوفت جميع قيود السعر الأخرى.
+- تُرفَض `1.1234567890123`.
+- لا تُغيَّر القيمة المرفوضة بصمت إلى `1.123456789012`.
 
-Parsing and serialization MUST preserve the exact monetary numeric value and currency identity within the supported domain. Invalid, out-of-range, or precision-exceeding input MUST fail rather than be coerced.
+### MONEY-026 — مقدار سعر الصرف وحدوده العشرية (Exchange-rate magnitude and decimal bounds)
 
-The serialization contract MUST state whether insignificant trailing fractional zeros are preserved lexically. Regardless of lexical scale preservation, the numeric value and currency identity MUST remain exact.
+**يجب (MUST)** أن يستوفي سعر الصرف حدود الأرقام المعنوية العشرية، والأرقام الصحيحة، والأُس، والمقدار المدعومة. و**يجب (MUST)** رفض أي قيمة خارج تلك الحدود صراحةً.
 
-**Acceptance criteria**
+بالنسبة لهذه المواصفات، تنطبق حدود السياق العشري العامة في القواعد من `MONEY-005` إلى `MONEY-007` على `ExchangeRate` ما لم تُعرّف قاعدة مستقبلية مُرقّمة صراحةً حدًا أضيق خاصًا بـ`ExchangeRate`. كما ينطبق حد الـ 12 خانة كسرية الإضافي في `MONEY-025`.
 
-- Serializing and parsing a valid Money value preserves its numeric value and currency.
-- A value outside the supported domain fails during parsing or validation.
-- A JSON numeric token used where a decimal string is required is rejected.
-- If lexical scale preservation is part of the API contract, `"1.2300"` round-trips with that scale; otherwise the normalized decimal string still represents exactly the same value.
+**معايير القبول**
+
+- يُرفَض السعر الذي يستوفي قاعدة الـ 12 خانة كسرية لكنه يتجاوز الحدود العشرية العامة.
+- يُرفَض السعر الذي يستوفي الحدود العشرية العامة لكنه يتجاوز 12 خانة كسرية.
+- لا يُقيَّد (`Clamp`) أي سعر بصمت إلى مقدار مدعوم.
+
+### MONEY-027 — اتجاه التحويل (Conversion direction)
+
+**يجب (MUST)** أن يُحدّد التحويل العملة المصدر (`Source currency`)، والعملة الهدف (`Target currency`)، واتجاه السعر (`Rate direction`) صراحةً. و**يجب (MUST)** أن يُعرّف اتجاه السعر وحدات العملة التي تمثلها وحدة واحدة من العملة الأخرى؛ على سبيل المثال، وحدات العملة الهدف لكل وحدة واحدة من العملة المصدر.
+
+**يجب ألّا (MUST NOT)** يُستنتج الاتجاه بشكل ملتبس من ترتيب رموز العملات أو افتراضات المُستدعي.
+
+**معايير القبول**
+
+- ينص عقد التحويل على ما إذا كان السعر هو وحدات هدف لكل وحدة مصدر أم المعكوس.
+- يتطلب عكس العملتين المصدر والهدف تقديم سعر معكوس صراحةً أو عملية عكس (`Inversion operation`) مُعرَّفة صراحةً.
+- يُرفَض السعر ذو الاتجاه الملتبس أو لا يمكن استخدامه.
+
+### MONEY-028 — تقريب التحويل (Conversion rounding)
+
+**يجب (MUST)** أن يحسب تحويل العملة باستخدام السعر الدقيق وأن يحافظ على الدقة الوسيطة ضمن السياق العشري المدعوم. و**يجب (MUST)** تقريب المبلغ المحوّل النهائي إلى دقة الوحدة الفرعية للعملة الهدف باستخدام **`Half-to-Even`**، ثم التحقق منه مقابل حدود النتائج المدعومة.
+
+**معايير القبول**
+
+- ينتج عن تحويل `10.00 USD` بسعر `0.9 EUR per USD` القيمة `9.00 EUR`.
+- إذا كانت للعملة الهدف ثلاثة أرقام للوحدة الفرعية، يُقرَّب المبلغ المحوّل النهائي إلى ثلاثة أرقام، لا رقمين.
+- تتبع حالة التعادل عند حد الوحدة الفرعية الهدف وضع `Half-to-Even`.
+- لا تتأثر قيمة `Money` المصدر بالتعديل نتيجة التحويل.
+
+### MONEY-029 — الحدود المحاسبية والتكامل مع `IAS 21` (Accounting boundary and IAS 21 integration)
+
+إن تحديد العملة الوظيفية، وترجمة العمليات الأجنبية (`Foreign-operation translation`)، واختيار سعر تاريخ المعاملة وتاريخ التقرير، وفروق الصرف، والاعتراف، والمعالجة المحاسبية بموجب `IAS 21` هي شواغل تكامل محاسبي، وليست قواعد لأولية `Money` الصرفة (`Pure Money primitive`).
+
+**يجوز (MAY)** أن يوفر مجال `Money` أوليات الحساب الدقيق، وهوية العملة، والتحويل التي تستخدمها طبقة المحاسبة أو التقييم. و**يجب (MUST)** أن تُعرّف طبقة المحاسبة السياسة المحاسبية المنطبقة وسلوك اختيار السعر.
+
+**معايير القبول**
+
+- لا تُقرّر أولية `Money` بشكل مستقل سعر الصرف الخاص بالتاريخ المحاسبي الذي يجب على المنشأة استخدامه.
+- تُحدَّد المعالجة المحاسبية وفق `IAS 21` في مواصفات المحاسبة/التقييم ذات الصلة.
+- تُزوّد شيفرة التكامل عملية `Money` بسعر صريح واتجاه تحويل صريح.
 
 ---
 
-## 8. Decision record
+## 7. التنسيق والتسلسل (Formatting and serialization)
 
-### MONEY-034 — ExchangeRate precision decision
+### MONEY-030 — تنسيق السلاسل النصية والعرض (String and display formatting)
 
-The project decision recorded in v2.2 sets the maximum fractional precision for ExchangeRate to **12 decimal places**. Values exceeding 12 fractional decimal places are rejected during validation; silent rounding or truncation is not permitted.
+**يجوز (MAY)** أن يُقرّب تنسيق العرض إلى مقياس مطلوب صراحةً أو إلى مقياس عرض مُعرَّف للعملة. ويُعدّ `Half-to-Even` وضع التقريب الافتراضي لتنسيق العرض ما لم يُصرّح عقد المُنسّق (`Formatter contract`) بوضع آخر صراحةً.
 
-This is a project engineering policy, not a universal accounting or ISO requirement.
+**يجب ألّا (MUST NOT)** يُعدّل التنسيق قيمة `Money` الأساسية.
 
-MONEY-025 is the normative requirement. MONEY-034 is the decision record and must not be interpreted as a second or competing requirement.
+**معايير القبول**
+
+- يُنتج تنسيق `12.345 USD` إلى رقمين كسريين سلسلة العرض النصية `12.34` بموجب `Half-to-Even`.
+- لا يُغيّر التنسيق المبلغ الأساسي من `12.345`.
+- لا يُغيّر التنسيق إلى مقياس مطلوب هوية عملة `Money`.
+
+### MONEY-031 — مقياس التنسيق (Formatting scale)
+
+**يجب (MUST)** أن يكون مقياس التنسيق صريحًا أو مُستمدًا من البيانات الوصفية للعملة بموجب عقد مُنسّق موثق. و**يجب ألّا (MUST NOT)** يُغيّر التنسيق بصمت المبلغ المخزن أو مقياسه/قيمته.
+
+**معايير القبول**
+
+- يحصل المُنسّق الذي يستخدم الإعدادات الافتراضية للعملة على عدد الوحدات الفرعية من سجل العملات المُتحكَّم به.
+- لا يُطبَّق مقياس العرض الذي يطلبه المُستدعي إلّا على التمثيل المُنسَّق.
+- لا يُغيّر تنسيق قيمة `Money` نفسها بمقياسي عرض مختلفين قيمة `Money` المخزنة.
+
+### MONEY-032 — تمثيل `JSON` (`JSON representation`)
+
+**يجب (MUST)** تسلسل مبالغ `Money` في `JSON` بوصفها سلاسل نصية عشرية دقيقة (`Exact decimal strings`)، لا أرقام فاصلة عائمة في `JSON`. و**يجب (MUST)** تسلسل هوية العملة صراحةً وفقًا لعقد واجهة البرمجة العامة (`Public API contract`).
+
+**معايير القبول**
+
+- يُمثَّل المبلغ `123.4500` بوصفه سلسلة نصية في `JSON`، مثل `"123.4500"`، بدلًا من رمز رقمي في `JSON` (`JSON numeric token`).
+- توجد هوية العملة بوصفها حقلًا صريحًا أو عنصر عقد مكافئ غير ملتبس.
+- لا يحتاج المستهلك إلى استنتاج العملة من الإعداد المحلي (`Locale`) أو نص العرض.
+
+### MONEY-033 — دورة التحليل والتسلسل الكاملة (Parse/serialize round trip)
+
+**يجب (MUST)** أن يحافظ التحليل والتسلسل على القيمة الرقمية النقدية الدقيقة وهوية العملة ضمن المجال المدعوم. و**يجب (MUST)** أن يفشل المُدخَل غير الصالح، أو الخارج عن النطاق، أو المتجاوز للدقة بدلًا من تحويله قسريًا.
+
+**يجب (MUST)** أن ينص عقد التسلسل على ما إذا كان يتم الحفاظ معجميًا (`Lexically`) على الأصفار الكسرية اللاحقة غير المعنوية. وبغض النظر عن الحفاظ على المقياس المعجمي، **يجب (MUST)** أن تبقى القيمة الرقمية وهوية العملة دقيقتين.
+
+**معايير القبول**
+
+- يحافظ تسلسل قيمة `Money` صالحة وتحليلها على قيمتها الرقمية وعملتها.
+- تفشل القيمة الخارجة عن المجال المدعوم أثناء التحليل أو التحقق.
+- يُرفَض الرمز الرقمي في `JSON` عند استخدامه حيث تُطلب سلسلة نصية عشرية.
+- إذا كان الحفاظ على المقياس المعجمي جزءًا من عقد واجهة البرمجة، فإن `"1.2300"` تمر بدورة التسلسل والتحليل مع ذلك المقياس؛ وإلّا فإن السلسلة النصية العشرية المُطبَّعة تظل تمثل القيمة نفسها بالضبط.
 
 ---
 
-## 9. Error contract
+## 8. سجل القرارات (Decision record)
 
-### 9.1 General failure behavior
+### MONEY-034 — قرار دقة `ExchangeRate`
 
-When an operation cannot satisfy a normative rule, it MUST fail explicitly. It MUST NOT return a plausible-looking but altered monetary value.
+يُحدّد قرار المشروع المسجل في الإصدار v2.2 الحد الأقصى للدقة الكسرية لـ`ExchangeRate` بـ**12 خانة عشرية**. وتُرفَض القيم التي تتجاوز 12 خانة عشرية كسرية أثناء التحقق؛ ولا يُسمح بالتقريب أو البتر الصامت.
 
-A failure MUST:
+هذه سياسة هندسية للمشروع، وليست متطلبًا محاسبيًا عالميًا أو متطلبًا من `ISO`.
 
-- identify the operation as unsuccessful;
-- expose a stable, machine-identifiable error category or code;
-- provide a human-readable explanation suitable for diagnosis;
-- avoid exposing a successful result for the failed operation;
-- leave input values unchanged.
+تُعدّ `MONEY-025` المتطلب المعياري. أما `MONEY-034` فهي سجل القرار ويجب ألّا تُفسَّر بوصفها متطلبًا ثانيًا أو منافسًا.
 
-An implementation MAY provide additional diagnostic details, but callers MUST NOT be required to parse human-readable text to determine the error category.
+---
 
-### 9.2 Error categories
+## 9. عقد الأخطاء (Error contract)
 
-The following semantic categories MUST be distinguishable, even if an implementation uses different public names:
+### 9.1 السلوك العام عند الفشل (General failure behavior)
 
-| Error category | Meaning |
+عندما تعجز عملية عن استيفاء قاعدة معيارية، **يجب (MUST)** أن تفشل صراحةً. و**يجب ألّا (MUST NOT)** تُرجع قيمة نقدية تبدو مقبولة لكنها مُعدَّلة.
+
+**يجب (MUST)** أن يقوم الفشل بما يلي:
+
+- تحديد العملية بوصفها غير ناجحة؛
+- إظهار فئة خطأ أو رمز خطأ مستقر وقابل للتعرف عليه آليًا (`Machine-identifiable error category or code`)؛
+- تقديم تفسير مقروء بشريًا مناسب للتشخيص؛
+- تجنب إظهار نتيجة ناجحة للعملية الفاشلة؛
+- ترك قيم المدخلات دون تغيير.
+
+**يجوز (MAY)** أن يوفر التنفيذ تفاصيل تشخيصية إضافية، ولكن **يجب ألّا (MUST NOT)** يُطلب من المُستدعين تحليل النص المقروء بشريًا لتحديد فئة الخطأ.
+
+### 9.2 فئات الأخطاء (Error categories)
+
+**يجب (MUST)** أن تكون الفئات الدلالية الآتية قابلة للتمييز، حتى لو استخدم التنفيذ أسماءً عامة مختلفة:
+
+| فئة الخطأ (Error category) | المعنى |
 | --- | --- |
-| Invalid decimal input | Input is malformed or cannot be parsed exactly |
-| Invalid currency syntax | Currency code fails MONEY-009 |
-| Unsupported currency | Currency code is not supported by the applicable registry |
-| Currency mismatch | Operation requires a common currency but operands differ |
-| Division by zero | Divisor is zero |
-| Invalid exchange rate | Rate is zero, negative, or otherwise invalid |
-| Exchange-rate precision exceeded | Rate has more than 12 fractional digits |
-| Precision exceeded | Significant-digit limit is exceeded |
-| Integer range exceeded | Integer-digit limit is exceeded |
-| Exponent/range exceeded | Normative exponent or numeric range limit is exceeded |
-| Representation scale capacity exceeded | The exact value or result exceeds the implementation's disclosed scale capacity; no successful or altered value may be returned |
-| Invalid conversion direction | Source/target/rate direction is missing or ambiguous |
-| Serialization contract violation | Serialized representation violates the required format |
+| مُدخَل عشري غير صالح (`Invalid decimal input`) | المُدخَل مشوّه الصيغة أو لا يمكن تحليله بدقة |
+| صيغة عملة غير صالحة (`Invalid currency syntax`) | يفشل رمز العملة في `MONEY-009` |
+| عملة غير مدعومة (`Unsupported currency`) | رمز العملة غير مدعوم في السجل المنطبق |
+| عدم تطابق العملات (`Currency mismatch`) | تتطلب العملية عملة مشتركة لكن المعاملات تختلف |
+| القسمة على صفر (`Division by zero`) | المقسوم عليه يساوي صفرًا |
+| سعر صرف غير صالح (`Invalid exchange rate`) | السعر يساوي صفرًا، أو سالب، أو غير صالح بخلاف ذلك |
+| تجاوز دقة سعر الصرف (`Exchange-rate precision exceeded`) | يحتوي السعر على أكثر من 12 رقمًا كسريًا |
+| تجاوز الدقة (`Precision exceeded`) | تم تجاوز حد الأرقام المعنوية |
+| تجاوز النطاق الصحيح (`Integer range exceeded`) | تم تجاوز حد الأرقام الصحيحة |
+| تجاوز الأُس/النطاق (`Exponent/range exceeded`) | تم تجاوز حد الأُس المعياري أو النطاق الرقمي |
+| تجاوز سعة مقياس التمثيل (`Representation scale capacity exceeded`) | تتجاوز القيمة الدقيقة أو النتيجة سعة المقياس المُفصَح عنها في التنفيذ؛ ولا يجوز إرجاع أي قيمة ناجحة أو مُعدَّلة |
+| اتجاه تحويل غير صالح (`Invalid conversion direction`) | اتجاه المصدر/الهدف/السعر مفقود أو ملتبس |
+| انتهاك عقد التسلسل (`Serialization contract violation`) | ينتهك التمثيل المُسلسَل التنسيق المطلوب |
 
-Implementations MAY expose more granular errors, but MUST preserve these distinctions at the public domain boundary.
+**يجوز (MAY)** أن تُظهر التنفيذات أخطاءً أكثر تفصيلًا، ولكن **يجب (MUST)** أن تحافظ على هذه التمييزات عند حد المجال العام.
 
-### 9.3 Error detection timing
+### 9.3 توقيت اكتشاف الأخطاء (Error detection timing)
 
-Validation MUST occur no later than the earliest point at which the relevant invalid condition is knowable, and MUST occur before an invalid value can be used to produce or commit a domain result.
+**يجب (MUST)** أن يحدث التحقق في موعد لا يتجاوز أبكر نقطة يمكن عندها معرفة الشرط غير الصالح ذي الصلة، و**يجب (MUST)** أن يحدث قبل أن يمكن استخدام قيمة غير صالحة لإنتاج نتيجة مجالية أو اعتمادها.
 
-| Condition | Required detection point |
+| الشرط | نقطة الاكتشاف المطلوبة |
 | --- | --- |
-| Malformed decimal or currency syntax | During input parsing/construction |
-| Unsupported currency or invalid special code | During currency validation/construction, before arithmetic |
-| Currency mismatch | Before performing the incompatible arithmetic/comparison operation |
-| Division by zero | Before division result production |
-| Invalid or over-precision ExchangeRate | During rate construction/validation, before conversion |
-| Missing or ambiguous conversion direction | Before conversion calculation |
-| Precision, integer, exponent, or overflow boundary | Before returning the affected operation result |
-| Implementation representation/scale capacity | During parsing/construction or operation evaluation, as soon as the capacity limit is knowable, and before returning, persisting, or exposing a result as successful |
-| Invalid JSON amount representation | During deserialization, before a Money value is exposed |
-| Invalid output representation | During serialization, before the serialized result is returned |
+| صيغة عشرية أو عملة مشوّهة | أثناء تحليل/إنشاء المُدخَل |
+| عملة غير مدعومة أو رمز خاص غير صالح | أثناء التحقق من العملة/الإنشاء، قبل الحساب |
+| عدم تطابق العملات | قبل تنفيذ العملية الحسابية/المقارنة غير المتوافقة |
+| القسمة على صفر | قبل إنتاج نتيجة القسمة |
+| `ExchangeRate` غير صالح أو مفرط الدقة | أثناء إنشاء/التحقق من السعر، قبل التحويل |
+| اتجاه تحويل مفقود أو ملتبس | قبل حساب التحويل |
+| حد الدقة، أو الأرقام الصحيحة، أو الأُس، أو الفيضان | قبل إرجاع نتيجة العملية المتأثرة |
+| سعة التمثيل/المقياس الخاصة بالتنفيذ | أثناء التحليل/الإنشاء أو تقييم العملية، فور إمكانية معرفة حد السعة، وقبل إرجاع النتيجة أو حفظها أو إظهارها على أنها ناجحة |
+| تمثيل مبلغ `JSON` غير صالح | أثناء فك التسلسل، قبل إظهار قيمة `Money` |
+| تمثيل مخرجات غير صالح | أثناء التسلسل، قبل إرجاع النتيجة المُسلسَلة |
 
-A system MAY perform earlier validation. It MUST NOT defer a known invalid condition until after a result has been returned, persisted, or otherwise treated as successful.
+**يجوز (MAY)** أن يُجري النظام تحققًا أبكر. و**يجب ألّا (MUST NOT)** يؤجل شرطًا غير صالح معروفًا إلى ما بعد إرجاع النتيجة أو حفظها أو معاملتها بخلاف ذلك على أنها ناجحة.
 
-### 9.4 Atomicity
+### 9.4 الذرية (Atomicity)
 
-A failed domain operation MUST NOT partially mutate its input Money values or ExchangeRate values. If a higher-level operation persists results, persistence atomicity is governed by the relevant application or accounting specification.
+**يجب ألّا (MUST NOT)** تُعدّل العملية المجالية الفاشلة جزئيًا قيم `Money` أو قيم `ExchangeRate` المُدخَلة. وإذا قامت عملية أعلى مستوى بحفظ النتائج، فإن ذرية الحفظ (`Persistence atomicity`) تخضع للمواصفات التطبيقية أو المحاسبية ذات الصلة.
 
 ---
 
-## 10. Glossary
+## 10. المسرد (Glossary)
 
-| Term | Definition |
+| المصطلح | التعريف |
 | --- | --- |
-| Money | A domain value composed of a numeric amount and a currency identity |
-| Currency identity | The currency code associated with a Money value |
-| Currency registry | Controlled data containing supported currency codes, lifecycle information, and metadata |
-| Minor unit | The currency-defined number of fractional digits used for the currency's external unit |
-| Internal precision | Precision retained for domain calculations before an explicit rounding boundary |
-| Significant digits | Digits that contribute to the precision of a decimal value, under the decimal context's defined semantics |
-| Integer digits | Digits to the left of the decimal point, excluding sign and leading zeros |
-| Exponent | The power-of-ten component of the decimal representation, interpreted according to the specified decimal model |
-| Rounding boundary | A defined point at which a value is rounded under an explicitly declared mode and scale |
-| Half-to-Even | Rounding to the nearest value; exact ties go to the result whose final retained digit is even |
-| Half Away From Zero | Rounding to the nearest value; exact ties go away from zero |
-| ExchangeRate | A strictly positive exact-decimal rate relating two identified currencies |
-| Rate direction | The explicit meaning of a rate, such as target-currency units per one source-currency unit |
-| Exact decimal representation | A representation that preserves the intended base-10 value without binary floating-point approximation |
-| Normative rule | A requirement that implementations must satisfy to claim conformance |
-| Informative reference | A source used for context or explanation that does not itself create a project requirement |
+| `Money` | قيمة مجالية تتكون من مبلغ رقمي وهوية عملة |
+| هوية العملة (`Currency identity`) | رمز العملة المرتبط بقيمة `Money` |
+| سجل العملات (`Currency registry`) | بيانات مُتحكَّم بها تحتوي على رموز العملات المدعومة، ومعلومات دورة الحياة، والبيانات الوصفية |
+| الوحدة الفرعية (`Minor unit`) | عدد الأرقام الكسرية المُعرَّف للعملة والمستخدم للوحدة الخارجية للعملة |
+| الدقة الداخلية (`Internal precision`) | الدقة المُحتفَظ بها للحسابات المجالية قبل حد تقريب صريح |
+| الأرقام المعنوية (`Significant digits`) | الأرقام التي تسهم في دقة قيمة عشرية، وفق الدلالات المُعرَّفة للسياق العشري |
+| الأرقام الصحيحة (`Integer digits`) | الأرقام الواقعة على يسار الفاصلة العشرية، باستثناء الإشارة والأصفار البادئة |
+| الأُس (`Exponent`) | مكوّن قوى العشرة في التمثيل العشري، مُفسَّرًا وفق النموذج العشري المحدد |
+| حد التقريب (`Rounding boundary`) | نقطة مُعرَّفة تُقرَّب عندها القيمة وفق وضع ومقياس مُصرَّح بهما صراحةً |
+| `Half-to-Even` | التقريب إلى أقرب قيمة؛ تذهب حالات التعادل الدقيقة إلى النتيجة التي يكون رقمها الأخير المُحتفَظ به زوجيًا |
+| `Half Away From Zero` | التقريب إلى أقرب قيمة؛ تذهب حالات التعادل الدقيقة بعيدًا عن الصفر |
+| `ExchangeRate` | سعر عشري دقيق موجب تمامًا يربط بين عملتين مُعرَّفتين |
+| اتجاه السعر (`Rate direction`) | المعنى الصريح للسعر، مثل وحدات العملة الهدف لكل وحدة واحدة من العملة المصدر |
+| التمثيل العشري الدقيق (`Exact decimal representation`) | تمثيل يحافظ على القيمة المقصودة ذات الأساس 10 دون تقريب الفاصلة العائمة الثنائية |
+| القاعدة المعيارية (`Normative rule`) | متطلب يجب على التنفيذات استيفاؤه لادعاء المطابقة |
+| المرجع الإعلامي (`Informative reference`) | مصدر يُستخدم للسياق أو التفسير ولا يُنشئ بحد ذاته متطلبًا للمشروع |
 
 ---
 
-## 11. References and source traceability
+## 11. المراجع وتتبع المصادر (References and source traceability)
 
-### 11.1 Reference-use policy
+### 11.1 سياسة استخدام المراجع (Reference-use policy)
 
-The references below provide standards, design patterns, and decimal-arithmetic background. They are informative unless a rule explicitly makes a source normative. ISO 4217 is the authoritative source for the currency registry metadata identified in MONEY-010 through MONEY-014.
+توفر المراجع أدناه معايير، وأنماط تصميم، وخلفية للحساب العشري. وهي إعلامية ما لم تجعل قاعدةٌ ما مصدرًا معينًا معياريًا صراحةً. ويُعدّ معيار `ISO 4217` المصدر المعتمد للبيانات الوصفية لسجل العملات المحددة في القواعد من `MONEY-010` إلى `MONEY-014`.
 
-Project-specific policies—including the 28-significant-digit limit, 28-integer-digit limit, exponent range [-28, +28], 12-fractional-place ExchangeRate limit, and the Half-Away-From-Zero division mode—MUST NOT be represented as requirements imposed by external sources unless the source explicitly says so.
+**يجب ألّا (MUST NOT)** تُقدَّم السياسات الخاصة بالمشروع — بما في ذلك حد الـ 28 رقمًا معنويًا، وحد الـ 28 رقمًا صحيحًا، ونطاق الأُس `[-28, +28]`، وحد الـ 12 خانة كسرية لـ`ExchangeRate`، ووضع القسمة `Half-Away-From-Zero` — بوصفها متطلبات مفروضة من مصادر خارجية ما لم ينص المصدر صراحةً على ذلك.
 
-Where a source is maintained or amended over time, the exact edition, registry snapshot, or maintenance notice used for a future update SHOULD be recorded.
+عندما يُصان مصدر أو يُعدَّل بمرور الوقت، **ينبغي (SHOULD)** تسجيل الطبعة الدقيقة، أو لقطة السجل، أو إشعار الصيانة المستخدم في أي تحديث مستقبلي.
 
 ### REF-001 — ISO 4217:2015
 
-- **Title:** Codes for the representation of currencies
-- **Edition:** Edition 8, ISO 4217:2015, August 2015; the v2.4 source document records ISO's 2021 review/confirmation.
-- **Maintaining authority:** SIX Financial Information AG, ISO 4217 Maintenance Agency.
-- **Official links:**
+- **العنوان:** Codes for the representation of currencies (رموز تمثيل العملات)
+- **الطبعة:** Edition 8، `ISO 4217:2015`، أغسطس 2015؛ ويسجل المستند المصدري v2.4 مراجعة/تأكيد `ISO` لعام 2021.
+- **جهة الصيانة:** `SIX Financial Information AG`، وكالة صيانة `ISO 4217`.
+- **الروابط الرسمية:**
   - <https://www.iso.org/standard/64758.html>
   - <https://www.iso.org/iso-4217-currency-codes.html>
   - <https://www.six-group.com/en/products-services/financial-information/market-reference-data/data-standards.html>
-- **Used for:** currency-code structure, identifiers, minor-unit metadata, registry lifecycle, and maintenance.
-- **Mapped rules:** MONEY-009 through MONEY-014, especially MONEY-010, MONEY-011, and MONEY-013.
-- **Scope note:** ISO registry data and lifecycle notices are authoritative for currency metadata. ISO does not mandate this project's internal decimal precision or ExchangeRate scale.
+- **يُستخدم لـ:** بنية رموز العملات، والمُعرّفات، والبيانات الوصفية للوحدة الفرعية، ودورة حياة السجل، والصيانة.
+- **القواعد المرتبطة:** من `MONEY-009` إلى `MONEY-014`، ولا سيما `MONEY-010`، و`MONEY-011`، و`MONEY-013`.
+- **ملاحظة النطاق:** بيانات سجل `ISO` وإشعارات دورة الحياة معتمدة للبيانات الوصفية للعملات. ولا يفرض `ISO` الدقة العشرية الداخلية لهذا المشروع أو مقياس `ExchangeRate`.
 
 ### REF-002 — IAS 21 / IFRS Accounting Standards
 
-- **Title:** The Effects of Changes in Foreign Exchange Rates
-- **Reference edition recorded in v2.4:** IFRS Accounting Standards — Required 2026 (standards required as at 1 January 2026); applicable amendments and effective dates must be checked before accounting-policy use.
-- **Official links:**
+- **العنوان:** The Effects of Changes in Foreign Exchange Rates (آثار التغيرات في أسعار صرف العملات الأجنبية)
+- **الطبعة المرجعية المسجلة في v2.4:** `IFRS Accounting Standards — Required 2026` (المعايير المطلوبة كما في 1 يناير 2026)؛ ويجب التحقق من التعديلات المنطبقة وتواريخ السريان قبل استخدام السياسة المحاسبية.
+- **الروابط الرسمية:**
   - <https://www.ifrs.org/issued-standards/list-of-standards/ias-21-the-effects-of-changes-in-foreign-exchange-rates/>
   - <https://www.ifrs.org/news-and-events/news/2026/01/now-available-ifrs-accounting-standards-required-2026-two-editions/>
-- **Used for:** foreign-currency accounting and translation context only.
-- **Mapped rule:** MONEY-029.
-- **Scope note:** IAS 21 accounting treatments are outside pure Money primitives. This reference does not prescribe Money's data structure or the 12-place ExchangeRate limit.
+- **يُستخدم لـ:** سياق المحاسبة والترجمة للعملات الأجنبية فقط.
+- **القاعدة المرتبطة:** `MONEY-029`.
+- **ملاحظة النطاق:** تقع المعالجات المحاسبية لـ`IAS 21` خارج نطاق أوليات `Money` الصرفة. ولا يفرض هذا المرجع بنية بيانات `Money` أو حد الـ 12 خانة لـ`ExchangeRate`.
 
 ### REF-003 — JSR 354: Money and Currency API
 
-- **Title:** Money and Currency API
-- **Version:** 1.1, Maintenance Release 1, May 2020.
-- **Official links:**
+- **العنوان:** Money and Currency API
+- **الإصدار:** 1.1، Maintenance Release 1، مايو 2020.
+- **الروابط الرسمية:**
   - <https://jcp.org/aboutJava/communityprocess/mrel/jsr354/index.html>
   - <https://jcp.org/en/jsr/detail?id=354>
   - <https://github.com/JavaMoney/jsr354-api>
-- **Used for:** design context for monetary amount/currency abstractions, currency metadata, rounding, calculation precision, extensibility, and interoperability.
-- **Mapped rules:** MONEY-002, MONEY-004, MONEY-009–013, MONEY-015–021, MONEY-028, MONEY-030–033.
-- **Scope note:** JSR 354 is a Java API specification. This project does not claim API compatibility or conformance; the mapping is conceptual and informative.
+- **يُستخدم لـ:** سياق التصميم لتجريدات المبلغ النقدي/العملة، والبيانات الوصفية للعملة، والتقريب، ودقة الحساب، وقابلية التوسع، وقابلية التشغيل البيني.
+- **القواعد المرتبطة:** `MONEY-002`، و`MONEY-004`، و`MONEY-009–013`، و`MONEY-015–021`، و`MONEY-028`، و`MONEY-030–033`.
+- **ملاحظة النطاق:** `JSR 354` هي مواصفات واجهة برمجة تطبيقات للغة Java. ولا يدّعي هذا المشروع توافقًا أو مطابقةً مع واجهة البرمجة؛ فالربط مفاهيمي وإعلامي.
 
 ### REF-004 — Martin Fowler, Money Pattern
 
-- **Title:** Money — Patterns of Enterprise Application Architecture
-- **Publication date recorded in v2.4:** 5 March 2003 (catalog entry).
-- **Links:**
+- **العنوان:** Money — Patterns of Enterprise Application Architecture
+- **تاريخ النشر المسجل في v2.4:** 5 مارس 2003 (مدخل الفهرس).
+- **الروابط:**
   - <https://martinfowler.com/eaaCatalog/money.html>
   - <https://martinfowler.com/bliki/CurrencyAsValue.html>
   - <https://martinfowler.com/bliki/ValueObject.html>
-- **Used for:** modeling money as an amount plus currency, preventing currency-mismatch operations, and identifying rounding-related monetary errors.
-- **Mapped rules:** MONEY-001, MONEY-002, MONEY-015, MONEY-016, MONEY-019–022.
-- **Scope note:** This is design guidance, not a normative accounting or numerical standard.
+- **يُستخدم لـ:** نمذجة النقود بوصفها مبلغًا مع عملة، ومنع عمليات عدم تطابق العملات، وتحديد الأخطاء النقدية المرتبطة بالتقريب.
+- **القواعد المرتبطة:** `MONEY-001`، و`MONEY-002`، و`MONEY-015`، و`MONEY-016`، و`MONEY-019–022`.
+- **ملاحظة النطاق:** هذا إرشاد تصميمي، وليس معيارًا محاسبيًا أو رقميًا معياريًا.
 
 ### REF-005 — General Decimal Arithmetic Specification
 
-- **Author:** Mike Cowlishaw
-- **Version:** 1.70, 7 April 2009.
-- **Links:**
+- **المؤلف:** Mike Cowlishaw
+- **الإصدار:** 1.70، 7 أبريل 2009.
+- **الروابط:**
   - <https://speleotrove.com/decimal/>
   - <https://speleotrove.com/decimal/decarith.html>
   - <https://speleotrove.com/decimal/decarith.pdf>
-- **Used for:** decimal arithmetic model, precision/context, rounding modes, conversion behavior, exceptional conditions, overflow/underflow, and exact decimal arithmetic concepts.
-- **Mapped rules:** MONEY-003, MONEY-005–008, MONEY-017–022, MONEY-024–026, MONEY-030–033.
-- **Scope note:** This specification describes general decimal arithmetic. It does not establish this project's exact limits (28 significant digits, 28 integer digits, exponent [-28, +28], or ExchangeRate scale 12).
+- **يُستخدم لـ:** نموذج الحساب العشري، والدقة/السياق، وأوضاع التقريب، وسلوك التحويل، والحالات الاستثنائية، والفيضان/الفيضان السفلي، ومفاهيم الحساب العشري الدقيق.
+- **القواعد المرتبطة:** `MONEY-003`، و`MONEY-005–008`، و`MONEY-017–022`، و`MONEY-024–026`، و`MONEY-030–033`.
+- **ملاحظة النطاق:** تصف هذه المواصفات الحساب العشري العام. ولا تُنشئ الحدود الدقيقة لهذا المشروع (28 رقمًا معنويًا، 28 رقمًا صحيحًا، الأُس `[-28, +28]`، أو مقياس `ExchangeRate` البالغ 12).
 
 ### REF-006 — IEEE 754-2019
 
-- **Title:** IEEE Standard for Floating-Point Arithmetic
-- **Edition:** IEEE 754-2019.
-- **Official link:** <https://standards.ieee.org/standard/754-2019.html>
-- **Used for:** definitions and behavior of binary and decimal floating-point formats, rounding, exceptional conditions, and numerical representation concepts.
-- **Mapped rules:** MONEY-001, MONEY-003, MONEY-005–008, MONEY-017–022, MONEY-024–026.
-- **Scope note:** IEEE 754 defines specific formats and arithmetic behavior. The project's limits must not be described as IEEE decimal64/decimal128 limits.
+- **العنوان:** IEEE Standard for Floating-Point Arithmetic
+- **الطبعة:** `IEEE 754-2019`.
+- **الرابط الرسمي:** <https://standards.ieee.org/standard/754-2019.html>
+- **يُستخدم لـ:** تعريفات وسلوك صيغ الفاصلة العائمة الثنائية والعشرية، والتقريب، والحالات الاستثنائية، ومفاهيم التمثيل الرقمي.
+- **القواعد المرتبطة:** `MONEY-001`، و`MONEY-003`، و`MONEY-005–008`، و`MONEY-017–022`، و`MONEY-024–026`.
+- **ملاحظة النطاق:** يُعرّف `IEEE 754` صيغًا محددة وسلوكًا حسابيًا معينًا. ويجب ألّا تُوصَف حدود المشروع بأنها حدود `IEEE decimal64/decimal128`.
 
-### 11.2 Reference-to-rule index
+### REF-007 — RFC 2119 & RFC 8174
 
-| Rule(s) | Primary reference(s) | Nature of relationship |
+- **العنوان:** Key words for use in RFCs to Indicate Requirement Levels (`RFC 2119`); Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words (`RFC 8174`).
+- **الجهة الناشرة:** IETF.
+- **الروابط الرسمية:** <https://www.rfc-editor.org/rfc/rfc2119>, <https://www.rfc-editor.org/rfc/rfc8174>
+- **يُستخدم لـ:** تعريفات اللغة المعيارية (`§1.1`).
+- **ملاحظة النطاق:** يحدد معاني الكلمات المعيارية فقط.
+
+### 11.2 فهرس المرجع إلى القاعدة (Reference-to-rule index)
+
+| القاعدة/القواعد | المرجع/المراجع الأساسية | طبيعة العلاقة |
 | --- | --- | --- |
-| MONEY-001 | REF-004, REF-006 | Design guidance / numerical representation |
-| MONEY-002 | REF-003, REF-004 | Money amount and currency model |
-| MONEY-003–008 | REF-005, REF-006 | Decimal arithmetic background; numeric limits are project policies |
-| MONEY-009–014 | REF-001, REF-003 | Currency codes and metadata; ISO is authoritative for registry metadata |
-| MONEY-015–022 | REF-003, REF-004, REF-005 | Arithmetic and rounding design guidance |
-| MONEY-023–028 | REF-005, REF-006 | Decimal arithmetic context; conversion behavior is project policy |
-| MONEY-029 | REF-002 | Accounting integration boundary |
-| MONEY-030–033 | REF-003, REF-005 | Formatting/serialization design guidance; API contract is project-specific |
-| MONEY-025 / MONEY-034 | REF-005, REF-006 | 12-place limit is an explicit project engineering decision |
+| `MONEY-001` | `REF-004`, `REF-006` | إرشاد تصميمي / تمثيل رقمي |
+| `MONEY-002` | `REF-003`, `REF-004` | نموذج مبلغ `Money` والعملة |
+| `MONEY-003–008` | `REF-005`, `REF-006` | خلفية الحساب العشري؛ الحدود الرقمية سياسات للمشروع |
+| `MONEY-009–014` | `REF-001`, `REF-003` | رموز العملات وبياناتها الوصفية؛ `ISO` مرجع معتمد لبيانات السجل |
+| `MONEY-015–022` | `REF-003`, `REF-004`, `REF-005` | إرشاد تصميمي للحساب والتقريب |
+| `MONEY-023–028` | `REF-005`, `REF-006` | سياق الحساب العشري؛ سلوك التحويل سياسة للمشروع |
+| `MONEY-029` | `REF-002` | حد التكامل المحاسبي |
+| `MONEY-030–033` | `REF-003`, `REF-005` | إرشاد تصميمي للتنسيق/التسلسل؛ عقد واجهة البرمجة خاص بالمشروع |
+| `MONEY-025` / `MONEY-034` | `REF-005`, `REF-006` | حد الـ 12 خانة قرار هندسي صريح للمشروع |
 
 ---
 
-## 12. Appendices
+## 12. الملاحق (Appendices)
 
-### Appendix A — Informative implementation guidance
+### الملحق أ — إرشادات تنفيذ إعلامية (Appendix A — Informative implementation guidance)
 
-The following notes are informative and do not create additional normative requirements:
+الملاحظات الآتية إعلامية ولا تُنشئ متطلبات معيارية إضافية:
 
-- A decimal library may be used, but its defaults do not override this specification.
-- Integer-scaled arithmetic may be used if it can represent all required values and operations without loss.
-- The internal decimal context and currency minor-unit metadata solve different problems and must not be conflated.
-- Display formatting is not a substitute for domain arithmetic.
-- Accounting policy and rate selection should be implemented outside the pure Money primitive.
-- A registry update should retain its source snapshot or maintenance notice for auditability.
+- يجوز استخدام مكتبة عشرية، ولكن إعداداتها الافتراضية لا تتجاوز هذه المواصفات.
+- يجوز استخدام الحساب المقيَّس بالأعداد الصحيحة إذا كان يستطيع تمثيل جميع القيم والعمليات المطلوبة دون فقدان.
+- يحل السياق العشري الداخلي والبيانات الوصفية للوحدة الفرعية للعملة مشكلتين مختلفتين ويجب ألّا يُخلط بينهما.
+- تنسيق العرض ليس بديلًا عن الحساب المجالي.
+- ينبغي تنفيذ السياسة المحاسبية واختيار السعر خارج أولية `Money` الصرفة.
+- ينبغي أن يحتفظ تحديث السجل بلقطته المصدرية أو إشعار الصيانة لأغراض قابلية التدقيق (`Auditability`).
 
-### Appendix B — Numeric examples
+### الملحق ب — أمثلة رقمية (Appendix B — Numeric examples)
 
-The examples below illustrate the normative rules; they do not replace the rule text.
+توضح الأمثلة أدناه القواعد المعيارية؛ ولا تحل محل نص القاعدة.
 
-| Rule | Input | Expected outcome |
+| القاعدة | المُدخَل | النتيجة المتوقعة |
 | --- | --- | --- |
-| MONEY-001 | `0.1 + 0.2` | Exact result `0.3` |
-| MONEY-002 | `10.00 USD` vs `10.00 EUR` | Different Money identities |
-| MONEY-005 | 28 significant digits | Accepted if other bounds pass |
-| MONEY-005 | 29 significant digits | Explicit failure |
-| MONEY-006 | 28 integer digits | Accepted if other bounds pass |
-| MONEY-006 | 29 integer digits | Explicit failure |
-| MONEY-007 | `1e-28` (MSD exponent `-28`) | Accepted if other bounds pass |
-| MONEY-007 / MONEY-006 | `1e28` (MSD exponent `+28`) | Fails MONEY-006: 29 integer digits |
-| MONEY-005 / MONEY-007 (informative derivation) | `1.234567890123456789012345678e-28` | Illustrates 28 significant digits and effective fractional scale 55; not a separate conformance threshold. Exact support depends on the implementation's disclosed representation capacity |
-| MONEY-007 | MSD exponent outside `[-28, +28]` | Explicit failure |
-| MONEY-009 | `" usd "` | Normalizes to `USD` |
-| MONEY-009 | `"US$"` | Rejected |
-| MONEY-015 | `10 USD + 5 EUR` | Currency-mismatch failure |
-| MONEY-017 | `1 / 3` | `0.333333333333` |
-| MONEY-019 | `2.5` to integer | `2` |
-| MONEY-019 | `3.5` to integer | `4` |
-| MONEY-019 | `-2.5` to integer | `-2` |
-| MONEY-019 | `-3.5` to integer | `-4` |
-| MONEY-025 | `1.123456789012` | Accepted if other bounds pass |
-| MONEY-025 | `1.1234567890123` | Rejected |
-| MONEY-028 | `10.00 USD × 0.9 EUR/USD` | `9.00 EUR` |
-| MONEY-030 | `12.345` to 2 places | Display `12.34` under Half-to-Even |
-| MONEY-032 | Amount `123.4500` | JSON decimal string, not JSON number |
+| `MONEY-001` | `0.1 + 0.2` | نتيجة دقيقة `0.3` |
+| `MONEY-002` | `10.00 USD` مقابل `10.00 EUR` | هويتا `Money` مختلفتان |
+| `MONEY-005` | 28 رقمًا معنويًا | مقبولة إذا اجتازت الحدود الأخرى |
+| `MONEY-005` | 29 رقمًا معنويًا | فشل صريح |
+| `MONEY-006` | 28 رقمًا صحيحًا | مقبولة إذا اجتازت الحدود الأخرى |
+| `MONEY-006` | 29 رقمًا صحيحًا | فشل صريح |
+| `MONEY-007` | `1e-28` (أُس `MSD` هو `-28`) | مقبولة إذا اجتازت الحدود الأخرى |
+| `MONEY-007` / `MONEY-006` | `1e28` (أُس `MSD` هو `+28`) | تفشل في `MONEY-006`: 29 رقمًا صحيحًا |
+| `MONEY-005` / `MONEY-007` (اشتقاق إعلامي) | `1.234567890123456789012345678e-28` | يوضح 28 رقمًا معنويًا ومقياسًا كسريًا فعليًا قدره 55؛ ليس عتبة مطابقة منفصلة. يعتمد الدعم الدقيق على سعة التمثيل المُفصَح عنها للتنفيذ |
+| `MONEY-007` | أُس `MSD` خارج `[-28, +28]` | فشل صريح |
+| `MONEY-009` | `" usd "` | يُطبَّع إلى `USD` |
+| `MONEY-009` | `"US$"` | مرفوض |
+| `MONEY-015` | `10 USD + 5 EUR` | فشل عدم تطابق العملات |
+| `MONEY-017` | `1 / 3` | `0.333333333333` |
+| `MONEY-019` | `2.5` إلى عدد صحيح | `2` |
+| `MONEY-019` | `3.5` إلى عدد صحيح | `4` |
+| `MONEY-019` | `-2.5` إلى عدد صحيح | `-2` |
+| `MONEY-019` | `-3.5` إلى عدد صحيح | `-4` |
+| `MONEY-025` | `1.123456789012` | مقبولة إذا اجتازت الحدود الأخرى |
+| `MONEY-025` | `1.1234567890123` | مرفوضة |
+| `MONEY-028` | `10.00 USD × 0.9 EUR/USD` | `9.00 EUR` |
+| `MONEY-030` | `12.345` إلى خانتين | العرض `12.34` بموجب `Half-to-Even` |
+| `MONEY-032` | المبلغ `123.4500` | سلسلة نصية عشرية في `JSON`، لا رقم `JSON` |
 
-### Appendix C — Rule traceability
+### الملحق ج — تتبع القواعد (Appendix C — Rule traceability)
 
-| Rule group | Primary source or decision basis | Classification |
+| مجموعة القواعد | المصدر الأساسي أو أساس القرار | التصنيف |
 | --- | --- | --- |
-| MONEY-001 | Money pattern and numerical representation principles | Design requirement |
-| MONEY-002 | Money amount/currency model | Domain invariant |
-| MONEY-003 | Exact decimal input requirement | Domain requirement |
-| MONEY-004 | Separation of internal and external precision | Domain policy |
-| MONEY-005–007 | Explicit project numeric limits recorded in v2.4 | Project engineering policy |
-| MONEY-008 | Explicit failure at representational boundaries | Domain requirement |
-| MONEY-009 | Currency syntax and normalization policy | Project validation policy |
-| MONEY-010–013 | ISO 4217 registry and maintenance | External registry dependency / project registry policy |
-| MONEY-014 | Special-purpose currency handling | Domain policy |
-| MONEY-015–016 | Currency compatibility and exact arithmetic | Domain invariant |
-| MONEY-017 | Division scale and operation-specific rounding; rationale adopted in v2.5.0 | Project arithmetic policy |
-| MONEY-018 | Exact intermediate multiplication | Domain arithmetic policy |
-| MONEY-019–022 | Rounding defaults, declaration, boundaries, and prohibition on truncation | Project arithmetic policy |
-| MONEY-023–028 | ExchangeRate and conversion contracts | Domain and project policies |
-| MONEY-029 | IAS 21 integration boundary | Accounting boundary |
-| MONEY-030–033 | Formatting and serialization contracts | Public domain/API contract |
-| MONEY-034 | ExchangeRate precision decision recorded in v2.2 | Decision record; MONEY-025 is normative |
-| Representation capacity disclosure | Implementation limits that affect values permitted by MONEY-005 through MONEY-007 | Conformance transparency and explicit-failure behavior; not a separate numeric domain limit |
+| `MONEY-001` | نمط `Money` ومبادئ التمثيل الرقمي | متطلب تصميمي |
+| `MONEY-002` | نموذج مبلغ `Money`/العملة | ثابت مجالي (`Domain invariant`) |
+| `MONEY-003` | متطلب المُدخَل العشري الدقيق | متطلب مجالي |
+| `MONEY-004` | الفصل بين الدقة الداخلية والخارجية | سياسة مجالية |
+| `MONEY-005–007` | الحدود الرقمية الصريحة للمشروع المسجلة في v2.4 | سياسة هندسية للمشروع |
+| `MONEY-008` | الفشل الصريح عند الحدود التمثيلية | متطلب مجالي |
+| `MONEY-009` | صيغة العملة وسياسة التطبيع | سياسة تحقق للمشروع |
+| `MONEY-010–013` | سجل `ISO 4217` وصيانته | اعتمادية سجل خارجي / سياسة سجل للمشروع |
+| `MONEY-014` | معالجة العملات ذات الغرض الخاص | سياسة مجالية |
+| `MONEY-015–016` | توافق العملات والحساب الدقيق | ثابت مجالي (`Domain invariant`) |
+| `MONEY-017` | مقياس القسمة والتقريب الخاص بالعملية؛ المبررات المعتمدة في v2.5.0 | سياسة حسابية للمشروع |
+| `MONEY-018` | الضرب الوسيط الدقيق | سياسة حسابية مجالية |
+| `MONEY-019–022` | الإعدادات الافتراضية للتقريب، والتصريح، والحدود، وحظر البتر | سياسة حسابية للمشروع |
+| `MONEY-023–028` | عقود `ExchangeRate` والتحويل | سياسات مجالية وللمشروع |
+| `MONEY-029` | حد التكامل مع `IAS 21` | حد محاسبي |
+| `MONEY-030–033` | عقود التنسيق والتسلسل | عقد مجال/واجهة برمجة عامة |
+| `MONEY-034` | قرار دقة `ExchangeRate` المسجل في v2.2 | سجل قرار؛ `MONEY-025` هي المعيارية |
+| الإفصاح عن سعة التمثيل | حدود التنفيذ التي تؤثر في القيم المسموح بها بموجب `MONEY-005` إلى `MONEY-007` | شفافية المطابقة وسلوك الفشل الصريح؛ ليست حدًا مجاليًا رقميًا منفصلًا |
 
 ---
 
-## 13. Version history
+## 13. سجل الإصدارات (Version history)
 
 ### v2.6.1
 
-- Withdrew MONEY-035 as a standalone normative requirement; the identifier and its former requirement are not part of the current normative rule set.
-- Retained the 55-place result as an informative mathematical derivation from MONEY-005 and MONEY-007, without turning it into an independent conformance threshold.
-- Clarified in §§1 and 2.3 that implementation representation limits must be disclosed when they affect values or operations otherwise permitted by the normative numeric limits.
-- Added a distinct representation-scale-capacity error category and its required detection timing in §§9.2–9.3.
-- Updated Appendices B and C to classify the 55-place example as informative and to trace representation-capacity disclosure to the existing conformance and failure contracts.
-- Preserved the v2.6.0 history below as a historical record; its description of MONEY-035 records what v2.6.0 introduced and is not a current requirement.
-- The normative numeric limits in MONEY-005 through MONEY-008 and the operation-specific scale rules in MONEY-017 and MONEY-025 remain unchanged.
+- سحب `MONEY-035` بوصفها متطلبًا معياريًا مستقلًا؛ فالمُعرّف ومتطلبه السابق ليسا جزءًا من مجموعة القواعد المعيارية الحالية.
+- الإبقاء على نتيجة الـ 55 خانة بوصفها اشتقاقًا رياضيًا إعلاميًا من `MONEY-005` و`MONEY-007`، دون تحويلها إلى عتبة مطابقة مستقلة.
+- التوضيح في القسمين §1 و§2.3 أنه يجب الإفصاح عن حدود تمثيل التنفيذ عندما تؤثر في القيم أو العمليات المسموح بها بخلاف ذلك بموجب الحدود الرقمية المعيارية.
+- إضافة فئة خطأ متميزة لسعة مقياس التمثيل وتوقيت اكتشافها المطلوب في القسمين §9.2–§9.3.
+- تحديث الملحقين ب وج لتصنيف مثال الـ 55 خانة بوصفه إعلاميًا ولربط الإفصاح عن سعة التمثيل بعقدي المطابقة والفشل القائمين.
+- الإبقاء على سجل v2.6.0 أدناه بوصفه سجلًا تاريخيًا؛ فوصفه لـ`MONEY-035` يسجل ما قدّمه v2.6.0 وليس متطلبًا حاليًا.
+- تظل الحدود الرقمية المعيارية في القواعد من `MONEY-005` إلى `MONEY-008` وقواعد المقياس الخاصة بالعملية في `MONEY-017` و`MONEY-025` دون تغيير.
 
 ### v2.6.0
 
-- Added MONEY-035 to define effective fractional scale and require support for at least 55 effective fractional places for full conformance.
-- Derived the 55-place minimum explicitly from the 28-significant-digit limit in MONEY-005 and the normalized MSD exponent lower bound in MONEY-007.
-- Clarified that insignificant trailing-zero preservation remains governed by MONEY-033 and is distinct from effective numeric scale.
-- Clarified the required partial-conformance disclosure under §2.3 for implementations that cannot support the MONEY-035 minimum.
-- Updated Appendix B with explicit `1e-28`, `1e28`, and 55-place boundary examples.
-- Added MONEY-035 to Appendix C traceability.
-- This release adds a normative conformance requirement. It does not impose a 28-place scale ceiling and does not change the operation-specific scale rules in MONEY-017 or MONEY-025.
+- إضافة `MONEY-035` لتعريف المقياس الكسري الفعلي واشتراط دعم ما لا يقل عن 55 خانة كسرية فعلية للمطابقة الكاملة.
+- اشتقاق الحد الأدنى البالغ 55 خانة صراحةً من حد الـ 28 رقمًا معنويًا في `MONEY-005` والحد الأدنى لأُس `MSD` المُطبَّع في `MONEY-007`.
+- التوضيح بأن الحفاظ على الأصفار اللاحقة غير المعنوية يظل محكومًا بـ`MONEY-033` وهو متمايز عن المقياس الرقمي الفعلي.
+- توضيح إفصاح المطابقة الجزئية المطلوب بموجب القسم §2.3 للتنفيذات التي لا تستطيع دعم الحد الأدنى في `MONEY-035`.
+- تحديث الملحق ب بأمثلة حدية صريحة لـ`1e-28`، و`1e28`، والـ 55 خانة.
+- إضافة `MONEY-035` إلى تتبع الملحق ج.
+- يضيف هذا الإصدار متطلب مطابقة معياريًا. ولا يفرض سقفًا من 28 خانة للمقياس ولا يغير قواعد المقياس الخاصة بالعملية في `MONEY-017` أو `MONEY-025`.
 
 ### v2.5.1
 
-- Defined MONEY-007 exponent semantics using the normalized most-significant-digit exponent at the public domain boundary.
-- Clarified the interaction between MONEY-007 and the 28-integer-digit limit in MONEY-006 with explicit boundary examples.
-- Clarified the documented decimal-conversion contract example in MONEY-001.
-- Updated the ISO 4217 reference-use scope to include MONEY-014.
-- Listed the Half-Away-From-Zero division mode among project-specific arithmetic policies.
-- Recorded the v2.5.0 adoption of the MONEY-017 operation-specific rounding rationale in Appendix C.
-- These changes preserve the numeric limits and arithmetic rounding rules established in v2.5.0 while standardizing the public interpretation of the existing exponent bound. Implementations using a different prior exponent convention SHOULD assess boundary compatibility before claiming conformance.
+- تعريف دلالات أُس `MONEY-007` باستخدام أُس الرقم الأكثر أهمية المُطبَّع عند حد المجال العام.
+- توضيح التفاعل بين `MONEY-007` وحد الـ 28 رقمًا صحيحًا في `MONEY-006` بأمثلة حدية صريحة.
+- توضيح مثال عقد التحويل العشري الموثق في `MONEY-001`.
+- تحديث نطاق استخدام مرجع `ISO 4217` ليشمل `MONEY-014`.
+- إدراج وضع القسمة `Half-Away-From-Zero` ضمن السياسات الحسابية الخاصة بالمشروع.
+- تسجيل اعتماد مبررات التقريب الخاص بالعملية في `MONEY-017` ضمن v2.5.0 في الملحق ج.
+- تحافظ هذه التغييرات على الحدود الرقمية وقواعد التقريب الحسابي المعتمدة في v2.5.0 مع توحيد التفسير العام لحد الأُس القائم. و**ينبغي (SHOULD)** أن تُقيّم التنفيذات التي تستخدم اصطلاح أُس سابقًا مختلفًا توافقَ الحدود قبل ادعاء المطابقة.
 
 ### v2.5.0
 
-- Recast the document as a standalone, implementation-independent Money Domain Specification.
-- Removed implementation-status labels, source-availability notes, and the implementation verification checklist.
-- Retained the 34 numbered rules and clarified their normative behavior.
-- Added conformance requirements and externally observable acceptance criteria.
-- Added an Error Contract with semantic error categories and required detection timing.
-- Added a glossary.
-- Added numeric examples for critical precision, arithmetic, rounding, currency, and conversion rules.
-- Documented the 28-significant-digit, 28-integer-digit, and [-28, +28] exponent limits as project policies rather than external-standard requirements.
-- Clarified the 12-fractional-place ExchangeRate limit as a project engineering policy and retained MONEY-034 as its decision record.
-- Preserved the reference set and rule traceability while clarifying the normative/informative distinction.
-- Ratified and documented the rationale for the operation-specific division rounding rule: Half Away From Zero at the 12-place intermediate scale, distinct from the Half-to-Even default and conversion boundary.
+- إعادة صياغة المستند بوصفه مواصفات مستقلة لمجال النقود (`Money Domain Specification`) غير مرتبطة بتنفيذ معين.
+- إزالة تسميات حالة التنفيذ، وملاحظات توفر المصدر، وقائمة التحقق من التنفيذ.
+- الإبقاء على القواعد الـ 34 المرقمة وتوضيح سلوكها المعياري.
+- إضافة متطلبات المطابقة ومعايير القبول القابلة للملاحظة خارجيًا.
+- إضافة عقد أخطاء يتضمن فئات الأخطاء الدلالية وتوقيت الاكتشاف المطلوب.
+- إضافة مسرد للمصطلحات.
+- إضافة أمثلة رقمية لقواعد الدقة الحرجة، والحساب، والتقريب، والعملة، والتحويل.
+- توثيق حدود الـ 28 رقمًا معنويًا، والـ 28 رقمًا صحيحًا، والأُس `[-28, +28]` بوصفها سياسات للمشروع لا متطلبات لمعايير خارجية.
+- توضيح حد الـ 12 خانة كسرية لـ`ExchangeRate` بوصفه سياسة هندسية للمشروع والإبقاء على `MONEY-034` بوصفه سجل قراره.
+- الإبقاء على مجموعة المراجع وتتبع القواعد مع توضيح التمييز بين المعياري والإعلامي.
+- اعتماد وتوثيق مبررات قاعدة تقريب القسمة الخاصة بالعملية: `Half Away From Zero` عند المقياس الوسيط ذي الـ 12 خانة، متمايزًا عن الوضع الافتراضي `Half-to-Even` وحد التحويل.
 
 ### v2.4
 
-- Added formal References and Source Traceability.
-- Added ISO 4217, IAS 21 / IFRS Required 2026, JSR 354 1.1, Fowler Money pattern, General Decimal Arithmetic 1.70, and IEEE 754-2019 references.
-- Added reference-to-rule mapping.
-- Classified references as informative except where rules explicitly identify a normative source.
-- Clarified that project precision bounds must not be misattributed to IEEE 754 or other sources.
-- Did not establish implementation compliance or test status.
+- إضافة قسم رسمي للمراجع وتتبع المصادر.
+- إضافة مراجع `ISO 4217`، و`IAS 21 / IFRS Required 2026`، و`JSR 354 1.1`، ونمط `Money` لـFowler، و`General Decimal Arithmetic 1.70`، و`IEEE 754-2019`.
+- إضافة ربط المراجع بالقواعد.
+- تصنيف المراجع بوصفها إعلامية باستثناء المواضع التي تُحدّد فيها القواعد مصدرًا معياريًا صراحةً.
+- التوضيح بأن حدود دقة المشروع يجب ألّا تُنسب خطأً إلى `IEEE 754` أو مصادر أخرى.
+- لم يُنشئ حالة امتثال للتنفيذ أو حالة اختبار.

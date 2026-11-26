@@ -1,186 +1,200 @@
-# Ledger Projection Domain Specification
+# مواصفات مجال إسقاط الأستاذ العام (Ledger Projection Domain Specification)
 
-**Version:** 1.0.0  
-**Document type:** Standalone domain specification  
-**Conformance status:** Normative  
-**Scope:** GL source-of-truth projection boundary, deterministic total-order movement projection, functional-currency balance reconstruction, balance-reader query semantics, and year-end closing boundary.
-
----
-
-## 1. Purpose
-
-This document defines the externally observable domain contract for ledger projections and deterministic balance reconstruction within the accounting kernel. It establishes that the kernel's `ledger` domain owns deterministic read projections derived from posted journal entries—and public-API reference DTOs—without owning physical balance tables, movement storage, or financial reporting.
-
-This document does not prescribe SQL views, materialized balance tables, database triggers, or financial statement formatting.
-
-### 1.1 Normative language
-
-The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as normative requirement terms per RFC 2119 and RFC 8174:
-
-- **MUST / MUST NOT:** absolute requirement or prohibition for conformance.
-- **SHOULD / SHOULD NOT:** recommended requirement; deviations require a documented reason.
-- **MAY:** permitted behavior.
-
-### 1.2 Scope boundary
-
-This specification governs deterministic movement projection, balance reconstruction, and balance-reader semantics. Canonical entry storage belongs to `JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md` and host executors. Posting execution belongs to `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. Physical `account_balances` tables, triggers, trial-balance/income-statement/balance-sheet presentation, and multi-book/consolidation ledgers belong outside the kernel.
+**الإصدار:** 1.1.0  
+**نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة المطابقة:** معياري إلزامي (Normative)  
+**النطاق:** حدود إسقاط مصدر حقيقة الأستاذ العام (`GL source-of-truth projection boundary`)، إسقاط الحركات بالترتيب الكلي الحتمي، إعادة بناء الأرصدة بالعملة الوظيفية والعملات الأجنبية، دلالات استعلام قارئ الأرصدة (`Balance-reader query semantics`)، وحدود إقفال نهاية السنة.
 
 ---
 
-## 2. Conformance
+## 1. الغرض (Purpose)
 
-An implementation conforms to this specification only when all applicable normative requirements are satisfied.
+يُعرّف هذا المستند العقد المجالي القابل للملاحظة خارجياً لإسقاطات الأستاذ وإعادة البناء الحتمي للأرصدة داخل النواة المحاسبية. وهو يرسّخ أن مجال `ledger` في النواة يملك إسقاطات قراءة حتمية مشتقة من قيود اليومية المرحلة — وكائنات نقل البيانات المرجعية للواجهة العامة (`Public-API reference DTOs`) — دون امتلاك جداول أرصدة مادية، أو تخزين حركات، أو تقارير مالية.
 
-### 2.1 Conformance requirements
+لا يفرض هذا المستند عروض `SQL`، أو جداول أرصدة مادية (`Materialized balance tables`)، أو مشغلات قواعد بيانات، أو تنسيق القوائم المالية.
 
-A conforming implementation:
+### 1.1 اللغة المعيارية (Normative language)
 
-1. MUST satisfy every normative rule in §§4–7.
-2. MUST derive all movement projections and reconstructed balances solely from `Posted` (and `Reversed`) journal entries.
-3. MUST apply a deterministic total ordering independent of map iteration or wall-clock time.
-4. MUST NOT store mutable physical balance state inside the kernel.
-5. MUST enforce consistent `asOf` and empty-currency resolution semantics across balance-reader implementations.
+تُفسَّر المصطلحات **يجب (MUST)**، و**يجب ألّا (MUST NOT)**، و**ينبغي (SHOULD)**، و**ينبغي ألّا (SHOULD NOT)**، و**يجوز (MAY)** بوصفها مصطلحات متطلبات معيارية وفق `RFC 2119` و`RFC 8174`:
 
-### 2.2 Conformance evidence
+- **يجب / يجب ألّا (MUST / MUST NOT):** متطلب أو حظر مُطلَق للمطابقة.
+- **ينبغي / ينبغي ألّا (SHOULD / SHOULD NOT):** متطلب مُوصى به؛ وأي انحراف عنه يتطلب سبباً موثقاً.
+- **يجوز (MAY):** سلوك مسموح به.
 
-Conformance can be demonstrated through:
+### 1.2 حدود النطاق (Scope boundary)
 
-- deterministic rebuild tests producing identical balances regardless of input slice order;
-- parity tests comparing `RebuildAccountBalances` against host-stored balances;
-- `BalanceReader` parity tests for `asOf` (`PostingDate` vs. `EffectiveDate` fallback) and empty currency resolution;
-- structural reflection/drift tests ensuring `ledger` reference DTOs remain aligned with `masterdata`.
-
-### 2.3 Partial conformance
-
-An implementation that satisfies only a subset of the requirements MUST NOT be described as fully conformant. Any claimed partial conformance MUST identify the omitted rules and affected behaviors.
+تحكم هذه المواصفات إسقاط الحركات الحتمي، وإعادة بناء الأرصدة، ودلالات قارئ الأرصدة. يعود تخزين القيود القانوني إلى `JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md` ومنفذي المضيف. ويعود تنفيذ الترحيل إلى `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. أما جداول `account_balances` المادية، والمشغلات، وعرض ميزان المراجعة/قائمة الدخل/الميزانية العمومية، ودفاتر التوحيد ومتعددة الدفاتر فتقع خارج النواة.
 
 ---
 
-## 3. Terms and definitions
+## 2. المطابقة (Conformance)
 
-- **Posted Movement (`PostedMovement`):** A deterministic, read-only projection of a single `EntryLine` belonging to a `Posted` or `Reversed` `JournalEntry`.
-- **Derived Balance:** An account balance computed by aggregating `FunctionalDebit - FunctionalCredit` across projected movements.
-- **Total-Order Key:** The deterministic sort key `(EffectiveDate UTC, SequenceNumber, JournalEntryID)` for entries and `EntryLine.ID` for lines within an entry.
-- **Balance Reader (`BalanceReader`):** The host-implemented query port for retrieving derived account balances as of a given timestamp and currency.
+لا يُعدّ أي تنفيذ مطابقاً لهذه المواصفات إلّا عند استيفاء جميع المتطلبات المعيارية المنطبقة.
 
----
+### 2.1 متطلبات المطابقة (Conformance requirements)
 
-## 4. Source of truth and deterministic projection
+التنفيذ المطابق:
 
-### LDG-001 — Derived projection, not a second source of truth
+1. **يجب (MUST)** أن يستوفي كل قاعدة معيارية في الأقسام من §4 إلى §7.
+2. **يجب (MUST)** أن يشتق جميع إسقاطات الحركات والأرصدة المعاد بناؤها حصراً من قيود اليومية بحالة `Posted` (و`Reversed`).
+3. **يجب (MUST)** أن يطبق ترتيباً كلياً حتمياً مستقلاً عن تكرار الخريطة (`Map iteration`) أو وقت ساعة النظام.
+4. **يجب ألّا (MUST NOT)** يخزن حالة رصيد مادية قابلة للتعديل داخل النواة.
+5. **يجب (MUST)** أن يفرض دلالات متسقة لـ `asOf` وحل العملة الفارغة وغير الفارغة عبر تنفيذات قارئ الأرصدة (`Balance-reader`).
 
-`PostedMovement` projections and reconstructed balances MUST be derived strictly from `Posted` and `Reversed` `JournalEntry` aggregates. `Draft` and `Cancelled` entries MUST be excluded. The kernel MUST NOT maintain mutable balance storage or treat derived balances as an authoritative source of truth.
+### 2.2 أدلة المطابقة (Conformance evidence)
 
-**Acceptance criteria**
+يمكن إثبات المطابقة من خلال:
 
-- Excluding `Draft` and `Cancelled` entries while including `Posted` and `Reversed` entries produces the exact net impact (including linked reversals).
+- اختبارات إعادة البناء الحتمية التي تُنتج أرصدة متطابقة بغض النظر عن ترتيب شريحة المدخلات؛
+- اختبارات التكافؤ التي تقارن إعادة بناء الأرصدة بالأرصدة المخزنة لدى المضيف؛
+- اختبارات تكافؤ `BalanceReader` لمعامل `asOf` (`PostingDate` مقابل الرجوع إلى `EffectiveDate`)، وحل العملة الفارغة، وتصفية العملة الأجنبية غير الفارغة؛
+- اختبارات الانعكاس/الانجراف البنيوي التي تضمن بقاء كائنات `DTO` المرجعية في `ledger` متوافقة مع `masterdata`.
 
-### LDG-002 — Deterministic total-order movement projection
+### 2.3 المطابقة الجزئية (Partial conformance)
 
-`ProjectPostedMovements` MUST project lines in a deterministic total order independent of input slice ordering or map iteration:
-
-1. Entries ordered by `(EffectiveDate UTC, SequenceNumber, JournalEntryID)`.
-2. Lines within each entry ordered by `EntryLine.ID`.
-
-**Acceptance criteria**
-
-- Shuffling the input list of posted entries and lines produces the exact same output sequence of `PostedMovement` items.
-
-### LDG-003 — Deterministic functional-currency balance reconstruction
-
-`RebuildAccountBalances` MUST aggregate `FunctionalDebit - FunctionalCredit` per `(CompanyID, AccountID, FunctionalCurrency)` over the projected movements. Reversal entries MUST be applied at their own `EffectiveDate` without modifying the original entry's historical movement. Normal balance (`Debit` vs. `Credit`) MAY be applied only for display sign convention, never to alter underlying debit/credit totals.
-
-**Acceptance criteria**
-
-- Rebuilding balances from posted entries matches incremental host-maintained balances to the exact minor unit.
+**يجب ألّا (MUST NOT)** يُوصَف التنفيذ الذي يستوفي مجموعة فرعية فقط من المتطلبات بأنه مطابق بالكامل. و**يجب (MUST)** أن يُحدّد أي ادعاء بالمطابقة الجزئية القواعد المُغفلة والسلوكيات المتأثرة.
 
 ---
 
-## 5. Balance reader and reference model semantics
+## 3. المصطلحات والتعاريف (Terms and definitions)
 
-### LDG-004 — `BalanceReader` `asOf` and currency resolution parity
-
-Host `BalanceReader` implementations MUST apply consistent query semantics:
-
-1. `asOf` MUST filter against the kernel-stamped `PostingDate` (falling back to `EffectiveDate`/`entry_date` only for legacy rows lacking `PostingDate`).
-2. `Draft` and `Cancelled` entries MUST be excluded; `Posted` entries (and `Reversed` entries alongside their posted reversal entries) MUST be included so net balances are accurate.
-3. An empty currency filter MUST resolve to the company's `FunctionalCurrency` (never an implicit "all currencies" wildcard), and aggregated amounts MUST be in `FunctionalCurrency` (`FunctionalDebit - FunctionalCredit`).
-
-**Acceptance criteria**
-
-- Querying `BalanceReader` with an empty currency returns the functional-currency balance, identical across in-memory and relational adapters.
-
-### LDG-005 — Reference DTO parity without drift
-
-Lightweight reference DTOs in `ledger` (used for public API compatibility) MUST remain structurally aligned with canonical `masterdata` types. Unmapped fields MUST be explicitly documented, and `ledger` DTOs MUST NOT evolve competing domain validation rules.
-
-**Acceptance criteria**
-
-- Automated reflection/parity checks fail if `masterdata` and `ledger` reference models drift silently.
+- **الحركة المرحلة (`Posted Movement`):** إسقاط قراءة حتمي لسطر `EntryLine` واحد ينتمي إلى `JournalEntry` بحالة `Posted` أو `Reversed`.
+- **الرصيد المشتق (`Derived Balance`):** رصيد حساب يُحسب بتجميع `FunctionalDebit - FunctionalCredit` عبر الحركات المسقطة.
+- **مفتاح الترتيب الكلي (`Total-Order Key`):** مفتاح الفرز الحتمي `(EffectiveDate UTC, SequenceNumber, JournalEntryID)` للقيود و`EntryLine.ID` للأسطر داخل القيد.
+- **قارئ الأرصدة (`Balance Reader`):** منفذ الاستعلام المنفّذ من المضيف لاسترجاع أرصدة الحسابات المشتقة كما في طابع زمني وعملة محددين.
 
 ---
 
-## 6. Year-end closing boundary
+## 4. مصدر الحقيقة والإسقاط الحتمي
 
-### LDG-006 — Year-end closing via balanced closing entries
+### LDG-001 — إسقاط مشتق، وليس مصدر حقيقة ثانياً
 
-Year-end closing (zeroing `Revenue` and `Expense` accounts into `Retained Earnings` and carrying forward `Asset`, `Liability`, and `Equity` balances) MUST be expressed as balanced `Closing` / `Opening` journal entries processed through the central posting pipeline, preserving full auditability and immutability.
+**يجب (MUST)** أن تُشتق إسقاطات الحركات المرحلة والأرصدة المعاد بناؤها بصرامة من مجاميع `JournalEntry` بحالتي `Posted` و`Reversed`. و**يجب (MUST)** استبعاد قيود `Draft` و`Cancelled`. و**يجب ألّا (MUST NOT)** تحتفظ النواة بتخزين رصيد قابل للتعديل أو تعامل الأرصدة المشتقة بوصفها مصدر حقيقة معتمداً.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- Year-end closing leaves all temporary (income-statement) accounts with zero net balance via posted `Closing` entries rather than direct balance mutation.
+- ينتج عن استبعاد قيود `Draft` و`Cancelled` مع تضمين قيود `Posted` و`Reversed` الأثر الصافي الدقيق (بما في ذلك القيود العكسية المرتبطة).
 
----
+### LDG-002 — إسقاط الحركات بالترتيب الكلي الحتمي
 
-## 7. Error Contract
+**يجب (MUST)** أن تسقط عملية الإسقاط الأسطر بترتيب كلي حتمي مستقل عن ترتيب مدخلات القيود أو تكرار الخرائط:
 
-| Error Category | Trigger Condition | Detection Timing |
-| --- | --- | --- |
-| `ErrCompanyScopeRequired` | Zero `CompanyID` in projection or balance query | Pre-projection / query |
-| Currency / Account Mismatch | Inconsistent currency or invalid entry in projection | Projection build |
+1. القيود مرتبة حسب `(EffectiveDate UTC, SequenceNumber, JournalEntryID)`.
+2. الأسطر داخل كل قيد مرتبة حسب `EntryLine.ID`.
 
----
+**معايير القبول**
 
-## 8. References
+- ينتج عن خلط قائمة المدخلات من القيود المرحلة والأسطر نفس تسلسل مخرجات الحركات بالضبط.
 
-### REF-001 — Accountant Engine GL Source-of-Truth & Balance ADRs
+### LDG-003 — إعادة البناء الحتمي للأرصدة بالعملة الوظيفية والعملات الأجنبية
 
-- **Internal sources:** `docs/ard/P1_02_gl_source_of_truth.md`, `docs/ard/P1_03_reference_model_duality.md`, `docs/ard/P11_03_balance_reader_semantics.md`, `docs/KERNEL_ARCHITECTURE_MAP.md` (§3), `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNAL-07`).
-- **Used for:** GL source of truth, total-order projection, `BalanceReader` parity, and year-end closing boundary (`LDG-001–006`).
+**يجب (MUST)** أن تجمع عملية إعادة بناء الأرصدة الفرق `FunctionalDebit - FunctionalCredit` لكل `(CompanyID, AccountID, FunctionalCurrency)` عبر الحركات المسقطة. وعند طلب إعادة البناء بتاريخ `asOf` أو بحسب `TransactionCurrency` أو الأبعاد التحليلية (لأغراض مثل إعادة تقييم العملات الأجنبية في `FX_REVALUATION`)، **يجب (MUST)** أن تطبق التصفية والتجميع حتمياً بالترتيب الكلي ذاته. و**يجب (MUST)** تطبيق القيود العكسية عند `EffectiveDate` الخاص بها دون تعديل الحركة التاريخية للقيد الأصلي. و**يجوز (MAY)** تطبيق الرصيد الطبيعي (`Debit` مقابل `Credit`) فقط لاتفاقية إشارة العرض، وليس أبداً لتغيير مجاميع المدين/الدائن الكامنة.
 
-### Reference-to-rule index
+**معايير القبول**
 
-| Rule(s) | Primary reference(s) | Nature of relationship |
-| --- | --- | --- |
-| LDG-001–003 | REF-001 (ADR P1-02) | Canonical GL truth and deterministic rebuild |
-| LDG-004 | REF-001 (ADR P11-03) | Cross-adapter `BalanceReader` semantics |
-| LDG-005 | REF-001 (ADR P1-03) | Reference DTO duality |
-| LDG-006 | REF-001 (`CAP-KERNAL-07`) | Year-end closing via posted entries |
+- تتطابق إعادة بناء الأرصدة من القيود المرحلة مع الأرصدة التراكمية المحتفظ بها لدى المضيف حتى أدق وحدة فرعية.
 
 ---
 
-## 9. Appendices
+## 5. دلالات قارئ الأرصدة والنموذج المرجعي
 
-### Appendix A — Informative implementation guidance
+### LDG-004 — تكافؤ `asOf` وحل العملة الفارغة وغير الفارغة في `BalanceReader`
 
-- Because `RebuildAccountBalances` is deterministic, host `account_balances` caches or triggers can always be truncated and rebuilt from `account_moves` and `account_move_lines` without data loss.
+**يجب (MUST)** أن تطبق تنفيذات `BalanceReader` لدى المضيف دلالات استعلام متسقة:
 
-### Appendix B — Rule traceability
+1. **يجب (MUST)** أن يصفّي `asOf` مقابل `PostingDate` المختوم من النواة (مع الرجوع إلى `EffectiveDate`/`entry_date` فقط للصفوف القديمة المفتقرة إلى `PostingDate`).
+2. **يجب (MUST)** استبعاد قيود `Draft` و`Cancelled`؛ و**يجب (MUST)** تضمين قيود `Posted` (وقيود `Reversed` جنباً إلى جنب مع قيودها العكسية المرحلة) حتى تكون الأرصدة الصافية دقيقة.
+3. **يجب (MUST)** أن يُحل مرشح العملة الفارغ إلى `FunctionalCurrency` للشركة (وليس أبداً كرمز بدل ضمني لـ "جميع العملات").
+4. عند تمرير رمز عملة **غير فارغ** (عملة معاملة أجنبية أو محلية)، **يجب (MUST)** تصفية الأسطر حسب `TransactionCurrency` (مع الرجوع للعملة الوظيفية عند غيابها)، بينما تبقى المبالغ المجمّعة مقاسةً بـ **`FunctionalCurrency`** (`FunctionalDebit - FunctionalCredit`) وفق `ADR P11-03`.
 
-| Rule ID | Summary | Classification | Source / Decision | Verification |
-| --- | --- | --- | --- | --- |
-| LDG-001 | Derived projection, not second truth | PROJECT-DECISION | ADR P1-02 | Projection unit tests |
-| LDG-002 | Total-order movement projection | PROJECT-DECISION | ADR P1-02 | Order-permutation tests |
-| LDG-003 | Functional-currency balance rebuild | PROJECT-DECISION | ADR P1-02 | Rebuild parity tests |
-| LDG-004 | `BalanceReader` `asOf` & currency parity | PROJECT-DECISION | ADR P11-03 | `TestPhase11_BalanceReaderAsOfAndCurrencyParity` |
-| LDG-005 | Reference DTO parity without drift | PROJECT-DECISION | ADR P1-03 / P3-01 | `TestReferenceModelsDoNotDriftSilently` |
-| LDG-006 | Year-end closing via posted entries | PROJECT-DECISION | `CAP-KERNAL-07` | Year-end closing tests |
+**معايير القبول**
+
+- يُرجع الاستعلام عن `BalanceReader` بعملة فارغة رصيد العملة الوظيفية، متطابقاً عبر المحولات الذاكرية والعلائقية.
+- يُرجع الاستعلام بعملة معاملة أجنبية صافي القيمة الوظيفية للأسطر المقومة بتلك العملة فقط.
+
+### LDG-005 — تكافؤ كائنات DTO المرجعية دون انجراف
+
+**يجب (MUST)** أن تظل كائنات `DTO` المرجعية خفيفة الوزن في `ledger` (المستخدمة لتوافق واجهة برمجة التطبيقات العامة) متوافقة بنيوياً مع أنواع `masterdata` القانونية. و**يجب (MUST)** توثيق الحقول غير المربوطة صراحةً، و**يجب ألّا (MUST NOT)** تطور كائنات `DTO` في `ledger` قواعد تحقق مجالية متنافسة.
+
+**معايير القبول**
+
+- تفشل فحوصات الانعكاس/التكافؤ الآلية إذا انجرفت النماذج المرجعية لـ `masterdata` و`ledger` بصمت.
 
 ---
 
-## 10. Version history
+## 6. حدود إقفال نهاية السنة (Year-end closing boundary)
+
+### LDG-006 — إقفال نهاية السنة عبر قيود إقفال متوازنة وذرية
+
+**يجب (MUST)** التعبير عن إقفال نهاية السنة (تصفير جميع حسابات `Revenue` و`Expense` في حساب أرباح مبقاة `Retained Earnings` من نوع `Equity` وترحيل أرصدة `Asset` و`Liability` و`Equity` إلى السنة الجديدة) بوصفه قيود يومية `Closing` (في الفترة 12 أو 13) و`Opening` (في الفترة 1 من السنة التالية) متوازنةً تُعالج ذرياً كوحدة عمل واحدة (`RULE-ACC-033`) عبر أنبوب الترحيل المركزي، مع الحفاظ على قابلية التدقيق الكاملة وعدم القابلية للتعديل.
+
+**معايير القبول**
+
+- يترك إقفال نهاية السنة جميع الحسابات المؤقتة (قائمة الدخل) برصيد صافٍ صفري عبر قيود `Closing` مرحلة دون تعديل مباشر للرصيد، ولا ينجح إقفال بعض الحسابات مع فشل أخرى.
+
+---
+
+## 7. عقد الأخطاء (Error Contract)
+
+| فئة الخطأ | شرط التحفيز | توقيت الاكتشاف |
+|---|---|---|
+| `ErrCompanyScopeRequired` | قيمة `CompanyID` صفرية في الإسقاط أو استعلام الرصيد | ما قبل الإسقاط / الاستعلام |
+| عدم تطابق العملة / الحساب | عملة غير متسقة أو قيد غير صالح في الإسقاط أو حساب `Retained Earnings` غير `Equity` | بناء الإسقاط / الإقفال |
+
+---
+
+## 8. المراجع (References)
+
+### REF-001 — RFC 2119 & RFC 8174
+
+- **العنوان الكامل:** Key words for use in RFCs to Indicate Requirement Levels (RFC 2119); Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words (RFC 8174).
+- **الجهة الناشرة:** IETF.
+- **الروابط الرسمية:** <https://www.rfc-editor.org/rfc/rfc2119>, <https://www.rfc-editor.org/rfc/rfc8174>
+- **القيود:** يحدد اللغة المعيارية فقط.
+
+### REF-002 — قرارات مصدر حقيقة GL والأرصدة في Accountant Engine
+
+- **المصادر الداخلية:** `docs/ard/P1_02_gl_source_of_truth.md`، `docs/ard/P1_03_reference_model_duality.md`، `docs/ard/P11_03_balance_reader_semantics.md`، `docs/KERNEL_ARCHITECTURE_MAP.md` (§3)، `docs/ACCOUNTING_BUSINESS_RULES.md` (§10)، `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNAL-07`).
+- **مستخدم في:** مصدر حقيقة GL، الإسقاط بالترتيب الكلي، تكافؤ `BalanceReader`، وحدود إقفال نهاية السنة (`LDG-001–006`).
+
+### فهرس ربط المراجع بالقواعد
+
+| القاعدة/القواعد | المرجع الأساسي | طبيعة العلاقة |
+|---|---|---|
+| LDG-001–003 | REF-002 (ADR P1-02) | حقيقة GL القانونية وإعادة البناء الحتمية |
+| LDG-004 | REF-002 (ADR P11-03) | دلالات `BalanceReader` عبر المحولات للعملة الفارغة وغير الفارغة |
+| LDG-005 | REF-002 (ADR P1-03) | ازدواجية كائنات DTO المرجعية |
+| LDG-006 | REF-002 (`CAP-KERNAL-07`, `RULE-ACC-033`) | إقفال نهاية السنة الذري عبر القيود المرحلة |
+
+---
+
+## 9. الملاحق (Appendices)
+
+### الملحق أ — سجل القرارات الهندسية (Decision Log)
+
+- **DEC-LDG-001 (القياس بالعملة الوظيفية عند التصفية بعملة أجنبية):** إبقاء التجميع في `BalanceReader` بـ `FunctionalDebit - FunctionalCredit` حتى عند تصفية الأسطر بعملة معاملة أجنبية (`ADR P11-03`) لتوحيد دلالات الأرصدة عبر المحولات.
+
+### الملحق ب — تتبع القواعد (Rule traceability)
+
+| معرّف القاعدة | الملخص | التصنيف | المصدر / القرار | معيار التحقق |
+|---|---|---|---|---|
+| LDG-001 | إسقاط مشتق، وليس حقيقة ثانية | PROJECT-DECISION | ADR P1-02 | اختبار استبعاد `Draft`/`Cancelled` |
+| LDG-002 | إسقاط الحركات بالترتيب الكلي | PROJECT-DECISION | ADR P1-02 | اختبار ثبات الناتج عند تبديل ترتيب المدخلات |
+| LDG-003 | إعادة بناء الأرصدة والعملات الأجنبية | PROJECT-DECISION | ADR P1-02 | اختبار تكافؤ إعادة البناء مع الأرصدة التراكمية |
+| LDG-004 | تكافؤ `asOf` والعملة الفارغة وغير الفارغة | PROJECT-DECISION | ADR P11-03 | اختبار تكافؤ المحولات للعملة الفارغة والأجنبية |
+| LDG-005 | تكافؤ DTO المرجعية دون انجراف | PROJECT-DECISION | ADR P1-03 / P3-01 | اختبار تطابق حقول DTO مع `masterdata` |
+| LDG-006 | إقفال نهاية السنة الذري عبر القيود المرحلة | PROJECT-DECISION | `CAP-KERNAL-07` / `RULE-ACC-033` | اختبار تصفير P&L ذرياً في `Retained Earnings` |
+
+---
+
+## 10. سجل الإصدارات (Version history)
+
+### v1.1.0
+
+- إضافة دلالة تمرير عملة غير فارغة في `LDG-004` وفق `ADR P11-03`.
+- توضيح دعم `asOf` والأبعاد والعملات الأجنبية في `LDG-003`، وذرية تصفير P&L وفحص حساب `Equity` في `LDG-006`.
+- استيفاء مراجع `RFC 2119/8174` وتجريد المتن من أسماء دوال واختبارات Go، وإضافة سجل القرارات.
 
 ### v1.0.0
 
-- Initial standalone normative specification for the kernel ledger projection domain.
-
+- المواصفة المعيارية المستقلة الأولية لمجال إسقاط الأستاذ العام في النواة.

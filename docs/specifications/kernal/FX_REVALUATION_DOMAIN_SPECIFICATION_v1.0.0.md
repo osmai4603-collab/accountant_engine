@@ -1,232 +1,264 @@
-# FX Revaluation Domain Specification
+# مواصفات مجال إعادة تقييم العملات الأجنبية (FX Revaluation Domain Specification)
 
-**Version:** 1.0.0  
-**Document type:** Standalone domain specification  
-**Conformance status:** Normative  
-**Scope:** Accounting foreign-currency valuation and period-end revaluation: rate-type selection, effective-date rate lookup, asset vs. liability FX gain/loss direction, unrealized revaluation entry generation, revaluation idempotency keys/fingerprints, and revaluation reversals.
-
----
-
-## 1. Purpose
-
-This document defines the externally observable domain contract for accounting foreign-exchange (FX) valuation and period-end revaluation of monetary balances within the kernel. It specifies how exchange rates are selected by rate type and effective date, how unrealized FX gains and losses are calculated for assets and liabilities, how balanced adjusting revaluation entries are generated, and how duplicate revaluations are prevented.
-
-This document does not prescribe external FX rate-provider APIs, network clients, or persistent database storage.
-
-### 1.1 Normative language
-
-The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as normative requirement terms per RFC 2119 and RFC 8174:
-
-- **MUST / MUST NOT:** absolute requirement or prohibition for conformance.
-- **SHOULD / SHOULD NOT:** recommended requirement; deviations require a documented reason.
-- **MAY:** permitted behavior.
-
-### 1.2 Scope boundary
-
-This specification governs accounting FX valuation and period-end unrealized revaluation within the kernel. Primitive `Money`, `ExchangeRate` numeric validation (12-decimal scale, positive rate), and currency conversion rounding belong to `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`. Posting execution belongs to `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. Realized FX gain/loss calculation upon settlement of open items and external rate-feed ingestion belong outside this kernel specification.
+**الإصدار:** 1.1.0  
+**نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة المطابقة:** معياري إلزامي (Normative)  
+**النطاق:** التقييم المحاسبي للعملات الأجنبية وإعادة التقييم بنهاية الفترة: اختيار نوع السعر (`Rate-type selection`)، البحث عن السعر بتاريخ النفاذ، نطاق البنود النقدية المستبعدة وغير المستبعدة، اتجاه مكاسب/خسائر الصرف، توليد قيود إعادة التقييم غير المحققة، مفاتيح وبصمات منع التكرار لإعادة التقييم، وعكس قيود إعادة التقييم.
 
 ---
 
-## 2. Conformance
+## 1. الغرض (Purpose)
 
-An implementation conforms to this specification only when all applicable normative requirements are satisfied.
+يُعرّف هذا المستند العقد المجالي القابل للملاحظة خارجياً للتقييم المحاسبي للعملات الأجنبية (`FX`) وإعادة التقييم بنهاية الفترة للأرصدة النقدية داخل النواة. وهو يحدد كيفية اختيار أسعار الصرف حسب نوع السعر وتاريخ النفاذ، وقواعد السعر المعكوس، وحصر إعادة التقييم في البنود النقدية، وكيفية حساب مكاسب وخسائر الصرف غير المحققة، وكيفية توليد قيود تسوية متوازنة، وكيفية منع إعادة التقييم المكررة.
 
-### 2.1 Conformance requirements
+لا يفرض هذا المستند واجهات برمجة لمزودي أسعار الصرف الخارجيين، أو عملاء الشبكة، أو التخزين الدائم في قواعد البيانات.
 
-A conforming implementation:
+### 1.1 اللغة المعيارية (Normative language)
 
-1. MUST satisfy every normative rule in §§4–7.
-2. MUST enforce rate-type matching (`CLOSING` for period-end revaluation) and reject future-dated rates.
-3. MUST invert debit/credit gain/loss direction appropriately between asset and liability accounts.
-4. MUST generate balanced adjusting entries booking only unrealized FX differences.
-5. MUST enforce deterministic revaluation operation keys and payload fingerprints to prevent conflicting duplicate revaluations.
+تُفسَّر المصطلحات **يجب (MUST)**، و**يجب ألّا (MUST NOT)**، و**ينبغي (SHOULD)**، و**ينبغي ألّا (SHOULD NOT)**، و**يجوز (MAY)** بوصفها مصطلحات متطلبات معيارية وفق `RFC 2119` و`RFC 8174`:
 
-### 2.2 Conformance evidence
+- **يجب / يجب ألّا (MUST / MUST NOT):** متطلب أو حظر مُطلَق للمطابقة.
+- **ينبغي / ينبغي ألّا (SHOULD / SHOULD NOT):** متطلب مُوصى به؛ وأي انحراف عنه يتطلب سبباً موثقاً.
+- **يجوز (MAY):** سلوك مسموح به.
 
-Conformance can be demonstrated through:
+### 1.2 حدود النطاق (Scope boundary)
 
-- rate registry effective-date selection and duplicate/inverse-pair rejection tests;
-- same-currency unit-rate (`1`) validation tests;
-- asset vs. liability revaluation direction tests across appreciation and depreciation scenarios;
-- zero-difference rejection tests and generated-entry double-entry balance tests;
-- revaluation idempotency replay, conflicting-payload rejection, and concurrent-winner tests;
-- revaluation reversal period-resolution tests.
-
-### 2.3 Partial conformance
-
-An implementation that satisfies only a subset of the requirements MUST NOT be described as fully conformant. Any claimed partial conformance MUST identify the omitted rules and affected behaviors.
+تحكم هذه المواصفات التقييم المحاسبي للعملات الأجنبية وإعادة التقييم غير المحققة بنهاية الفترة داخل النواة. تعود ملكية التحقق الرقمي الأولي لـ `Money` و`ExchangeRate` (مقياس 12 خانة عشرية، سعر موجب) وتقريب تحويل العملات إلى `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`. ويعود تنفيذ الترحيل إلى `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. أما حساب مكاسب/خسائر الصرف المحققة عند تسوية البنود المفتوحة واستيعاب تغذيات الأسعار الخارجية فيقعان خارج مواصفة النواة هذه.
 
 ---
 
-## 3. Terms and definitions
+## 2. المطابقة (Conformance)
 
-- **Rate Type:** Classification of an exchange rate: `SPOT`, `CLOSING`, `AVERAGE`, or `HISTORICAL`.
-- **Closing Rate:** The spot exchange rate at the end of the reporting period (IAS 21), required for period-end monetary item revaluation.
-- **Rate Date (`RateDate`):** The effective date of the selected reference exchange rate, preserved independently from the revaluation posting date.
-- **Unrealized FX Gain / Loss:** The functional-currency difference arising from remeasuring a foreign-currency monetary balance at the closing rate without settling the underlying position.
-- **Revaluation Operation Key:** Deterministic key scoped by `(CompanyID, AccountID, TransactionCurrency, RevaluationDate)` identifying a unique revaluation operation.
+لا يُعدّ أي تنفيذ مطابقاً لهذه المواصفات إلّا عند استيفاء جميع المتطلبات المعيارية المنطبقة.
 
----
+### 2.1 متطلبات المطابقة (Conformance requirements)
 
-## 4. Rate selection and registry invariants
+التنفيذ المطابق:
 
-### VAL-001 — Rate types and closing-rate requirement for revaluation
+1. **يجب (MUST)** أن يستوفي كل قاعدة معيارية في الأقسام من §4 إلى §7.
+2. **يجب (MUST)** أن يفرض مطابقة نوع السعر (`CLOSING` لإعادة التقييم بنهاية الفترة) ويرفض الأسعار ذات التواريخ المستقبلية.
+3. **يجب (MUST)** أن يقصر إعادة التقييم على البنود النقدية من الأصول والالتزامات ويعكس اتجاه المدين/الدائن بشكل صحيح بينهما.
+4. **يجب (MUST)** أن يولد قيود تسوية متوازنة تقيد فروق الصرف غير المحققة فقط.
+5. **يجب (MUST)** أن يفرض مفاتيح عملية حتمية متوافقة مع الأبعاد وبصمات حمولة لمنع إعادة التقييم المكررة المتعارضة.
 
-The valuation domain MUST support `SPOT`, `CLOSING`, `AVERAGE`, and `HISTORICAL` rate types. Period-end revaluation MUST require a `CLOSING` rate and MUST reject rates of another type or rates that do not match the requested currency pair (including validated inversion).
+### 2.2 أدلة المطابقة (Conformance evidence)
 
-**Acceptance criteria**
+يمكن إثبات المطابقة من خلال:
 
-- Supplying a `SPOT` or `AVERAGE` rate to period-end revaluation fails validation.
+- اختبارات اختيار سجل الأسعار بتاريخ النفاذ، وحساب السعر المعكوس بدقة 12 خانة، ورفض التكرار والزوج العكسي؛
+- اختبارات التحقق من سعر الوحدة (`1`) لنفس العملة؛
+- اختبارات استبعاد البنود غير النقدية وحسابات `Equity` و`Revenue` و`Expense`؛
+- اختبارات اتجاه إعادة التقييم للأصول مقابل الالتزامات عبر سيناريوهات الارتفاع والانخفاض؛
+- اختبارات رفض الفارق الصفري واختبارات توازن القيد المزدوج للقيود المولّدة؛
+- اختبارات منع تكرار إعادة التقييم شاملةً الأبعاد التحليلية، ورفض الحمولة المتعارضة، والتكامل مع `storage.OperationRevaluation`؛
+- اختبارات حل الفترة عند عكس قيد إعادة التقييم.
 
-### VAL-002 — Duplicate and inverse-pair rate conflict rejection
+### 2.3 المطابقة الجزئية (Partial conformance)
 
-Within a rate registry, registering two rates for the same `(BaseCurrency, QuoteCurrency, RateType, EffectiveDate)` OR registering an inverse pair `(QuoteCurrency, BaseCurrency, RateType, EffectiveDate)` on the same effective date MUST fail with `ErrDuplicateRate`.
-
-**Acceptance criteria**
-
-- Registering `USD -> SAR` and then `SAR -> USD` for the same rate type and day fails with `ErrDuplicateRate`.
-
-### VAL-003 — Latest-effective-date lookup without future leakage
-
-When resolving a rate as of `valuationDate`, the registry MUST select the latest registered rate whose `EffectiveDate <= valuationDate`. Future-dated rates (`EffectiveDate > valuationDate`) MUST NEVER be selected; if no rate exists on or before `valuationDate`, lookup MUST fail explicitly.
-
-**Acceptance criteria**
-
-- Given rates on day 1 and day 10, querying day 5 selects day 1's rate; querying day 0 fails explicitly.
-
-### VAL-004 — Independent `RateDate` preservation
-
-Valuation results and generated revaluation entries MUST preserve `RateDate` (the effective date of the selected rate) separately from the valuation/posting `EffectiveDate`.
-
-**Acceptance criteria**
-
-- When day 5 uses a rate effective on day 1, `FXResult.RateDate` records day 1 while the entry `EffectiveDate` records day 5.
-
-### VAL-005 — Same-currency unit rate after validation
-
-When source and target currencies are identical, the valuation engine MUST still validate both currency codes (rejecting invalid codes and `XXX`) and the non-zero valuation date before returning an exact unit rate of `1`.
-
-**Acceptance criteria**
-
-- Same-currency conversion with `XXX` or a zero date fails explicitly rather than returning `1`.
+**يجب ألّا (MUST NOT)** يُوصَف التنفيذ الذي يستوفي مجموعة فرعية فقط من المتطلبات بأنه مطابق بالكامل. و**يجب (MUST)** أن يُحدّد أي ادعاء بالمطابقة الجزئية القواعد المُغفلة والسلوكيات المتأثرة.
 
 ---
 
-## 5. Revaluation calculation and entry generation
+## 3. المصطلحات والتعاريف (Terms and definitions)
 
-### VAL-006 — Opposite FX gain/loss direction for assets vs. liabilities
-
-For a foreign-currency monetary balance revalued to the functional currency:
-
-- **Asset accounts:** an increase in functional-currency value is an **unrealized FX gain** (Debit Asset, Credit Unrealized Gain); a decrease is an **unrealized FX loss** (Debit Unrealized Loss, Credit Asset).
-- **Liability accounts:** an increase in functional-currency value is an **unrealized FX loss** (Debit Unrealized Loss, Credit Liability); a decrease is an **unrealized FX gain** (Debit Liability, Credit Unrealized Gain).
-
-**Acceptance criteria**
-
-- Under identical rate appreciation, an Asset account books a gain while a Liability account books a loss of equal magnitude.
-
-### VAL-007 — Balanced adjusting entry for unrealized differences only
-
-`GenerateRevaluationEntryAt` MUST produce a balanced `Adjusting` journal entry (`Draft` status) using `UnrealizedGainID` or `UnrealizedLossID`, and MUST reject zero-difference revaluations. The kernel MUST NOT book realized settlement gains/losses.
-
-**Acceptance criteria**
-
-- A zero functional-currency difference is rejected without generating an entry.
-- Every generated revaluation entry passes double-entry balance validation.
-
-### VAL-008 — Revaluation reversal and destination period resolution
-
-Reversing a posted revaluation entry MUST delegate to the kernel's semantic reversal builder (`BuildReversalEntryAt`), preserving the reversal date and `ReversalOfID` link while leaving `FiscalPeriodID` unset so `PostEntry` resolves the destination period from the reversal date.
-
-**Acceptance criteria**
-
-- A revaluation reversal draft resolves its fiscal period from the reversal date during `PostEntry`.
+- **نوع السعر (`Rate Type`):** تصنيف سعر الصرف: `SPOT`، أو `CLOSING`، أو `AVERAGE`، أو `HISTORICAL`.
+- **سعر الإقفال (`Closing Rate`):** سعر الصرف الفوري في نهاية فترة التقرير (`IAS 21.8` و`21.23(a)`)، والمطلوب لإعادة تقييم البنود النقدية بنهاية الفترة.
+- **البند النقدي (`Monetary Item`):** وحدات العملة المحتفظ بها والأصول والالتزامات التي ستُستلم أو تُدفع بعدد ثابت أو قابل للتحديد من وحدات العملة (`IAS 21.8, 21.16`).
+- **تاريخ السعر (`RateDate`):** تاريخ نفاذ سعر الصرف المرجعي المختار، ويُحفظ بشكل مستقل عن تاريخ ترحيل إعادة التقييم.
+- **مكاسب / خسائر الصرف غير المحققة (`Unrealized FX Gain / Loss`):** الفرق بالعملة الوظيفية الناتج عن إعادة قياس رصيد نقدي بعملة أجنبية بسعر الإقفال دون تسوية المركز الأساسي (`IAS 21.28`).
+- **مفتاح عملية إعادة التقييم (`Revaluation Operation Key`):** مفتاح حتمي مقيد بالشركة والحساب وعملة المعاملة والأبعاد التحليلية (إن وُجدت) وتاريخ إعادة التقييم يحدد عملية إعادة تقييم فريدة.
 
 ---
 
-## 6. Revaluation idempotency and defensive isolation
+## 4. اختيار السعر وثوابت السجل
 
-### VAL-009 — Deterministic revaluation key, reference, and operation scope
+### VAL-001 — أنواع الأسعار واشتراط سعر الإقفال والانعكاس المعتمد
 
-Every revaluation operation MUST derive:
+**يجب (MUST)** أن يدعم مجال التقييم أنواع الأسعار `SPOT` و`CLOSING` و`AVERAGE` و`HISTORICAL`. و**يجب (MUST)** أن تشترط إعادة التقييم بنهاية الفترة سعر `CLOSING` و**يجب (MUST)** أن ترفض الأسعار من أي نوع آخر أو الأسعار التي لا تطابق زوج العملات المطلوب.
 
-1. A deterministic `RevaluationOperationKey` from `(CompanyID, AccountID, TransactionCurrency, RevaluationDate)`.
-2. A deterministic `RevaluationReferenceID`.
-3. An idempotency scope with operation `revaluation` (`company=<CompanyID>|operation=revaluation|key=<Key>`), distinct from `post` and `reverse` scopes.
+عند اشتقاق سعر معكوس لزوج مسجل `(Quote -> Base)`، **يجب (MUST)** حسابه بقسمة `1` على السعر المسجل بمقياس **12 خانة عشرية** ووضع التقريب **`Half Away From Zero`** وفق قاعدة `MONEY-017`. و**يجب ألّا (MUST NOT)** يُنفذ تحويل متقاطع ضمني (`Cross-rate triangulation`) عبر عملة ثالثة دون تزويد سعر صريح.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- Using the same text key for `post` and `revaluation` produces distinct idempotency scopes.
+- يفشل تقديم سعر `SPOT` أو `AVERAGE` لإعادة التقييم بنهاية الفترة في التحقق.
+- يُحسب السعر المعكوس بدقة 12 خانة عشرية بتقريب `Half Away From Zero` دون بتر.
 
-### VAL-010 — Canonical v2 payload fingerprint and conflict rejection
+### VAL-002 — رفض تعارض السعر المكرر والزوج العكسي
 
-Revaluation idempotency MUST compute a length-prefixed canonical v2 `sha256:<hex>` payload fingerprint covering all semantic revaluation inputs (amounts, currencies, account, dimensions, date, policy fingerprint). Replaying the same key with an identical payload MUST return the existing result (defensively copied); replaying the same key with a different payload MUST fail with non-retryable `ErrRevaluationAlreadyApplied`. Concurrent registrations for the same key MUST yield a single winner.
+داخل سجل الأسعار (`Rate registry`)، **يجب (MUST)** أن يفشل تسجيل سعرين لنفس `(BaseCurrency, QuoteCurrency, RateType, EffectiveDate)` أو تسجيل زوج عكسي `(QuoteCurrency, BaseCurrency, RateType, EffectiveDate)` في نفس تاريخ النفاذ بخطأ `ErrDuplicateRate`.
 
-**Acceptance criteria**
+**معايير القبول**
 
-- Mutating amount, dimension, date, or policy fingerprint under the same key fails with `ErrRevaluationAlreadyApplied`.
-- Concurrent goroutines/workers registering the same revaluation key produce a single winning registration.
+- يفشل تسجيل `USD -> SAR` ثم `SAR -> USD` لنفس نوع السعر واليوم بخطأ `ErrDuplicateRate`.
 
----
+### VAL-003 — البحث عن أحدث تاريخ نفاذ دون تسرب مستقبلي
 
-## 7. Error Contract
+عند حل سعر بتاريخ `valuationDate`، **يجب (MUST)** أن يختار السجل أحدث سعر مسجل يحقق `EffectiveDate <= valuationDate`. و**يجب ألّا (MUST NOT)** تُختار الأسعار المستقبلية (`EffectiveDate > valuationDate`) أبداً؛ وإذا لم يوجد سعر في `valuationDate` أو قبله، **يجب (MUST)** أن يفشل البحث صراحةً.
 
-| Error Category | Trigger Condition | Detection Timing |
-| --- | --- | --- |
-| `ErrDuplicateRate` | Duplicate or inverse-pair rate on same date | Rate registration |
-| Missing/Future Rate | No rate on or before `valuationDate` | Rate lookup |
-| Invalid Revaluation Rate | Non-positive rate, wrong rate type, or pair mismatch | Rate validation |
-| Zero Revaluation Difference | Functional difference equals zero | Entry generation |
-| `ErrRevaluationAlreadyApplied` | Same revaluation key with conflicting payload (non-retryable) | Revaluation registration / commit |
+**معايير القبول**
 
----
+- بوجود أسعار في اليوم 1 واليوم 10، يختار الاستعلام عن اليوم 5 سعر اليوم 1؛ ويفشل الاستعلام عن اليوم 0 صراحةً.
 
-## 8. References
+### VAL-004 — الحفظ المستقل لتاريخ السعر `RateDate`
 
-### REF-001 — IAS 21 — The Effects of Changes in Foreign Exchange Rates
+**يجب (MUST)** أن تحفظ نتائج التقييم وقيود إعادة التقييم المولّدة الحقل `RateDate` (تاريخ نفاذ السعر المختار) بشكل منفصل عن `EffectiveDate` الخاص بالتقييم/الترحيل.
 
-- **Authority:** International Accounting Standards Board (IASB).
-- **Used for:** Period-end translation of monetary items at the closing rate and recognition of unrealized exchange differences (`VAL-001`, `VAL-006`, `VAL-007`).
+**معايير القبول**
 
-### REF-002 — Accountant Engine Valuation Matrix & ADRs
+- عندما يستخدم اليوم 5 سعراً نافذاً في اليوم 1، يسجل `RateDate` اليوم 1 بينما يسجل `EffectiveDate` للقيد اليوم 5.
 
-- **Internal sources:** `docs/KERNEL_VALUATION_RULES_MATRIX.md`, `docs/ard/P9_01_valuation_idempotency_and_rate_selection.md`, `docs/ard/P11_01_revaluation_idempotency_spi.md`, `docs/KERNEL_IDEMPOTENCY_CONTRACT.md` (§12).
-- **Used for:** Rate registry conflict/lookup rules, `RateDate` separation, asset/liability direction, and revaluation idempotency (`VAL-001–010`).
+### VAL-005 — سعر الوحدة لنفس العملة بعد التحقق
 
-### Reference-to-rule index
+عند تطابق عملة المصدر وعملة الهدف، **يجب (MUST)** أن يتحقق محرك التقييم أولاً من صحة رمزي العملتين (رافضاً الرموز غير الصالحة والرمز `XXX`) ومن عدم صفرية تاريخ التقييم قبل إرجاع سعر وحدة دقيق يساوي `1`.
 
-| Rule(s) | Primary reference(s) | Nature of relationship |
-| --- | --- | --- |
-| VAL-001, VAL-006, VAL-007 | REF-001, REF-002 | IAS 21 closing-rate revaluation semantics |
-| VAL-002–005, VAL-008–010 | REF-002 (AE-REMED-P9-MATRIX, ADR P9-01, P11-01) | Project rate registry, reversal, and idempotency contracts |
+**معايير القبول**
+
+- يفشل التحويل لنفس العملة مع `XXX` أو تاريخ صفري صراحةً بدلاً من إرجاع `1`.
 
 ---
 
-## 9. Appendices
+## 5. نطاق البنود النقدية وحساب إعادة التقييم وتوليد القيد
 
-### Appendix A — Informative implementation guidance
+### VAL-006 — حصر البنود النقدية وعكس اتجاه مكاسب/خسائر الصرف
 
-- While `RevaluationRegistry` provides in-process protection, durable cross-restart idempotency requires persisting the `revaluation` idempotency scope atomically in the host storage adapter (`storage.OperationRevaluation`).
+تقتصر إعادة التقييم بنهاية الفترة بسعر الإقفال وفق `IAS 21.23(a)` على **البنود النقدية** من حسابات الأصول والالتزامات (`Asset` و`Liability`):
 
-### Appendix B — Rule traceability
+- **البنود غير النقدية وحسابات `Equity` و`Revenue` و`Expense`:** **يجب (MUST)** رفض إعادة تقييمها بسعر الإقفال (`ErrInvalidAccountType` / رفض البند غير النقدي).
+- **حسابات الأصول النقدية:** الزيادة في قيمة العملة الوظيفية هي **مكسب صرف غير محقق** (مدين الأصل، دائن مكاسب غير محققة)؛ والنقصان هو **خسارة صرف غير محققة** (مدين خسائر غير محققة، دائن الأصل).
+- **حسابات الالتزامات النقدية:** الزيادة في قيمة العملة الوظيفية هي **خسارة صرف غير محققة** (مدين خسائر غير محققة، دائن الالتزام)؛ والنقصان هو **مكسب صرف غير محقق** (مدين الالتزام، دائن مكاسب غير محققة).
 
-| Rule ID | Summary | Classification | Source / Decision | Verification |
-| --- | --- | --- | --- | --- |
-| VAL-001 | Rate types & `CLOSING` requirement | SOURCE-MANDATED | REF-001 (IAS 21) / REF-002 | `TestRevaluationValidatesRateReferenceAgainstRequest` |
-| VAL-002 | Duplicate & inverse-pair rate rejection | PROJECT-DECISION | ADR P9-01 | `TestRateRegistryRejectsMissingAndDuplicateEffectiveDates` |
-| VAL-003 | Latest effective rate, no future rate | PROJECT-DECISION | ADR P9-01 | `TestRateRegistrySelectsLatestEffectiveRateAndRejectsFuture` |
-| VAL-004 | Independent `RateDate` preservation | PROJECT-DECISION | Valuation matrix | `TestIAS21ExchangeRateAndRevaluation` |
-| VAL-005 | Same-currency validation before unit rate | PROJECT-DECISION | Valuation matrix | `TestSameCurrencyRateValidatesCodeAndDateBeforeReturningOne` |
-| VAL-006 | Opposite FX direction for assets/liabilities | SOURCE-MANDATED | Accounting / IAS 21 | `TestLiabilityRevaluationDirectionIsOppositeToAsset` |
-| VAL-007 | Balanced adjusting entry, unrealized only | SOURCE-MANDATED | REF-001 / REF-002 | `TestRevaluationOnlyBooksUnrealizedFXDifference` |
-| VAL-008 | Revaluation reversal period resolution | DERIVED-REQUIREMENT | Posting flow | `TestRevaluationReverseKeepsReversalDateAndPeriod` |
-| VAL-009 | Deterministic revaluation key & scope | PROJECT-DECISION | ADR P9-01 / P11-01 | `TestRevaluationIdempotencyScopeIsDeterministicAndOperationScoped` |
-| VAL-010 | Canonical v2 fingerprint & conflict reject | PROJECT-DECISION | ADR P9-01 / P11-01 | `TestRevaluationRegistryRejectsConflictingPayloadForSameKey` |
+**معايير القبول**
+
+- تحت نفس ارتفاع سعر الصرف، يقيد حساب الأصل النقدي مكسباً بينما يقيد حساب الالتزام النقدي خسارةً بنفس المقدار.
+- تُرفض محاولة إعادة تقييم حساب `Equity` أو `Revenue` أو `Expense` أو أصل غير نقدي صراحةً.
+
+### VAL-007 — قيد تسوية متوازن للفروق غير المحققة فقط
+
+**يجب (MUST)** أن يُنتج مولد قيد إعادة التقييم قيد يومية متوازناً بتصنيف `Adjusting` (حالة `Draft`) باستخدام `UnrealizedGainID` أو `UnrealizedLossID`، و**يجب (MUST)** أن يرفض إعادة التقييم ذات الفارق الصفري. و**يجب ألّا (MUST NOT)** تقيد النواة مكاسب/خسائر التسوية المحققة.
+
+**معايير القبول**
+
+- يُرفض الفارق الصفري بالعملة الوظيفية دون توليد قيد.
+- يجتاز كل قيد إعادة تقييم مولّد التحقق من توازن القيد المزدوج.
+
+### VAL-008 — عكس إعادة التقييم وحل فترة الوجهة
+
+**يجب (MUST)** أن يُفوّض عكس قيد إعادة تقييم مرحّل إلى منشئ العكس الدلالي في النواة، مع الحفاظ على تاريخ العكس ورابط `ReversalOfID` وترك `FiscalPeriodID` غير معيّن حتى يحل أنبوب الترحيل فترة الوجهة من تاريخ العكس.
+
+**معايير القبول**
+
+- تحل مسودة عكس إعادة التقييم فترتها المالية من تاريخ العكس أثناء الترحيل.
 
 ---
 
-## 10. Version history
+## 6. منع تكرار إعادة التقييم والعزل الدفاعي
+
+### VAL-009 — مفتاح إعادة التقييم الحتمي والمرجع ونطاق العملية
+
+**يجب (MUST)** أن تشتق كل عملية إعادة تقييم:
+
+1. مفتاح `RevaluationOperationKey` حتمياً من `(CompanyID, AccountID, TransactionCurrency, CanonicalDimensions, RevaluationDate)` بحيث تتطابق مفاتيح الأبعاد مع الأبعاد الداخلة في بصمة الحمولة (وتكون الأبعاد الفارغة متطابقة قانونياً).
+2. معرّف `RevaluationReferenceID` حتمياً.
+3. نطاق منع تكرار بعملية `revaluation` (`company=<CompanyID>|operation=revaluation|key=<Key>`)، متمايزاً عن نطاقي `post` و`reverse`.
+
+**معايير القبول**
+
+- ينتج عن استخدام نفس المفتاح النصي لعمليتي `post` و`revaluation` نطاقا منع تكرار مختلفان.
+- ينتج عن إعادة تقييم نفس الحساب والعملة واليوم لمركزي تكلفة مختلفين مفتاحان متمايزان دون تصادم زائف.
+
+### VAL-010 — بصمة الحمولة القانونية v2 والضمان الذاكري مقابل الدائم
+
+**يجب (MUST)** أن تحسب آلية منع تكرار إعادة التقييم بصمة حمولة قانونية v2 ببادئة `fx-revaluation-payload-v2|` مسبوقة الطول بصيغة `sha256:<hex>` تغطي جميع مدخلات إعادة التقييم الدلالية (المبالغ، العملات، الحساب، الأبعاد، التاريخ، بصمة السياسة) مع استبعاد معرّفات القيد/الأسطر المولّدة عشوائياً وطوابع وقت التوليد.
+
+- **الحماية داخل العملية (`In-process`):** **يجب (MUST)** أن يُرجع تكرار نفس المفتاح بنفس الحمولة النتيجة القائمة (منسوخةً دفاعياً)؛ بينما **يجب (MUST)** أن يفشل تكرار نفس المفتاح بحمولة مختلفة بخطأ `ErrRevaluationAlreadyApplied` غير القابل لإعادة المحاولة. و**يجب (MUST)** أن تسفر التسجيلات المتزامنة لنفس المفتاح عن فائز واحد.
+- **الضمان الدائم (`Durable cross-restart`):** عند ترحيل قيد إعادة التقييم عبر حدود التخزين (`SPI`)، **يجب (MUST)** تمرير النطاق الموثّق `operation=revaluation` وبصمة `fx-revaluation-payload-v2|` في `PayloadHash` لتخزينهما ذرياً عبر `storage.OperationRevaluation`، وعدم الاعتماد على بصمات طلب الترحيل العامة (`ADR P11-01`).
+
+**معايير القبول**
+
+- يفشل تغيير المبلغ أو البُعد أو التاريخ أو بصمة السياسة تحت نفس المفتاح بخطأ `ErrRevaluationAlreadyApplied`.
+- تُنتج مسارات التنفيذ المتزامنة التي تسجل نفس مفتاح إعادة التقييم تسجيلاً فائزاً واحداً.
+- يرفض محول التخزين إعادة تنفيذ المفتاح بحمولة مختلفة عبر إعادة التشغيل، ويعيد النتيجة الأولى عند تطابق البصمة.
+
+---
+
+## 7. عقد الأخطاء (Error Contract)
+
+| فئة الخطأ | شرط التحفيز | توقيت الاكتشاف |
+|---|---|---|
+| `ErrDuplicateRate` | سعر مكرر أو زوج عكسي في نفس اليوم | تسجيل السعر |
+| سعر مفقود / مستقبلي | عدم وجود سعر في `valuationDate` أو قبله | البحث عن السعر |
+| سعر إعادة تقييم غير صالح | سعر غير موجب، أو نوع سعر خاطئ، أو عدم تطابق الزوج | التحقق من السعر |
+| حساب غير مؤهل للتقييم | بند غير نقدي أو حساب `Equity` / `Revenue` / `Expense` | التحقق من أهلية التقييم |
+| فارق إعادة تقييم صفري | الفارق الوظيفي يساوي صفراً | توليد القيد |
+| `ErrRevaluationAlreadyApplied` | نفس مفتاح إعادة التقييم بحمولة متعارضة (غير قابل لإعادة المحاولة) | تسجيل / التزام إعادة التقييم |
+
+---
+
+## 8. المراجع (References)
+
+### REF-001 — معيار المحاسبة الدولي IAS 21 — آثار التغيرات في أسعار صرف العملات الأجنبية
+
+- **العنوان الكامل:** IAS 21 — The Effects of Changes in Foreign Exchange Rates.
+- **الجهة الناشرة:** International Accounting Standards Board (IASB) — IFRS Foundation.
+- **الطبعة وتاريخ السريان:** IFRS Accounting Standards — Required 2026 (ساري في 1 يناير 2026).
+- **تاريخ المراجعة:** 2026-11-27.
+- **الرابط الرسمي:** <https://www.ifrs.org/issued-standards/list-of-standards/ias-21-the-effects-of-changes-in-foreign-exchange-rates/>
+- **النطاق المستخدم:** الفقرات `IAS 21.8` (التعاريف)، `21.16` (البنود النقدية)، `21.23(a)-(c)` (الترجمة بسعر الإقفال للبنود النقدية مقابل غير النقدية)، `21.28` (الاعتراف بفروق الصرف).
+- **القيود:** لا يفرض المعيار أسماء الأنواع البرمجية الأربعة أو منطق `RateRegistry` أو بصمات منع التكرار.
+
+### REF-002 — RFC 2119 & RFC 8174
+
+- **العنوان الكامل:** Key words for use in RFCs to Indicate Requirement Levels (RFC 2119); Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words (RFC 8174).
+- **الجهة الناشرة:** IETF.
+- **الروابط الرسمية:** <https://www.rfc-editor.org/rfc/rfc2119>, <https://www.rfc-editor.org/rfc/rfc8174>
+- **القيود:** يحدد اللغة المعيارية فقط.
+
+### REF-003 — مصفوفة قواعد التقييم وقرارات الهندسة في Accountant Engine
+
+- **المصادر الداخلية:** `docs/KERNEL_VALUATION_RULES_MATRIX.md`، `docs/ard/P9_01_valuation_idempotency_and_rate_selection.md`، `docs/ard/P11_01_revaluation_idempotency_spi.md`، `docs/KERNEL_IDEMPOTENCY_CONTRACT.md` (§12).
+- **مستخدم في:** قواعد تعارض وبحث سجل الأسعار، فصل `RateDate`، اتجاه الأصول/الالتزامات، وبصمة v2 ومنع تكرار إعادة التقييم (`VAL-001–010`).
+
+### فهرس ربط المراجع بالقواعد
+
+| القاعدة/القواعد | المرجع الأساسي | طبيعة العلاقة |
+|---|---|---|
+| VAL-001, VAL-006, VAL-007 | REF-001 (IAS 21.8, 21.16, 21.23, 21.28), REF-003 | المبدأ المحاسبي لـ IAS 21، والتنفيذ الهندسي قرار مشروع |
+| VAL-002–005, VAL-008–010 | REF-003 (ADR P9-01, ADR P11-01) | عقود المشروع لسجل الأسعار والعكس ومنع التكرار |
+
+---
+
+## 9. الملاحق (Appendices)
+
+### الملحق أ — سجل القرارات الهندسية (Decision Log)
+
+- **DEC-VAL-001 (تضمين الأبعاد في مفتاح العملية):** توحيد الحقول المكونة لـ `RevaluationOperationKey` مع الأبعاد الداخلة في بصمة `VAL-010` لمنع التصادم الزائف عند تقييم مراكز تكلفة متعددة لنفس الحساب في اليوم نفسه.
+- **DEC-VAL-002 (فصل بصمة التقييم عن بصمة الترحيل):** اعتماد `fx-revaluation-payload-v2|` (`ADR P11-01`) بدلاً من `CallerFingerprint` لأن قيد التقييم يُولَّد بمعرّفات وطوابع زمنية جديدة عند كل استدعاء.
+
+### الملحق ب — تتبع القواعد (Rule traceability)
+
+| معرّف القاعدة | الملخص | التصنيف | المصدر / القرار | معيار التحقق |
+|---|---|---|---|---|
+| VAL-001 | أنواع الأسعار، اشتراط `CLOSING`، ودقة الانعكاس | PROJECT-DECISION / SOURCE-MANDATED | IAS 21.23(a) (Closing rate) / ADR P9-01 & MONEY-017 (الأنواع والانعكاس) | اختبار رفض غير `CLOSING` ودقة القسمة 12 خانة |
+| VAL-002 | رفض السعر المكرر والزوج العكسي | PROJECT-DECISION | ADR P9-01 | اختبار `ErrDuplicateRate` للزوج وعكسه |
+| VAL-003 | أحدث سعر نافذ ومنع المستقبل | PROJECT-DECISION | ADR P9-01 | اختبار اختيار التاريخ ورفض السعر المستقبلي |
+| VAL-004 | حفظ `RateDate` المستقل | PROJECT-DECISION | مصفوفة التقييم | اختبار استقلال `RateDate` عن `EffectiveDate` |
+| VAL-005 | تحقق نفس العملة قبل سعر الوحدة | PROJECT-DECISION | مصفوفة التقييم | اختبار رفض `XXX` والتاريخ الصفري |
+| VAL-006 | حصر البنود النقدية وعكس اتجاه FX للأصول والالتزامات | SOURCE-MANDATED | REF-001 (IAS 21.23, 21.28) | اختبار استبعاد غير النقدي وعكس اتجاه الأصول/الالتزامات |
+| VAL-007 | قيد تسوية متوازن، غير محقق فقط | SOURCE-MANDATED (الاعتراف) / PROJECT-DECISION (بنية القيد ورفض الصفر) | REF-001 (IAS 21.28) / REF-003 | اختبار توازن القيد ورفض الفارق الصفري |
+| VAL-008 | حل فترة عكس إعادة التقييم | DERIVED-REQUIREMENT | تدفق الترحيل | اختبار حل فترة الوجهة من تاريخ العكس |
+| VAL-009 | مفتاح ونطاق إعادة تقييم حتمي متوافق مع الأبعاد | PROJECT-DECISION | ADR P9-01 / P11-01 / DEC-VAL-001 | اختبار عزل نطاق `revaluation` وتمايز الأبعاد |
+| VAL-010 | بصمة `fx-revaluation-payload-v2` وربط `SPI` | PROJECT-DECISION | ADR P9-01 / P11-01 | اختبارات تعارض الحمولة والتكافؤ الدائم على المحولات |
+
+---
+
+## 10. سجل الإصدارات (Version history)
+
+### v1.1.0
+
+- حل تعارض الأبعاد بين `VAL-009` و`VAL-010` وإضافة بادئة `fx-revaluation-payload-v2|` وربط `storage.OperationRevaluation` (`ADR P11-01`).
+- تغطية استبعاد البنود غير النقدية وحسابات `Equity`/`Revenue`/`Expense` وفق `IAS 21.23`، وتحديد دقة السعر المعكوس في `VAL-001`.
+- إعادة تصنيف القواعد بدقة بين `SOURCE-MANDATED` و`PROJECT-DECISION` وإكمال سجل المصادر الرسمية وسجل القرارات.
 
 ### v1.0.0
 
-- Initial standalone normative specification for the kernel FX revaluation domain.
+- المواصفة المعيارية المستقلة الأولية لمجال إعادة تقييم العملات الأجنبية في النواة.

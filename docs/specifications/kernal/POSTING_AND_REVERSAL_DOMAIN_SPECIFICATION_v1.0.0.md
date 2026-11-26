@@ -1,253 +1,278 @@
-# Posting and Reversal Domain Specification
+# مواصفات مجال الترحيل والعكس المحاسبي (Posting and Reversal Domain Specification)
 
-**Version:** 1.0.0  
-**Document type:** Standalone domain specification  
-**Conformance status:** Normative  
-**Scope:** Central posting pipeline, double-entry validation, entry-level rounding settlement, semantic reversal construction, TOCTOU protection, idempotency scope and request fingerprinting, deterministic lock-key ordering, and host-executor delegation boundary.
-
----
-
-## 1. Purpose
-
-This document defines the externally observable domain contract for posting and reversing journal entries within the accounting kernel. It establishes `PostEntry` as the single authoritative validation and decision path that transforms a `Draft` journal entry into a frozen, stamped `Posted` snapshot ready for atomic persistence by a host executor.
-
-This document does not prescribe SQL statements, database transactions, row-level locking primitives, HTTP endpoints, or authorization policies.
-
-### 1.1 Normative language
-
-The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as normative requirement terms per RFC 2119 and RFC 8174:
-
-- **MUST / MUST NOT:** absolute requirement or prohibition for conformance.
-- **SHOULD / SHOULD NOT:** recommended requirement; deviations require a documented reason.
-- **MAY:** permitted behavior.
-
-### 1.2 Scope boundary
-
-This specification governs posting validation, rounding settlement, reversal construction, idempotency scope/fingerprint derivation, and deterministic lock-key ordering inside the kernel. Aggregate structure belongs to `JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md`, master data to `MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md`, policy rules to `ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md`, and primitive monetary arithmetic to `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`. Physical database transactions, `SELECT ... FOR UPDATE`, advisory locks, and retry loops belong to the host/adapter layers.
+**الإصدار:** 1.1.0  
+**نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة المطابقة:** معياري إلزامي (Normative)  
+**النطاق:** أنبوب الترحيل المركزي (`Central posting pipeline`)، الترتيب المعياري لمراحل التحقق، التحقق من القيد المزدوج، تسوية التقريب على مستوى القيد، بناء العكس الدلالي (`Semantic reversal construction`) ومنع عكس العكس، الحماية من `TOCTOU`، نطاق منع التكرار وبصمات الطلب، الترتيب الحتمي لمفاتيح القفل، وحدود تفويض منفذ المضيف.
 
 ---
 
-## 2. Conformance
+## 1. الغرض (Purpose)
 
-An implementation conforms to this specification only when all applicable normative requirements are satisfied.
+يُعرّف هذا المستند العقد المجالي القابل للملاحظة خارجياً لترحيل وعكس قيود اليومية داخل النواة المحاسبية. وهو يرسّخ `PostEntry` بوصفها مسار التحقق والقرار المعتمد الوحيد الذي يحول قيد يومية `Draft` إلى لقطة `Posted` مجمدة ومختومة جاهزة للحفظ الذري بواسطة منفذ المضيف (`Host executor`).
 
-### 2.1 Conformance requirements
+لا يفرض هذا المستند عبارات `SQL`، أو معاملات قواعد بيانات، أو أوليات قفل مستوى الصفوف، أو نقاط نهاية `HTTP`، أو سياسات تفويض.
 
-A conforming implementation:
+### 1.1 اللغة المعيارية (Normative language)
 
-1. MUST satisfy every normative rule in §§4–8.
-2. MUST reject any invalid entry before invoking `PostingExecutor` or `PostingReversalExecutor`.
-3. MUST enforce exact double-entry balance ($\sum \text{FunctionalDebit} = \sum \text{FunctionalCredit}$) after minor-unit normalization and explicit rounding settlement.
-4. MUST protect against TOCTOU mutations via pre-read defensive cloning, single-read effective account snapshots, and injected clocks.
-5. MUST stamp authoritative `IdempotencyScope`, `RequestFingerprint`, and `CallerFingerprint` before delegating to the executor.
+تُفسَّر المصطلحات **يجب (MUST)**، و**يجب ألّا (MUST NOT)**، و**ينبغي (SHOULD)**، و**ينبغي ألّا (SHOULD NOT)**، و**يجوز (MAY)** بوصفها مصطلحات متطلبات معيارية وفق `RFC 2119` و`RFC 8174`:
 
-### 2.2 Conformance evidence
+- **يجب / يجب ألّا (MUST / MUST NOT):** متطلب أو حظر مُطلَق للمطابقة.
+- **ينبغي / ينبغي ألّا (SHOULD / SHOULD NOT):** متطلب مُوصى به؛ وأي انحراف عنه يتطلب سبباً موثقاً.
+- **يجوز (MAY):** سلوك مسموح به.
 
-Conformance can be demonstrated through:
+### 1.2 حدود النطاق (Scope boundary)
 
-- rejection-matrix tests verifying zero executor invocations on any validation, policy, or reader failure;
-- rounding-settlement tests (with and without `AutoSettleRoundingDifferences`);
-- TOCTOU tests mutating caller structs after submission;
-- reversal lifecycle, period-resolution, and zero-net-impact fuzz/property tests;
-- canonical idempotency scope and fingerprint stability tests;
-- deterministic lock-key ordering and company-isolation tests.
-
-### 2.3 Partial conformance
-
-An implementation that satisfies only a subset of the requirements MUST NOT be described as fully conformant. Any claimed partial conformance MUST identify the omitted rules and affected behaviors.
+تحكم هذه المواصفات التحقق من الترحيل، وتسوية التقريب، وبناء العكس، واشتقاق نطاق/بصمة منع التكرار، والترتيب الحتمي لمفاتيح القفل داخل النواة. تعود ملكية بنية المجموع إلى `JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md`، والبيانات الرئيسية إلى `MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md`، وقواعد السياسات إلى `ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md`، والحسابات النقدية الأولية إلى `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`. أما معاملات قاعدة البيانات المادية، و`SELECT ... FOR UPDATE`، والأقفال الاستشارية، وحلقات إعادة المحاولة فتعود إلى طبقات المضيف/المحول.
 
 ---
 
-## 3. Terms and definitions
+## 2. المطابقة (Conformance)
 
-- **Posting Pipeline:** The single central entry point (`PostEntry`) that validates, normalizes, stamps, and delegates a journal entry for persistence.
-- **Rounding Residual:** The difference $\sum \text{Normalized Functional Debit} - \sum \text{Normalized Functional Credit}$ after normalizing all lines to currency minor units.
-- **Semantic Reversal:** A new linked `Reversing` journal entry with `FunctionalDebit` and `FunctionalCredit` swapped relative to a `Posted` original entry, leaving the original immutable.
-- **Idempotency Scope:** The composite operation identity `company=<CompanyID>|operation=<post|reverse|revaluation>|key=<TrimmedKey>`.
-- **Request Fingerprint:** A canonical `sha256:<hex>` digest over the frozen, kernel-stamped entry snapshot.
-- **Caller Fingerprint:** A canonical `sha256:<hex>` digest over the caller-supplied payload fields prior to kernel stamping.
-- **Ordered Lock Keys:** A deduplicated, lexicographically sorted list of company-scoped lock target keys derived deterministically from entry and account IDs.
+لا يُعدّ أي تنفيذ مطابقاً لهذه المواصفات إلّا عند استيفاء جميع المتطلبات المعيارية المنطبقة.
 
----
+### 2.1 متطلبات المطابقة (Conformance requirements)
 
-## 4. Central posting pipeline and double-entry invariants
+التنفيذ المطابق:
 
-### PST-001 — Single central posting path and fail-closed dependencies
+1. **يجب (MUST)** أن يستوفي كل قاعدة معيارية في الأقسام من §4 إلى §8.
+2. **يجب (MUST)** أن يرفض أي قيد غير صالح قبل استدعاء `PostingExecutor` أو `PostingReversalExecutor`.
+3. **يجب (MUST)** أن يفرض توازن القيد المزدوج الدقيق ($\sum \text{FunctionalDebit} = \sum \text{FunctionalCredit}$) بعد التطبيع إلى الوحدة الصغرى وتسوية التقريب الصريحة.
+4. **يجب (MUST)** أن يحمي من طفرات `TOCTOU` عبر الاستنساخ الدفاعي قبل القراءة، ولقطات الحساب النافذة ذات القراءة الواحدة، والساعات المحقونة.
+5. **يجب (MUST)** أن يختم `IdempotencyScope` و`RequestFingerprint` و`CallerFingerprint` المعتمدة (أو يمرر `PayloadHash` الموثق لإعادة التقييم) قبل التفويض إلى المنفذ.
 
-All journal entry postings and reversals MUST pass through the central posting pipeline. Missing pipeline dependencies (`context`, `reader`, `policyEngine`, `clock`, or the required `PostingExecutor`/`PostingReversalExecutor`) MUST fail immediately before any validation or reader access.
+### 2.2 أدلة المطابقة (Conformance evidence)
 
-**Acceptance criteria**
+يمكن إثبات المطابقة من خلال:
 
-- Invoking `PostEntry` with a nil reader, nil policy engine, nil clock, or nil executor fails immediately.
+- اختبارات مصفوفة الرفض التي تتحقق من صفر استدعاءات للمنفذ عند أي فشل تحقق أو سياسة أو قارئ؛
+- اختبارات تسوية التقريب (مع وبدون `AutoSettleRoundingDifferences`)؛
+- اختبارات `TOCTOU` التي تعدّل هياكل المستدعي بعد التقديم؛
+- اختبارات دورة حياة العكس (بما في ذلك رفض عكس قيد `Reversing`)، وحل الفترة، وصفر الأثر الصافي؛
+- اختبارات استقرار نطاق منع التكرار والبصمة القانونية (بما فيها تلميح `revaluation`)؛
+- اختبارات الترتيب الحتمي لمفاتيح القفل وعزل الشركة.
 
-### PST-002 — Fail-before-delegate invariant
+### 2.3 المطابقة الجزئية (Partial conformance)
 
-Any failure in identity validation, lifecycle state, immutability, company scope, policy resolution, currency/journal/period/account/dimension validation, rounding settlement, or double-entry balance MUST abort the pipeline immediately. `PostingExecutor` and `PostingReversalExecutor` MUST NEVER be invoked for rejected inputs.
-
-**Acceptance criteria**
-
-- Across all negative/rejection test cases, executor invocation count is strictly zero.
-
-### PST-003 — Strict double-entry balance
-
-After minor-unit normalization and any permitted rounding settlement, the sum of `FunctionalDebit` across all lines MUST equal the sum of `FunctionalCredit` across all lines to the exact minor unit ($\sum D - \sum C = 0$). Unbalanced entries MUST fail with `ErrUnbalancedEntry`.
-
-**Acceptance criteria**
-
-- An entry with a 1-minor-unit imbalance (without permitted rounding settlement) fails with `ErrUnbalancedEntry`.
-
-### PST-004 — Explicit minor-unit normalization and rounding settlement
-
-Within the posting pipeline:
-
-1. Each line's `TransactionAmount` MUST be normalized to its transaction currency's minor unit, and its functional amount MUST be recomputed from the normalized transaction amount and exchange rate and normalized to the company's `FunctionalCurrency` minor unit.
-2. If the resulting rounding residual is non-zero, the pipeline MUST ONLY append a balancing rounding-difference line when the effective `CurrencyPolicy` enables `AutoSettleRoundingDifferences` and specifies a valid, eligible `RoundingDifferenceAccountID`.
-3. Silent truncation or dropping of rounding residuals is prohibited. If settlement is disabled or the rounding account is missing/ineligible, the entry MUST fail (`ErrRoundingAccountRequired` / `ErrRoundingPolicyRequired`).
-
-**Acceptance criteria**
-
-- Sub-minor differences are settled via an explicit balancing line to `RoundingDifferenceAccountID` when policy permits, or rejected explicitly when policy forbids.
+**يجب ألّا (MUST NOT)** يُوصَف التنفيذ الذي يستوفي مجموعة فرعية فقط من المتطلبات بأنه مطابق بالكامل. و**يجب (MUST)** أن يُحدّد أي ادعاء بالمطابقة الجزئية القواعد المُغفلة والسلوكيات المتأثرة.
 
 ---
 
-## 5. TOCTOU protection, clock discipline, and reversal construction
+## 3. المصطلحات والتعاريف (Terms and definitions)
 
-### PST-005 — Pre-read defensive cloning and frozen snapshot execution
-
-The pipeline MUST validate caller-local invariants (identity, classification metadata, `Draft` status, non-zero `JournalID`, non-empty `ActorID` and `IdempotencyKey`, immutability, non-zero `EffectiveDate`) and then execute `entry = entry.Clone()` **before** performing any external reader call, rounding mutation, `FiscalPeriodID` stamping, or audit stamping. The executor MUST receive only the frozen cloned snapshot.
-
-**Acceptance criteria**
-
-- Mutating the caller's entry object concurrently or after submission cannot alter the snapshot passed to the executor.
-
-### PST-006 — Single-read effective account snapshot
-
-For each line, the pipeline MUST resolve the postable account once at `entry.EffectiveDate` via `ResolvePostableAccountAsOf` and pass that exact snapshot to `CheckAccountEligibility` and final policy validation. A second `GetAccount` read MUST NOT occur after eligibility validation.
-
-**Acceptance criteria**
-
-- Account eligibility and final posting policy evaluate the exact same account version returned by `ResolvePostableAccountAsOf`.
-
-### PST-007 — Injected clock discipline
-
-Production posting logic MUST obtain current time exclusively through an injected `Clock` abstraction; direct wall-clock calls inside domain validation or reversal helpers are prohibited.
-
-**Acceptance criteria**
-
-- `PostingDate`, `PostedAt`, and policy evaluation timestamps reflect the injected `Clock` deterministically.
-
-### PST-008 — Semantic reversal construction
-
-Constructing a reversal entry (`BuildReversalEntryAt`) MUST:
-
-1. Reject any original entry that is not `Posted` (`ErrEntryNotPosted`) or is already reversed (`ErrEntryAlreadyReversed`).
-2. Require non-empty `ActorID` and trimmed `ReversalReason`.
-3. Defensively clone the original entry.
-4. Normalize `reversalDate` to UTC (defaulting to `now` if zero) and reject a reversal date earlier than the original entry's date (`ErrReversalDateBeforeOriginal`).
-5. Produce a new `Draft` entry with a new `ID`, `Classification = Reversing`, `ReversalOfID = original.ID`, `ReversalReason`, and **unset `FiscalPeriodID`** (so the destination period is resolved during `PostEntry` from `reversalDate`).
-6. Preserve `AccountID`, analytical dimensions, `MatchingNumber`, transaction currency, and exchange rate on each line while swapping `FunctionalDebit` and `FunctionalCredit`.
-7. Verify double-entry balance before returning.
-
-**Acceptance criteria**
-
-- Reversing an unposted or already-reversed entry fails explicitly.
-- The original entry remains unmodified by reversal construction.
-- The net balance impact of original + reversal per account is zero.
+- **أنبوب الترحيل (`Posting Pipeline`):** نقطة الدخول المركزية الوحيدة التي تتحقق من قيد اليومية وتطبّعه وتختمه وتفوّضه للحفظ.
+- **متبقي التقريب (`Rounding Residual`):** الفرق $\sum \text{Normalized Functional Debit} - \sum \text{Normalized Functional Credit}$ بعد تطبيع جميع الأسطر إلى الوحدات الصغرى للعملة.
+- **العكس الدلالي (`Semantic Reversal`):** قيد يومية جديد مرتبط بتصنيف `Reversing` مع تبديل `FunctionalDebit` و`FunctionalCredit` نسبةً إلى قيد أصلي بحالة `Posted` (غير عكسي)، مع بقاء الأصل غير قابل للتعديل.
+- **نطاق منع التكرار (`Idempotency Scope`):** هوية العملية المركبة `company=<CompanyID>|operation=<post|reverse|revaluation>|key=<TrimmedKey>`.
+- **بصمة الطلب (`Request Fingerprint`):** خلاصة قانونية `sha256:<hex>` عبر لقطة القيد المجمدة المختومة من النواة.
+- **بصمة المستدعي (`Caller Fingerprint`):** خلاصة قانونية `sha256:<hex>` عبر حقول الحمولة المقدمة من المستدعي قبل ختم النواة.
+- **مفاتيح القفل المرتبة (`Ordered Lock Keys`):** قائمة مفرودة (`Deduplicated`) ومرتبة معجمياً لمفاتيح أهداف القفل المقيدة بالشركة والمشتقة حتمياً من معرّفات القيد والحسابات.
 
 ---
 
-## 6. Idempotency, lock ordering, and executor boundary
+## 4. أنبوب الترحيل المركزي وثوابت القيد المزدوج
 
-### PST-009 — Authoritative idempotency scope and canonical fingerprints
+### PST-001 — مسار الترحيل المركزي الوحيد والتبعيات الفاشلة مغلقاً
 
-Before delegating to the executor, the pipeline MUST overwrite any caller-supplied scope and compute:
+**يجب (MUST)** أن تمر جميع ترحيلات وعكوس قيود اليومية (بما فيها قيود `Closing` و`Opening`) عبر أنبوب الترحيل المركزي بالترتيب المرحلي المعتمد:
 
-1. `IdempotencyScope = CompanyID + Operation + TrimmedKey`, where `Operation` is `post` by default, `reverse` when `ReversalOfID != nil`, or `revaluation` only when a validated revaluation hint matches the entry's `CompanyID` and `IdempotencyKey`.
-2. `CallerFingerprint` (`sha256:<hex>`) over canonical caller payload fields (lines sorted by `ID`, decimal amounts as canonical strings, UTC RFC3339Nano timestamps, excluding `CorrelationID` and `IdempotencyKey`).
-3. `RequestFingerprint` (`sha256:<hex>`) over the frozen, kernel-stamped entry (including `FiscalPeriodID`, `PolicyFingerprint`, `PostingDate`, `PostedAt`).
+1. فحص التبعيات الإلزامية (`context`, `reader`, `policyEngine`, `clock`, والمنفذ المناسب).
+2. التحقق المحلي قبل الاستنساخ (الهوية، التصنيف، الحالة، عدم القابلية للتعديل، `EffectiveDate`).
+3. الاستنساخ الدفاعي العميق.
+4. نطاق الشركة، العملة الوظيفية، والسياسات النافذة وعملات الأسطر.
+5. اليومية والفترة المالية (بما فيها 13/14 و`Opening`).
+6. التطبيع والتقريب والتسوية وتوازن القيد المزدوج.
+7. القوائم السماحية لليومية، لقطة الحساب النافذة، الأبعاد، والأهلية النهائية.
+8. الختم التدقيقي وبصمة السياسة وعقد منع التكرار، ثم التفويض الأحادي للمنفذ.
 
-**Acceptance criteria**
+**يجب (MUST)** أن تفشل التبعيات المفقودة للأنبوب فوراً قبل أي تحقق أو وصول إلى القارئ.
 
-- Line order differences do not change `RequestFingerprint` or `CallerFingerprint`.
-- Forged revaluation hints with mismatched `CompanyID` or `Key` fail with `ErrIdempotencyScopeRequired`.
+**معايير القبول**
 
-### PST-010 — Deterministic lock-key derivation
+- يفشل استدعاء أنبوب الترحيل مع أي تبعية إلزامية معدومة فوراً.
 
-The kernel MUST derive deterministic, deduplicated, lexicographically sorted (UTF-8) lock target keys (`v1|company=<CompanyID>|kind=<kind>|id=<value>`) for accounts, entries, original reversal targets, and idempotency scopes. The kernel MUST NOT acquire physical locks or retain shared lock state across requests; actual lock acquisition and reverse-order release belong to the host adapter.
+### PST-002 — ثابت الفشل قبل التفويض (Fail-before-delegate invariant)
 
-**Acceptance criteria**
+**يجب (MUST)** أن يجهض أي فشل في المراحل 1–7 الأنبوبَ فوراً. و**يجب ألّا (MUST NOT)** يُستدعى `PostingExecutor` أو `PostingReversalExecutor` أبداً للمدخلات المرفوضة.
 
-- Two entries referencing the same accounts in opposite line orders yield the exact same sorted lock-key sequence.
+**معايير القبول**
 
-### PST-011 — Atomic delegation and error passthrough
+- عبر جميع حالات اختبار الرفض/السلبية، يكون عدد استدعاءات المنفذ صفراً بصرامة.
 
-The kernel MUST delegate persistence to `PostingExecutor` or `PostingReversalExecutor` exactly once at the final step of `PostEntry`. If the executor fails, the kernel MUST return the error without writing compensating entries or executing implicit retries.
+### PST-003 — التوازن الصارم للقيد المزدوج (Strict double-entry balance)
 
-**Acceptance criteria**
+بعد التطبيع إلى الوحدة الصغرى وأي تسوية تقريب مسموح بها، **يجب (MUST)** أن يساوي مجموع `FunctionalDebit` عبر جميع الأسطر مجموع `FunctionalCredit` عبر جميع الأسطر حتى الوحدة الصغرى الدقيقة ($\sum D - \sum C = 0$). و**يجب (MUST)** أن تفشل القيود غير المتوازنة بخطأ `ErrUnbalancedEntry`.
 
-- Executor failure is propagated directly without partial kernel side effects or automatic retries.
+**معايير القبول**
 
----
+- يفشل قيد بفارق وحدة صغرى واحدة (دون تسوية تقريب مسموح بها) بخطأ `ErrUnbalancedEntry`.
 
-## 7. Error Contract
+### PST-004 — التطبيع الصريح للوحدة الصغرى وتسوية التقريب
 
-| Error Category | Trigger Condition | Detection Timing |
-| --- | --- | --- |
-| Missing Dependency | Nil pipeline, context, reader, policy engine, clock, or executor | Step 0 (Pre-validation) |
-| `ErrUnbalancedEntry` | $\sum \text{FunctionalDebit} \neq \sum \text{FunctionalCredit}$ | Balance validation |
-| `ErrRoundingAccountRequired` / `ErrRoundingPolicyRequired` | Non-zero residual without valid policy/account | Rounding settlement |
-| `ErrEntryNotPosted` / `ErrEntryAlreadyReversed` | Reversing non-posted or already-reversed entry | Reversal construction |
-| `ErrReversalDateBeforeOriginal` | Reversal date earlier than original entry date | Reversal construction |
-| `ErrIdempotencyKeyRequired` / `ErrIdempotencyScopeRequired` | Blank key or forged revaluation scope hint | Pre-validation / scope stamp |
-| Executor / Storage Error | Atomicity, lock, or payload conflict returned by host | Final delegation |
+داخل أنبوب الترحيل:
 
----
+1. **يجب (MUST)** تطبيع `TransactionAmount` لكل سطر إلى الوحدة الصغرى لعملة معاملته، وإعادة حساب مبلغه الوظيفي من `TransactionAmount` المطبّع مضروباً في `ExchangeRate` (مع اشتراط `ExchangeRate == 1` عند تطابق عملة المعاملة مع الوظيفية) ثم تطبيعه إلى الوحدة الصغرى للعملة الوظيفية للشركة (`Half-to-Even`). يُعدّ الناتج المعاد حسابه هو المبلغ الوظيفي المعتمد للترحيل حتى لو زوّد المستدعي قيماً غير مطبّعة؛ وإذا اختلف المبلغ الوظيفي المقدم من المستدعي بأكثر من تسامح التقريب المسموح أو بعكس الإشارة، **يجب (MUST)** رفض السطر بدلاً من التجاوز الصامت.
+2. إذا كان متبقي التقريب الناتج غير صفري، **يجب (MUST)** ألّا يضيف الأنبوب سطر فرق تقريب موازناً إلّا عندما تفعّل `CurrencyPolicy` النافذة خيار `AutoSettleRoundingDifferences` وتحدد `RoundingDifferenceAccountID` صالحاً ومؤهلاً.
+3. يُحظر البتر الصامت أو إسقاط متبقيات التقريب. إذا كانت التسوية معطلة أو كان حساب التقريب مفقوداً/غير مؤهل، **يجب (MUST)** أن يفشل القيد (`ErrRoundingAccountRequired` / `ErrRoundingPolicyRequired`).
 
-## 8. References
+**معايير القبول**
 
-### REF-001 — Accountant Engine Posting & Concurrency Contracts
-
-- **Internal sources:** `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md`, `docs/KERNEL_POSTING_TRANSACTION_CONTRACT.md`, `docs/KERNEL_REVERSAL_ATOMICITY_CONTRACT.md`, `docs/KERNEL_IDEMPOTENCY_CONTRACT.md`, `docs/KERNEL_LOCKING_CONTRACT.md`, `docs/ACCOUNTING_BUSINESS_RULES.md` (§§1, 3, 8).
-- **Used for:** Pipeline ordering, rounding settlement, reversal construction, TOCTOU protection, idempotency scope/fingerprints, and lock-key ordering (`PST-001–011`).
-
-### Reference-to-rule index
-
-| Rule(s) | Primary reference(s) | Nature of relationship |
-| --- | --- | --- |
-| PST-001–004 | REF-001 (AE-POST-FLOW-V12, AE-RULE-ACC-001) | Central pipeline, double-entry, rounding settlement |
-| PST-005–008 | REF-001 (AE-POST-FLOW-V12, AE-P7-REVERSAL-CONTRACT) | TOCTOU, clock discipline, semantic reversal |
-| PST-009–011 | REF-001 (AE-IDEMPOTENCY-CONTRACT, AE-P8-LOCKING-CONTRACT) | Idempotency, lock keys, executor boundary |
+- تُسوّى الفروق دون الوحدة الصغرى عبر سطر موازنة صريح إلى `RoundingDifferenceAccountID` عندما تسمح السياسة، أو تُرفض صراحةً عندما تحظر السياسة.
 
 ---
 
-## 9. Appendices
+## 5. الحماية من `TOCTOU`، وانضباط الساعة، وبناء العكس
 
-### Appendix A — Informative implementation guidance
+### PST-005 — الاستنساخ الدفاعي قبل القراءة وتنفيذ اللقطة المجمدة
 
-- Host executors must wrap entry persistence, GL balance/projection impact, idempotency completion, audit logging, and reversal linking in a single atomic transaction (`Unit of Work`).
-- Host retry policies should only retry errors classified as retryable and must perform a safe `IdempotencyLookup` after unknown post-commit outcomes.
+**يجب (MUST)** أن يتحقق الأنبوب من الثوابت المحلية للمستدعي (الهوية، والبيانات الوصفية للتصنيف، وحالة `Draft`، وعدم صفرية `JournalID`، وعدم فراغ `ActorID` و`IdempotencyKey`، وعدم القابلية للتعديل، وعدم صفرية `EffectiveDate`) ثم ينفذ الاستنساخ الدفاعي العميق **قبل** إجراء أي استدعاء لقارئ خارجي، أو طفرة تقريب، أو ختم `FiscalPeriodID`، أو ختم تدقيق. و**يجب (MUST)** ألّا يستلم المنفذ إلّا اللقطة المستنسخة المجمدة.
 
-### Appendix B — Rule traceability
+**معايير القبول**
 
-| Rule ID | Summary | Classification | Source / Decision | Verification |
-| --- | --- | --- | --- | --- |
-| PST-001 | Single central posting path | PROJECT-DECISION | ADR P1-02 / Posting flow | Dependency rejection tests |
-| PST-002 | Fail-before-delegate invariant | PROJECT-DECISION | Posting flow §3 | `TestPostEntryExecutorNeverRunsForRejectedInputs` |
-| PST-003 | Strict double-entry balance | SOURCE-MANDATED | Double-entry / AE-RULE-ACC-001 | Balance validation tests |
-| PST-004 | Normalization & rounding settlement | PROJECT-DECISION | AE-RULE-ACC-001 §3 | `TestPostEntryNormalizesBothCurrenciesAndSettlesRounding` |
-| PST-005 | Defensive clone & frozen snapshot | DERIVED-REQUIREMENT | TOCTOU protection | `TestPostEntryExecutesFrozenValidatedSnapshot` |
-| PST-006 | Single-read effective account snapshot | PROJECT-DECISION | ADR P3-01 / P1-02 | `TestPostEntryUsesEffectiveAccountSnapshotForEligibility` |
-| PST-007 | Injected clock discipline | PROJECT-DECISION | Posting flow §4 | `TestPostEntryUsesOneInjectedClockForPolicyAndPostingMetadata` |
-| PST-008 | Semantic reversal construction | PROJECT-DECISION | Reversal contract | `FuzzReversalNetImpactIsZeroPerAccount` |
-| PST-009 | Idempotency scope & fingerprints | PROJECT-DECISION | Idempotency contract | `TestPostEntryStampsIdempotencyContractOnExecutorOptions` |
-| PST-010 | Deterministic lock-key ordering | PROJECT-DECISION | Locking contract | `lock_manager_test.go` |
-| PST-011 | Atomic delegation & error passthrough | BOUNDARY/ASSUMPTION | Posting TX contract | `TestPostEntryStopsWhenAtomicExecutorFails` |
+- لا يمكن لتعديل كائن قيد المستدعي بالتزامن أو بعد التقديم تغيير اللقطة الممررة إلى المنفذ.
+
+### PST-006 — لقطة الحساب النافذة ذات القراءة الواحدة
+
+لكل سطر، **يجب (MUST)** أن يحل الأنبوب الحساب القابل للترحيل مرةً واحدةً عند `EffectiveDate` عبر القارئ المؤرخ ويمرر تلك اللقطة نفسها بالضبط إلى فحص أهلية الحساب وإلى التحقق النهائي للسياسة. و**يجب ألّا (MUST NOT)** تحدث قراءة ثانية للحساب بعد التحقق من الأهلية.
+
+**معايير القبول**
+
+- تقيّم أهلية الحساب وسياسة الترحيل النهائية نفس إصدار الحساب بالضبط الذي أُرجع في القراءة الوحيدة.
+
+### PST-007 — انضباط الساعة المحقونة (Injected clock discipline)
+
+**يجب (MUST)** أن يحصل منطق الترحيل الإنتاجي على الوقت الحالي حصراً عبر تجريد `Clock` محقون؛ وتُحظر استدعاءات ساعة الحائط المباشرة داخل التحقق المجالي أو دوال العكس المساعدة.
+
+**معايير القبول**
+
+- تعكس `PostingDate` و`PostedAt` والطوابع الزمنية لتقييم السياسة الساعة المحقونة حتمياً.
+
+### PST-008 — بناء العكس الدلالي وحظر عكس العكس
+
+**يجب (MUST)** عند بناء قيد عكسي:
+
+1. رفض أي قيد أصلي ليس في حالة `Posted` (`ErrEntryNotPosted`) أو معكوس مسبقاً (`ErrEntryAlreadyReversed`).
+2. **حظر عكس القيد العكسي ذاته:** رفض أي قيد أصلي يحمل تصنيف `Reversing` (`ErrInvalidReversal`)؛ إذ يجب إجراء أي تصحيح لاحق عبر قيد تشغيلي جديد معتمد (`RULE-ACC-026`).
+3. اشتراط `ActorID` غير فارغ و`ReversalReason` غير فارغ بعد الاقتطاع.
+4. الاستنساخ الدفاعي للقيد الأصلي.
+5. تطبيع `reversalDate` إلى UTC (بالافتراضي إلى الوقت المحقون إذا كان صفرياً) ورفض تاريخ عكس يسبق تاريخ القيد الأصلي (`ErrReversalDateBeforeOriginal`).
+6. إنتاج قيد `Draft` جديد بمعرّف `ID` جديد، و`Classification = Reversing`، و`ReversalOfID = original.ID`، و`ReversalReason`، و**ترك `FiscalPeriodID` غير معيّن** (بحيث تُحل فترة الوجهة أثناء الترحيل من `reversalDate`).
+7. الحفاظ على `AccountID`، والأبعاد التحليلية، و`MatchingNumber`، وعملة المعاملة، وسعر الصرف في كل سطر مع تبديل `FunctionalDebit` و`FunctionalCredit`.
+8. التحقق من توازن القيد المزدوج قبل الإرجاع.
+
+**معايير القبول**
+
+- يفشل عكس قيد غير مرحّل أو معكوس مسبقاً أو قيد تصنيفه `Reversing` صراحةً.
+- يظل القيد الأصلي غير معدّل عند بناء العكس.
+- يكون الأثر الصافي للأصل + العكس لكل حساب مساوياً للصفر.
 
 ---
 
-## 10. Version history
+## 6. منع التكرار، وترتيب القفل، وحدود المنفذ
+
+### PST-009 — نطاق منع التكرار المعتمد والبصمات القانونية
+
+قبل التفويض إلى المنفذ، **يجب (MUST)** أن يكتب الأنبوب فوق أي نطاق يقدمه المستدعي ويحسب:
+
+1. `IdempotencyScope = CompanyID + Operation + TrimmedKey`، حيث تكون `Operation` هي `post` افتراضياً، أو `reverse` عندما `ReversalOfID != nil`، أو `revaluation` فقط عندما يطابق تلميح إعادة تقييم متحقق منه `CompanyID` و`IdempotencyKey` الخاصين بالقيد.
+2. لعمليات `post` و`reverse`: حساب `CallerFingerprint` (`sha256:<hex>`) عبر حقول حمولة المستدعي القانونية (الأسطر مرتبة حسب `ID`، المبالغ العشرية كسلاسل نصية قانونية، الطوابع الزمنية بصيغة `UTC RFC3339Nano`، مع استبعاد `CorrelationID` و`IdempotencyKey`)، وحساب `RequestFingerprint` (`sha256:<hex>`) عبر القيد المجمد المختوم من النواة.
+3. لعمليات `revaluation`: **يجب ألّا (MUST NOT)** تُستخدم `CallerFingerprint` أو `RequestFingerprint` كبصمة منع تكرار حمولة إعادة التقييم (لاحتوائهما على معرّفات عشوائية مولّدة)؛ بل **يجب (MUST)** اعتماد بصمة `fx-revaluation-payload-v2|` الصادرة عن مجال التقييم في `PayloadHash` (`ADR P11-01`).
+
+**معايير القبول**
+
+- لا تغيّر اختلافات ترتيب الأسطر قيمة `RequestFingerprint` أو `CallerFingerprint`.
+- تفشل تلميحات إعادة التقييم المزورة ذات `CompanyID` أو `Key` غير المتطابق بخطأ `ErrIdempotencyScopeRequired`.
+
+### PST-010 — الاشتقاق الحتمي لمفاتيح القفل (Deterministic lock-key derivation)
+
+**يجب (MUST)** أن تشتق النواة مفاتيح أهداف قفل مقيدة بالشركة، حتمية، مفرودة، ومرتبة معجمياً (`UTF-8`) (`v1|company=<CompanyID>|kind=<kind>|id=<value>`) للحسابات والقيود وأهداف العكس الأصلية ونطاقات منع التكرار. و**يجب ألّا (MUST NOT)** تحجز النواة أقفالاً مادية أو تحتفظ بحالة قفل مشتركة عبر الطلبات؛ إذ يعود حجز الأقفال الفعلي وتحريرها بالترتيب العكسي إلى محول المضيف.
+
+**معايير القبول**
+
+- ينتج قيدان يشيران إلى نفس الحسابات بترتيب أسطر متعاكس نفس تسلسل مفاتيح القفل المرتب بالضبط.
+
+### PST-011 — التفويض الذري وتمرير الخطأ (Atomic delegation and error passthrough)
+
+**يجب (MUST)** أن تفوض النواة الحفظ إلى `PostingExecutor` أو `PostingReversalExecutor` مرةً واحدةً بالضبط في الخطوة الأخيرة من الترحيل. وإذا فشل المنفذ، **يجب (MUST)** أن تُرجع النواة الخطأ دون كتابة قيود تعويضية أو تنفيذ إعادات محاولة ضمنية.
+
+**معايير القبول**
+
+- يُمرَّر فشل المنفذ مباشرةً دون آثار جانبية جزئية من النواة أو إعادات محاولة تلقائية.
+
+---
+
+## 7. عقد الأخطاء (Error Contract)
+
+| فئة الخطأ | شرط التحفيز | توقيت الاكتشاف |
+|---|---|---|
+| تبعية مفقودة (`Missing Dependency`) | أنبوب، أو سياق، أو قارئ، أو محرك سياسات، أو ساعة، أو منفذ معدوم | المرحلة 1 (ما قبل التحقق) |
+| `ErrUnbalancedEntry` | $\sum \text{FunctionalDebit} \neq \sum \text{FunctionalCredit}$ | التحقق من التوازن |
+| `ErrRoundingAccountRequired` / `ErrRoundingPolicyRequired` | متبقٍ غير صفري دون سياسة/حساب صالح | تسوية التقريب |
+| `ErrEntryNotPosted` / `ErrEntryAlreadyReversed` / `ErrInvalidReversal` | عكس قيد غير مرحّل، أو معكوس مسبقاً، أو قيد تصنيفه `Reversing` | بناء العكس |
+| `ErrReversalDateBeforeOriginal` | تاريخ العكس يسبق تاريخ القيد الأصلي | بناء العكس |
+| `ErrIdempotencyKeyRequired` / `ErrIdempotencyScopeRequired` | مفتاح فارغ أو تلميح نطاق إعادة تقييم مزور | ما قبل التحقق / ختم النطاق |
+| خطأ المنفذ / التخزين | تعارض ذرية أو قفل أو حمولة يُرجعه المضيف | التفويض النهائي |
+
+---
+
+## 8. المراجع (References)
+
+### REF-001 — RFC 2119 & RFC 8174
+
+- **العنوان الكامل:** Key words for use in RFCs to Indicate Requirement Levels (RFC 2119); Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words (RFC 8174).
+- **الجهة الناشرة:** IETF.
+- **الروابط الرسمية:** <https://www.rfc-editor.org/rfc/rfc2119>, <https://www.rfc-editor.org/rfc/rfc8174>
+- **القيود:** يحدد اللغة المعيارية فقط.
+
+### REF-002 — عقود الترحيل والتزامن في Accountant Engine
+
+- **المصادر الداخلية:** `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md`، `docs/KERNEL_POSTING_TRANSACTION_CONTRACT.md`، `docs/KERNEL_REVERSAL_ATOMICITY_CONTRACT.md`، `docs/KERNEL_IDEMPOTENCY_CONTRACT.md`، `docs/KERNEL_LOCKING_CONTRACT.md`، `docs/ACCOUNTING_BUSINESS_RULES.md` (§§1, 3, 8)، `docs/ard/P11_01_revaluation_idempotency_spi.md`.
+- **مستخدم في:** ترتيب الأنبوب، تسوية التقريب، بناء العكس، الحماية من `TOCTOU`، نطاق/بصمات منع التكرار، وترتيب مفاتيح القفل (`PST-001–011`).
+
+### فهرس ربط المراجع بالقواعد
+
+| القاعدة/القواعد | المرجع الأساسي | طبيعة العلاقة |
+|---|---|---|
+| PST-001–004 | REF-002 (AE-POST-FLOW-V12, AE-RULE-ACC-001) | الأنبوب المركزي، القيد المزدوج، تسوية التقريب |
+| PST-005–008 | REF-002 (AE-POST-FLOW-V12, AE-P7-REVERSAL-CONTRACT, RULE-ACC-026) | `TOCTOU`، انضباط الساعة، العكس الدلالي ومنع عكس العكس |
+| PST-009–011 | REF-002 (AE-IDEMPOTENCY-CONTRACT, ADR P11-01, AE-P8-LOCKING-CONTRACT) | منع التكرار، مفاتيح القفل، حدود المنفذ |
+
+---
+
+## 9. الملاحق (Appendices)
+
+### الملحق أ — سجل القرارات الهندسية (Decision Log)
+
+- **DEC-PST-001 (منع عكس القيد العكسي):** حظر عكس قيد تصنيفه `Reversing` وفق `RULE-ACC-026` لضمان خطية تاريخ التصحيحات ومنع سلاسل العكس المتداخلة.
+- **DEC-PST-002 (فصل بصمات الترحيل عن إعادة التقييم):** قصر `CallerFingerprint` على عمليات `post`/`reverse` واستخدام `fx-revaluation-payload-v2|` لعمليات `revaluation` (`ADR P11-01`).
+
+### الملحق ب — تتبع القواعد (Rule traceability)
+
+| معرّف القاعدة | الملخص | التصنيف | المصدر / القرار | معيار التحقق |
+|---|---|---|---|---|
+| PST-001 | مسار ترحيل مركزي وحيد وترتيب المراحل | PROJECT-DECISION | ADR P1-02 / تدفق الترحيل | اختبارات رفض التبعيات وترتيب المراحل |
+| PST-002 | ثابت الفشل قبل التفويض | PROJECT-DECISION | تدفق الترحيل §3 | اختبار صفر استدعاء للمنفذ عند الرفض |
+| PST-003 | توازن القيد المزدوج الصارم | SOURCE-MANDATED | القيد المزدوج / AE-RULE-ACC-001 | اختبارات التحقق من التوازن |
+| PST-004 | التطبيع وتسوية التقريب | PROJECT-DECISION | AE-RULE-ACC-001 §3 | اختبار تطبيع العملتين وتسوية التقريب |
+| PST-005 | الاستنساخ الدفاعي واللقطة المجمدة | DERIVED-REQUIREMENT | الحماية من `TOCTOU` | اختبار عزل طفرة المستدعي قبل القراءة |
+| PST-006 | لقطة الحساب النافذة ذات القراءة الواحدة | PROJECT-DECISION | ADR P3-01 / P1-02 | اختبار قراءة واحدة للأهلية والسياسة |
+| PST-007 | انضباط الساعة المحقونة | PROJECT-DECISION | تدفق الترحيل §4 | اختبار حتمية الطوابع عبر `Clock` محقون |
+| PST-008 | بناء العكس الدلالي وحظر عكس العكس | PROJECT-DECISION | عقد العكس / RULE-ACC-026 | اختبار رفض عكس `Reversing` وصفر الأثر الصافي |
+| PST-009 | نطاق منع التكرار والبصمات وبصمة التقييم | PROJECT-DECISION | عقد منع التكرار / ADR P11-01 | اختبار نطاق التلميح وبصمة المستدعي/التقييم |
+| PST-010 | الترتيب الحتمي لمفاتيح القفل | PROJECT-DECISION | عقد القفل | اختبار الترتيب المعجمي وعزل الشركة |
+| PST-011 | التفويض الذري وتمرير الخطأ | BOUNDARY/ASSUMPTION | عقد معاملة الترحيل | اختبار تمرير فشل المنفذ دون تعويض |
+
+---
+
+## 10. سجل الإصدارات (Version history)
+
+### v1.1.0
+
+- إضافة حظر عكس القيد العكسي (`RULE-ACC-026`) في `PST-008`.
+- مواءمة `PST-009` مع `ADR P11-01` لفصل بصمة `revaluation` عن `CallerFingerprint`/`RequestFingerprint`.
+- توضيح إعادة حساب المبلغ الوظيفي في `PST-004` وتثبيت المراحل الثماني في `PST-001`.
+- استيفاء مراجع `RFC 2119/8174` وتجريد المتن من أسماء دوال واختبارات Go، وإضافة سجل القرارات.
 
 ### v1.0.0
 
-- Initial standalone normative specification for the kernel posting and reversal domain.
-
+- المواصفة المعيارية المستقلة الأولية لمجال الترحيل والعكس في النواة.

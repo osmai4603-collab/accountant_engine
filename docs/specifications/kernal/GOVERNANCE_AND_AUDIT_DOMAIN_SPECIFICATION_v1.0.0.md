@@ -1,204 +1,241 @@
-# Governance and Audit Domain Specification
+# مواصفات مجال الحوكمة والتدقيق (Governance and Audit Domain Specification)
 
-**Version:** 1.0.0  
-**Document type:** Standalone domain specification  
-**Conformance status:** Normative  
-**Scope:** Tamper-evident audit hash chain, unambiguous canonical hash encoding, per-company monotonic sequence numbering, actor and timestamp attribution, and external audit checkpoint verification.
-
----
-
-## 1. Purpose
-
-This document defines the externally observable domain contract for forensic audit logging and cryptographic integrity verification within the accounting kernel. It specifies how audit records are chained per company using canonical, collision-resistant hash calculation, and how external checkpoints prevent silent tail-truncation or chain regression.
-
-This document does not prescribe a specific database table (`financial_audit_logs`), WORM trigger syntax, or external KMS/notary transport.
-
-### 1.1 Normative language
-
-The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as normative requirement terms per RFC 2119 and RFC 8174:
-
-- **MUST / MUST NOT:** absolute requirement or prohibition for conformance.
-- **SHOULD / SHOULD NOT:** recommended requirement; deviations require a documented reason.
-- **MAY:** permitted behavior.
-
-### 1.2 Scope boundary
-
-This specification governs audit chain structure, canonical hash calculation, chain verification, and external checkpoint validation within the kernel. Journal entry posting atomicity (requiring audit append inside the posting unit of work) belongs to `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. Physical WORM triggers, PostgreSQL RLS, and external checkpoint custody storage belong to host/adapter layers.
+**الإصدار:** 1.1.0  
+**نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة المطابقة:** معياري إلزامي (Normative)  
+**النطاق:** سلسلة التجزئة التدقيقية الكاشفة للتلاعب (`Tamper-evident audit hash chain`)، الترميز القانوني غير الملتبس للتجزئة، الترقيم التسلسلي الرتيب لكل شركة، إسناد الفاعل والطابع الزمني، والتحقق من نقاط التحقق التدقيقية الخارجية (`External audit checkpoint verification`).
 
 ---
 
-## 2. Conformance
+## 1. الغرض (Purpose)
 
-An implementation conforms to this specification only when all applicable normative requirements are satisfied.
+يُعرّف هذا المستند العقد المجالي القابل للملاحظة خارجياً لتسجيل التدقيق الجنائي والتحقق من السلامة التشفيرية داخل النواة المحاسبية. وهو يحدد كيفية ربط سجلات التدقيق لكل شركة باستخدام حساب تجزئة قانوني مقاوم للتصادم، وكيفية منع نقاط التحقق الخارجية لهجمات بتر الذيل الصامتة (`Silent tail-truncation`) أو تراجع السلسلة.
 
-### 2.1 Conformance requirements
+لا يفرض هذا المستند جدول قاعدة بيانات محدداً، أو صياغة مشغلات `WORM`، أو وسيلة نقل خارجية لنظام إدارة المفاتيح/التوثيق (`KMS/notary`).
 
-A conforming implementation:
+### 1.1 اللغة المعيارية (Normative language)
 
-1. MUST satisfy every normative rule in §§4–6.
-2. MUST enforce per-company monotonic sequencing starting at `1` linked from `GenesisHash`.
-3. MUST compute `CurrentLogHash` over all semantic fields using unambiguous structural encoding.
-4. MUST fail closed when verifying against a missing, malformed, regressed, or mismatched external checkpoint.
-5. MUST treat audit chain verification failures as tamper evidence rather than silently repairing or truncating history.
+تُفسَّر المصطلحات **يجب (MUST)**، و**يجب ألّا (MUST NOT)**، و**ينبغي (SHOULD)**، و**ينبغي ألّا (SHOULD NOT)**، و**يجوز (MAY)** بوصفها مصطلحات متطلبات معيارية وفق `RFC 2119` و`RFC 8174`:
 
-### 2.2 Conformance evidence
+- **يجب / يجب ألّا (MUST / MUST NOT):** متطلب أو حظر مُطلَق للمطابقة.
+- **ينبغي / ينبغي ألّا (SHOULD / SHOULD NOT):** متطلب مُوصى به؛ وأي انحراف عنه يتطلب سبباً موثقاً.
+- **يجوز (MAY):** سلوك مسموح به.
 
-Conformance can be demonstrated through:
+### 1.2 حدود النطاق (Scope boundary)
 
-- hash-sensitivity tests mutating every semantic field (actor, action, entity, timestamp, payload, sequence, previous hash);
-- delimiter-collision / structural-ambiguity tests;
-- tamper-detection tests (modified payload, broken `PreviousLogHash`, sequence gap);
-- tail-truncation tests failing closed against an external checkpoint;
-- checkpoint validation and anti-regression tests;
-- concurrent per-company append tests producing a single contiguous `1..N` chain.
-
-### 2.3 Partial conformance
-
-An implementation that satisfies only a subset of the requirements MUST NOT be described as fully conformant. Any claimed partial conformance MUST identify the omitted rules and affected behaviors.
+تحكم هذه المواصفات بنية سلسلة التدقيق، وحساب التجزئة القانوني، والتحقق من السلسلة، والتحقق من صحة نقطة التحقق الخارجية داخل النواة. تعود ملكية ذرية ترحيل قيود اليومية (التي تشترط إلحاق التدقيق داخل وحدة عمل الترحيل) إلى `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. أما مشغلات `WORM` المادية، وأمن مستوى الصفوف (`RLS`)، وتخزين حفظ نقاط التحقق الخارجية فتعود إلى طبقات المضيف/المحول.
 
 ---
 
-## 3. Terms and definitions
+## 2. المطابقة (Conformance)
 
-- **Audit Chain:** A per-company, append-only sequence of audit records cryptographically linked via `PreviousLogHash -> CurrentLogHash`.
-- **Genesis Hash (`GenesisHash`):** The fixed, well-known initial hash anchor used as `PreviousLogHash` for sequence number `1`.
-- **Canonical Hash (`CalculateHash`):** The deterministic SHA-256 digest over length-prefixed or unambiguously delimited semantic fields of an audit record.
-- **External Audit Checkpoint:** A trusted `(Version, SequenceNumber, LogHash)` anchor stored outside the mutable audit table to detect tail-truncation attacks.
-- **Verification Snapshot (`AuditVerificationSnapshot`):** A consistent point-in-time read of a company's audit logs, `SnapshotSequence`, and optional external checkpoint.
+لا يُعدّ أي تنفيذ مطابقاً لهذه المواصفات إلّا عند استيفاء جميع المتطلبات المعيارية المنطبقة.
 
----
+### 2.1 متطلبات المطابقة (Conformance requirements)
 
-## 4. Hash chain and attribution invariants
+التنفيذ المطابق:
 
-### GOV-001 — Company-scoped monotonic sequence
+1. **يجب (MUST)** أن يستوفي كل قاعدة معيارية في الأقسام من §4 إلى §6.
+2. **يجب (MUST)** أن يفرض تسلسلاً رتيباً لكل شركة يبدأ من `1` مرتبطاً من `GenesisHash`.
+3. **يجب (MUST)** أن يحسب `CurrentLogHash` عبر جميع الحقول الدلالية باستخدام ترميز بنيوي مسبوق بالطول غير ملتبس.
+4. **يجب (MUST)** أن يفشل مغلقاً عند التحقق مقابل نقطة تحقق خارجية مفقودة أو مشوهة أو متراجعة أو غير متطابقة.
+5. **يجب (MUST)** أن يعامل إخفاقات التحقق من سلسلة التدقيق كدليل تلاعب بدلاً من إصلاح التاريخ أو بتره بصمت.
 
-Every audit chain MUST be strictly partitioned by non-zero `CompanyID`. Sequence numbers MUST start at `1` and increment monotonically by `1` (`1, 2, ..., N`) without gaps or duplicates. Concurrent appends for the same company MUST serialize to form a single linear chain.
+### 2.2 أدلة المطابقة (Conformance evidence)
 
-**Acceptance criteria**
+يمكن إثبات المطابقة من خلال:
 
-- Concurrent audit appends for Company A produce a contiguous sequence `1..N` with zero duplicates or forks.
+- اختبارات حساسية التجزئة التي تغيّر كل حقل دلالي (الشركة، التسلسل، الفاعل، الفعل، الكيان، السبب، الارتباط، الطابع الزمني بتوقيت UTC بدقة الميكروثانية، الحمولة، التجزئة السابقة)؛
+- اختبارات تصادم الفواصل / الالتباس البنيوي؛
+- اختبارات كشف التلاعب (حمولة معدّلة، `PreviousLogHash` مكسور، فجوة تسلسل)؛
+- اختبارات بتر الذيل التي تفشل مغلقاً مقابل نقطة تحقق خارجية؛
+- اختبارات التحقق من نقطة التحقق (بما فيها الحالة الصفرية) ومنع التراجع؛
+- اختبارات الإلحاق المتزامن لكل شركة التي تُنتج سلسلة متصلة واحدة `1..N`.
 
-### GOV-002 — Genesis anchor and hash linkage
+### 2.3 المطابقة الجزئية (Partial conformance)
 
-For sequence `1`, `PreviousLogHash` MUST equal `GenesisHash`. For every subsequent record `k > 1`, `PreviousLogHash` MUST equal the `CurrentLogHash` of record `k - 1`.
-
-**Acceptance criteria**
-
-- Any break in `PreviousLogHash` linkage is detected immediately by chain verification.
-
-### GOV-003 — Unambiguous canonical hash over all semantic fields
-
-`CalculateHash` MUST compute a deterministic digest covering `CompanyID`, `SequenceNumber`, `ActorID`, `Action`, `EntityType`, `EntityID`, UTC nanosecond timestamp, structured payload, and `PreviousLogHash` using unambiguous framing (such as length-prefixed or escaped field boundaries) so that moving characters between adjacent fields cannot produce a hash collision.
-
-**Acceptance criteria**
-
-- Altering any semantic field changes `CurrentLogHash`.
-- Two records with concatenated-equal but differently partitioned fields (e.g., `Action="AB", Entity="C"` vs. `Action="A", Entity="BC"`) produce distinct hashes.
-
-### GOV-004 — Mandatory attribution and defensive payload copy
-
-Every audit record MUST carry a non-empty `ActorID`, `Action`, and valid UTC timestamp. Adapters returning or storing audit records MUST defensively copy mutable payload bytes so caller mutations cannot alter chained records.
-
-**Acceptance criteria**
-
-- Mutating the caller's payload slice after `AppendAuditLog` does not alter the stored audit record or its hash.
+**يجب ألّا (MUST NOT)** يُوصَف التنفيذ الذي يستوفي مجموعة فرعية فقط من المتطلبات بأنه مطابق بالكامل. و**يجب (MUST)** أن يُحدّد أي ادعاء بالمطابقة الجزئية القواعد المُغفلة والسلوكيات المتأثرة.
 
 ---
 
-## 5. Verification and external checkpoint custody
+## 3. المصطلحات والتعاريف (Terms and definitions)
 
-### GOV-005 — Full chain integrity verification
-
-`VerifyAuditIntegrity` MUST verify:
-
-1. Contiguous sequence numbering `1..N` with no gaps.
-2. `PreviousLogHash` linkage starting from `GenesisHash`.
-3. Exact recomputation of `CurrentLogHash == CalculateHash(record)` for every record.
-
-Any mismatch MUST fail explicitly with tamper-detection error details.
-
-**Acceptance criteria**
-
-- Modifying any historical row's payload, timestamp, or hash causes `VerifyAuditIntegrity` to fail.
-
-### GOV-006 — Fail-closed external checkpoint verification
-
-Verification against an external checkpoint MUST fail closed (`ErrAuditCheckpointMismatch`) if:
-
-1. `CheckpointPresent == false` (no trusted checkpoint exists).
-2. The checkpoint fails `ValidateCheckpoint` (e.g., zero sequence, negative/zero version, or malformed hash).
-3. `SnapshotSequence != checkpoint.SequenceNumber`, `len(Logs) != SnapshotSequence`, or the final log's `CurrentLogHash != checkpoint.LogHash` (detecting tail-truncation or partial snapshots).
-
-**Acceptance criteria**
-
-- Deleting the last N audit records (tail-truncation) causes checkpoint verification to fail with `ErrAuditCheckpointMismatch`.
-- Missing external checkpoint fails closed rather than passing by default.
-
-### GOV-007 — Anti-regression checkpoint custody
-
-Storing a new external audit checkpoint MUST pass `ValidateCheckpoint` and MUST reject any checkpoint whose `Version` or `SequenceNumber` is less than or equal to the currently stored checkpoint (preventing rollback/regression attacks).
-
-**Acceptance criteria**
-
-- Attempting to overwrite a checkpoint with an equal or lower `Version` or `SequenceNumber` is rejected explicitly.
+- **سلسلة التدقيق (`Audit Chain`):** تسلسل إلحاقي فقط (`Append-only`) لسجلات التدقيق لكل شركة مرتبط تشفيرياً عبر `PreviousLogHash -> CurrentLogHash`.
+- **تجزئة التكوين (`Genesis Hash` / `GenesisHash`):** مرساة التجزئة الأولية الثابتة الممثلة بـ 64 محرفاً سداسياً عشرياً صفرياً (`0000...0000`) المستخدمة بوصفها `PreviousLogHash` للرقم التسلسلي `1`.
+- **التجزئة القانونية (`Canonical Hash`):** خلاصة `SHA-256` الحتمية مسبوقة الطول (`v2 length-prefixed`) عبر جميع الحقول الدلالية لسجل التدقيق.
+- **نقطة التحقق التدقيقية الخارجية (`External Audit Checkpoint`):** مرساة موثوقة `(Version, SequenceNumber, LogHash)` مخزنة خارج جدول التدقيق القابل للتعديل لاكتشاف هجمات بتر الذيل.
+- **لقطة التحقق (`Verification Snapshot`):** قراءة متسقة في نقطة زمنية واحدة لسجلات تدقيق الشركة، وعددها التسلسلي في اللقطة، ونقطة التحقق الخارجية الاختيارية.
 
 ---
 
-## 6. Error Contract
+## 4. ثوابت سلسلة التجزئة والإسناد
 
-| Error Category | Trigger Condition | Detection Timing |
-| --- | --- | --- |
-| `ErrCompanyScopeRequired` | Zero `CompanyID` in append/verify/snapshot | Pre-operation |
-| `ErrInvalidAuditCheckpoint` | Malformed checkpoint (bad version, sequence, or hash) | `ValidateCheckpoint` / `SetExternalAuditCheckpoint` |
-| `ErrAuditCheckpointMismatch` | Missing checkpoint, sequence mismatch, or hash mismatch | `VerifyWithCheckpoint` |
-| Chain Integrity Error | Sequence gap, broken `PreviousLogHash`, or hash mismatch | `VerifyAuditIntegrity` |
-| Checkpoint Regression Error | New checkpoint `Version` or `SequenceNumber` <= current | `SetExternalAuditCheckpoint` |
+### GOV-001 — تسلسل رتيب مقيد بالشركة (Company-scoped monotonic sequence)
+
+**يجب (MUST)** أن تُقسم كل سلسلة تدقيق بصرامة حسب `CompanyID` غير صفري. و**يجب (MUST)** أن تبدأ الأرقام التسلسلية عند `1` وتزداد رتيباً بمقدار `1` (`1, 2, ..., N`) دون فجوات أو تكرار. و**يجب (MUST)** أن تتسلسل الإلحاقات المتزامنة لنفس الشركة لتشكيل سلسلة خطية واحدة.
+
+**معايير القبول**
+
+- تُنتج إلحاقات التدقيق المتزامنة للشركة (أ) تسلسلاً متصلاً `1..N` بصفر تكرارات أو تفرعات.
+
+### GOV-002 — مرساة التكوين وربط التجزئة (Genesis anchor and hash linkage)
+
+بالنسبة للتسلسل `1`، **يجب (MUST)** أن يساوي `PreviousLogHash` القيمة القانونية `GenesisHash` (64 محرفاً سداسياً عشرياً صفرياً). وبالنسبة لكل سجل لاحق `k > 1`، **يجب (MUST)** أن يساوي `PreviousLogHash` قيمة `CurrentLogHash` للسجل `k - 1`.
+
+**معايير القبول**
+
+- يُكتشف أي انقطاع في ربط `PreviousLogHash` فوراً عند التحقق من السلسلة.
+
+### GOV-003 — تجزئة قانونية غير ملتبسة لجميع الحقول الدلالية
+
+**يجب (MUST)** أن تحسب التجزئة القانونية للسجل خلاصة `SHA-256` حتمية باستخدام تأطير مسبوق الطول (`v2 length-prefixed`) يغطي جميع الحقول الدلالية التالية بالترتيب القانوني:
+
+1. `CompanyID`
+2. `SequenceNumber`
+3. `ActorID`
+4. `Action`
+5. `EntityType`
+6. `EntityID`
+7. `Reason`
+8. `CorrelationID`
+9. الطابع الزمني بتوقيت UTC **مقيداً بدقة الميكروثانية (`Microsecond precision`)** (لضمان التكافؤ الحتمي مع مخازن قواعد البيانات العلائقية)
+10. خلاصة الحمولة المهيكلة (`Payload digest`)
+11. `PreviousLogHash`
+
+**يجب (MUST)** أن يمنع التأطير المسبوق بالطول تصادم التجزئة عند انتقال المحارف بين الحقول المتجاورة.
+
+**معايير القبول**
+
+- يغيّر تعديل أي من الحقول الـ 11 الدلالية (بما فيها `Reason` و`CorrelationID`) قيمة `CurrentLogHash`.
+- يُنتج سجلان لهما تلاصق نصي متساوٍ ولكن بتقسيم حقول مختلف (مثل `Action="AB", Entity="C"` مقابل `Action="A", Entity="BC"`) تجزئتين مختلفتين.
+- تعطي التجزئة المحسوبة في الذاكرة نفس النتيجة بالضبط بعد الحفظ والاسترجاع من قاعدة بيانات ذات دقة ميكروثانية.
+
+### GOV-004 — الإسناد الإلزامي وتصنيف الأفعال والنسخ الدفاعي للحمولة
+
+**يجب (MUST)** أن يحمل كل سجل تدقيق قيمة `ActorID` غير فارغة، و`Action` غير فارغ (ضمن الأفعال المعتمدة مثل `post`، `reverse`، `revaluation`، `reopen_period`)، وطابعاً زمنياً صالحاً بتوقيت UTC. و**يجب (MUST)** على المحولات التي تُرجع سجلات التدقيق أو تخزنها أن تنسخ بايتات الحمولة القابلة للتعديل دفاعياً بحيث لا تستطيع تعديلات المستدعي تغيير السجلات المربوطة في السلسلة.
+
+**معايير القبول**
+
+- لا يؤدي تعديل شريحة الحمولة لدى المستدعي بعد إلحاق السجل إلى تغيير سجل التدقيق المخزن أو تجزئته.
 
 ---
 
-## 7. References
+## 5. التحقق وحفظ نقاط التحقق الخارجية
 
-### REF-001 — Accountant Engine Audit & Threat Model Contracts
+### GOV-005 — التحقق الكامل من سلامة السلسلة (Full chain integrity verification)
 
-- **Internal sources:** `docs/KERNEL_AUDIT_REPOSITORY_CONTRACT.md`, `docs/KERNEL_AUDIT_THREAT_MODEL.md`, `docs/ard/P10_01_external_audit_checkpoint_custody.md`, `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNAL-10`).
-- **Used for:** Canonical hash framing, monotonic sequencing, tail-truncation defense, and external checkpoint custody (`GOV-001–007`).
+**يجب (MUST)** أن يتحقق مسار التحقق من سلامة التدقيق مما يلي:
 
-### REF-002 — NIST FIPS 180-4 (Secure Hash Standard — SHA-256)
+1. الترقيم التسلسلي المتصل `1..N` دون فجوات.
+2. ربط `PreviousLogHash` بدءاً من `GenesisHash`.
+3. إعادة الحساب الدقيقة لتطابق `CurrentLogHash` مع التجزئة القانونية المعاد حسابها لكل سجل.
 
-- **Authority:** National Institute of Standards and Technology (NIST).
-- **Used for:** Collision-resistant SHA-256 hashing primitive used in `CalculateHash`.
+**يجب (MUST)** أن يفشل أي عدم تطابق صراحةً مع تفاصيل خطأ كشف التلاعب.
 
-### Reference-to-rule index
+**معايير القبول**
 
-| Rule(s) | Primary reference(s) | Nature of relationship |
-| --- | --- | --- |
-| GOV-001–004 | REF-001, REF-002 | Per-company monotonic hash chain and framing |
-| GOV-005–007 | REF-001 (ADR P10-01, Audit Contract) | Fail-closed verification and anti-regression checkpoints |
+- يؤدي تعديل حمولة أي صف تاريخي أو سببه أو ارتباطه أو طابعه الزمني أو تجزئته إلى فشل التحقق صراحةً.
+
+### GOV-006 — التحقق الفاشل مغلقاً لنقطة التحقق الخارجية
+
+**يجب (MUST)** أن يجتاز التحقق من نقطة التحقق الشروط التالية، وإلّا يفشل مغلقاً بخطأ `ErrAuditCheckpointMismatch` أو `ErrInvalidAuditCheckpoint`:
+
+1. وجود نقطة تحقق موثوقة (`CheckpointPresent == true`)؛ غيابها يفشل مغلقاً.
+2. صلاحية بنية نقطة التحقق: معرّف شركة غير صفري، وتجزئة مكونة من 64 محرفاً سداسياً عشرياً، وإصدار موجب (`Version > 0`) عند `SequenceNumber > 0`، وتساوي `LogHash == GenesisHash` عند الحالة الصفرية (`SequenceNumber == 0`).
+3. تطابق `SnapshotSequence == checkpoint.SequenceNumber`، وتساوي عدد السجلات الفعلي في اللقطة مع `SnapshotSequence`، وتساوي التجزئة النهائية للسجل الأخير مع `checkpoint.LogHash` (لاكتشاف بتر الذيل أو اللقطات الجزئية).
+
+**معايير القبول**
+
+- يؤدي حذف آخر `N` من سجلات التدقيق (بتر الذيل) إلى فشل التحقق من نقطة التحقق بخطأ `ErrAuditCheckpointMismatch`.
+- يفشل غياب نقطة التحقق الخارجية مغلقاً بدلاً من النجاح افتراضياً.
+- تُقبل نقطة التحقق الصفرية فقط عندما يكون `SequenceNumber == 0` و`LogHash == GenesisHash`.
+
+### GOV-007 — حفظ نقاط التحقق المانع للتراجع (Anti-regression checkpoint custody)
+
+**يجب (MUST)** أن يجتاز تخزين نقطة تحقق تدقيقية خارجية جديدة فحص صلاحية نقطة التحقق و**يجب (MUST)** أن يرفض أي نقطة تحقق يكون فيها `Version` أو `SequenceNumber` أقل من أو مساوياً لنقطة التحقق المخزنة حالياً (منعاً لهجمات الإرجاع/التراجع).
+
+**معايير القبول**
+
+- تُرفض محاولة استبدال نقطة تحقق بـ `Version` أو `SequenceNumber` مساوٍ أو أقل صراحةً.
 
 ---
 
-## 8. Appendices
+## 6. عقد الأخطاء (Error Contract)
 
-### Appendix A — Informative implementation guidance
-
-- External checkpoints should be replicated or anchored in an independent custody store outside the primary database transaction boundary so a database-level tail-truncation cannot simultaneously erase the checkpoint.
-
-### Appendix B — Rule traceability
-
-| Rule ID | Summary | Classification | Source / Decision | Verification |
-| --- | --- | --- | --- | --- |
-| GOV-001 | Company-scoped monotonic sequence | PROJECT-DECISION | Audit contract §1 | `TestPostgresAuditPhase10ConcurrentAppendSequenceAndChain` |
-| GOV-002 | Genesis anchor and hash linkage | PROJECT-DECISION | Audit contract §2 | Chain verification tests |
-| GOV-003 | Unambiguous canonical hash framing | PROJECT-DECISION | `CAP-KERNAL-10` | `TestCalculateHashProtectsEverySemanticField` |
-| GOV-004 | Mandatory attribution & defensive copy | PROJECT-DECISION | Audit contract §3 | `TestMemoryPhase10AuditLogPayloadIsDefensivelyCopied` |
-| GOV-005 | Full chain integrity verification | PROJECT-DECISION | Audit contract §2 | `TestPostgresAuditPhase10TamperingIsDetected` |
-| GOV-006 | Fail-closed checkpoint verification | PROJECT-DECISION | ADR P10-01 | `TestCheckpointVerificationFailsClosedWithoutTrustedCheckpoint` |
-| GOV-007 | Anti-regression checkpoint custody | PROJECT-DECISION | ADR P10-01 | `TestPostgresAuditPhase10CheckpointCannotRegress` |
+| فئة الخطأ | شرط التحفيز | توقيت الاكتشاف |
+|---|---|---|
+| `ErrCompanyScopeRequired` | قيمة `CompanyID` صفرية في الإلحاق/التحقق/اللقطة | ما قبل العملية |
+| `ErrInvalidAuditCheckpoint` | نقطة تحقق مشوهة (إصدار، تسلسل، تجزئة، أو حالة صفرية غير صالحة) | التحقق من نقطة التحقق / الحفظ |
+| `ErrAuditCheckpointMismatch` | نقطة تحقق مفقودة، أو عدم تطابق التسلسل أو التجزئة | التحقق مقابل نقطة التحقق |
+| خطأ سلامة السلسلة (`Chain Integrity Error`) | فجوة تسلسل، أو كسر `PreviousLogHash`، أو عدم تطابق التجزئة | التحقق الكامل من السلسلة |
+| خطأ تراجع نقطة التحقق (`Checkpoint Regression Error`) | `Version` أو `SequenceNumber` لنقطة التحقق الجديدة `<=` الحالي | حفظ نقطة التحقق |
 
 ---
 
-## 9. Version history
+## 7. المراجع (References)
+
+### REF-001 — RFC 2119 & RFC 8174
+
+- **العنوان الكامل:** Key words for use in RFCs to Indicate Requirement Levels (RFC 2119); Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words (RFC 8174).
+- **الجهة الناشرة:** Internet Engineering Task Force (IETF).
+- **الإصدار والتاريخ:** RFC 2119 (مارس 1997)، RFC 8174 (مايو 2017).
+- **تاريخ المراجعة:** 2026-11-27.
+- **الروابط الرسمية:** <https://www.rfc-editor.org/rfc/rfc2119>, <https://www.rfc-editor.org/rfc/rfc8174>
+- **القيود:** يحدد معاني المصطلحات المعيارية فقط ولا يفرض متطلبات تدقيقية.
+
+### REF-002 — المعيار NIST FIPS 180-4 (معيار التجزئة الآمنة — SHA-256)
+
+- **العنوان الكامل:** Secure Hash Standard (SHS), Federal Information Processing Standards Publication 180-4.
+- **الجهة الناشرة:** National Institute of Standards and Technology (NIST).
+- **الإصدار والتاريخ:** أغسطس 2015 (DOI: 10.6028/NIST.FIPS.180-4).
+- **تاريخ المراجعة:** 2026-11-27.
+- **الرابط الرسمي:** <https://csrc.nist.gov/publications/detail/fips/180-4/final>
+- **النطاق المستخدم:** القسم 6.2 (خوارزمية SHA-256) لإنتاج خلاصة 256 بت مقاومة للتصادم.
+- **القيود:** يحدد دالة التجزئة التشفيرية فقط، ولا يفرض التأطير المسبوق بالطول أو التسلسل أو نقاط التحقق الخارجية.
+
+### REF-003 — عقود مستودع التدقيق ونموذج التهديد في Accountant Engine
+
+- **المصادر الداخلية:** `docs/KERNEL_AUDIT_REPOSITORY_CONTRACT.md`، `docs/KERNEL_AUDIT_THREAT_MODEL.md`، `docs/ard/P10_01_external_audit_checkpoint_custody.md`، `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNAL-10`).
+- **مستخدم في:** تأطير `v2 length-prefixed`، دقة الميكروثانية، حقول `Reason` و`CorrelationID`، الدفاع ضد بتر الذيل، وحفظ نقاط التحقق الخارجية (`GOV-001–007`).
+
+### فهرس ربط المراجع بالقواعد
+
+| القاعدة/القواعد | المرجع الأساسي | طبيعة العلاقة |
+|---|---|---|
+| GOV-001–004 | REF-002, REF-003 | خوارزمية SHA-256 (FIPS 180-4) وتأطير السلسلة وفق المشروع |
+| GOV-005–007 | REF-003 (ADR P10-01, نموذج التهديد) | التحقق الفاشل مغلقاً ونقاط التحقق المانعة للتراجع |
+
+---
+
+## 8. الملاحق (Appendices)
+
+### الملحق أ — سجل القرارات الهندسية (Decision Log)
+
+- **DEC-GOV-001 (دقة الميكروثانية للطابع الزمني):** اختيار دقة الميكروثانية بتوقيت UTC بدلاً من النانو ثانية في حساب التجزئة لضمان تطابق التجزئة بين الذاكرة و`TIMESTAMPTZ` في PostgreSQL دون انجراف (متوافق مع `KERNEL_AUDIT_THREAT_MODEL.md T-01`).
+- **DEC-GOV-002 (حفظ نقطة التحقق الخارجية):** إلزام الفشل المغلق عند غياب نقطة التحقق الخارجية، لأن التحقق الداخلي من السلسلة لا يكتشف وحده حذف ذيل السلسلة.
+
+### الملحق ب — تتبع القواعد (Rule traceability)
+
+| معرّف القاعدة | الملخص | التصنيف | المصدر / القرار | معيار التحقق |
+|---|---|---|---|---|
+| GOV-001 | تسلسل رتيب مقيد بالشركة | PROJECT-DECISION | عقد التدقيق §1 | اختبار تسلسل `1..N` تحت التزامن |
+| GOV-002 | مرساة التكوين وربط التجزئة | PROJECT-DECISION | عقد التدقيق §2 | اختبار كشف انقطاع `PreviousLogHash` |
+| GOV-003 | تأطير تجزئة `v2` بدقة ميكروثانية و11 حقلاً | PROJECT-DECISION | نموذج التهديد `T-01` / REF-002 | اختبار حساسية كل حقل ومقاومة تصادم الحدود |
+| GOV-004 | الإسناد الإلزامي والنسخ الدفاعي | PROJECT-DECISION | عقد التدقيق §3 | اختبار عزل طفرة الحمولة بعد الإلحاق |
+| GOV-005 | التحقق الكامل من سلامة السلسلة | PROJECT-DECISION | عقد التدقيق §2 | اختبار كشف تعديل الصفوف التاريخية |
+| GOV-006 | التحقق الفاشل مغلقاً لنقطة التحقق | PROJECT-DECISION | ADR P10-01 / `T-05, T-06` | اختبار بتر الذيل وغياب نقطة التحقق والحالة الصفرية |
+| GOV-007 | حفظ نقاط التحقق المانع للتراجع | PROJECT-DECISION | ADR P10-01 / `T-07` | اختبار رفض `Version` أو `SequenceNumber` متراجع |
+
+---
+
+## 9. سجل الإصدارات (Version history)
+
+### v1.1.0
+
+- مواءمة `GOV-003` مع `KERNEL_AUDIT_THREAT_MODEL.md` (`T-01`): اعتماد دقة الميكروثانية وإضافة `Reason` و`CorrelationID` للتجزئة وتحديد تأطير `v2 length-prefixed`.
+- تحديد صيغة `GenesisHash` وإضافة قواعد الحالة الصفرية لنقطة التحقق في `GOV-006` (`T-06`) وقائمة أفعال التدقيق في `GOV-004`.
+- استيفاء سجل المصادر الرسمية (`NSM-001 §4.3`) وتجريد المتن من أسماء دوال واختبارات التنفيذ، وإضافة سجل القرارات.
 
 ### v1.0.0
 
-- Initial standalone normative specification for the kernel governance and audit domain.
+- المواصفة المعيارية المستقلة الأولية لمجال الحوكمة والتدقيق في النواة.

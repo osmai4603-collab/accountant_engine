@@ -70,7 +70,7 @@ flowchart TB
     end
 
     subgraph TargetCore ["🟢 النواة المحاسبية الأساسية (Accounting Kernal Kernel)"]
-        POSTING["internal/kernal/posting<br/>• Double-Entry Validation<br/>• Atomic 8-Step Pipeline<br/>• Rounding Difference Settlement<br/>• Ordered Locking & Reversals"]
+        POSTING["internal/kernal/posting<br/>• Double-Entry Validation<br/>• Atomic 17-Step (0–16) Pipeline<br/>• Rounding Difference Settlement<br/>• Ordered Locking & Reversals"]
         MASTER["internal/kernal/masterdata<br/>• COA & Account Trees<br/>• Fiscal Calendar & Periods 13/14<br/>• Company Scope & Tenants"]
         TYPES["internal/kernal/types<br/>• Int64 / Decimal Precision<br/>• Currencies (ISO 4217)<br/>• Banker's Rounding & Immutable Value Objects"]
         VALUATION["internal/kernal/valuation<br/>• Exchange Rates & Historical Feeds<br/>• Conversion Engine<br/>• IAS 21 Revaluation"]
