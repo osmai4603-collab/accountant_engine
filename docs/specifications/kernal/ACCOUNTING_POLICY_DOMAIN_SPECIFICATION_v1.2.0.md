@@ -1,8 +1,11 @@
 # مواصفات مجال السياسات المحاسبية (Accounting Policy Domain Specification)
 
-**الإصدار:** 1.1.0  
+**الإصدار:** 1.2.0  
 **نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة النضج:** مواصفة معيارية مرشحة للاعتماد (`Review Candidate`)  
 **حالة المطابقة:** معياري إلزامي (Normative)  
+**المالك / المعتمد:** مالك معمارية النواة ومالك مجال السياسات (`policy`)  
+**تاريخ التحديث:** 2026-11-27  
 **النطاق:** سياسات الترحيل والعملات المقيدة بالشركة والمؤرخة بالنفاذ (`Effective-dated posting and currency policies`)، وتسجيل السياسات غير المتداخل، وقواعد أهلية الحسابات والأبعاد، والبصمة القانونية للسياسة (`Canonical policy fingerprinting`).
 
 ---
@@ -23,7 +26,7 @@
 
 ### 1.2 حدود النطاق (Scope boundary)
 
-تحكم هذه المواصفات إصدار السياسات، والاستخلاص الحتمي للسياسات، وفحوصات أهلية الحسابات والأبعاد، والبصمة القانونية للسياسة داخل النواة. تعود ملكية حالة إقفال الفترات المالية إلى `MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md`. وتعود حسابات التقريب إلى `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`، بينما يعود تنفيذ تسوية التقريب على مستوى القيد إلى `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md`. أما التحكم في الوصول القائم على الأدوار (`RBAC`) وسير عمل الموافقات فيقعان خارج النواة.
+تحكم هذه المواصفات إصدار السياسات، والاستخلاص الحتمي للسياسات، وفحوصات أهلية الحسابات والأبعاد، والبصمة القانونية للسياسة داخل النواة. تعود ملكية حالة إقفال الفترات المالية وقواعد تعريف شجرة الحسابات إلى `MASTERDATA_DOMAIN_SPECIFICATION_v1.2.0.md`. وتعود حسابات التقريب إلى `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md`، بينما يعود تنفيذ تسوية التقريب على مستوى القيد إلى `POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.2.0.md`. أما التحكم في الوصول القائم على الأدوار (`RBAC`) وسير عمل الموافقات فيقعان خارج النواة.
 
 ---
 
@@ -129,15 +132,15 @@
 
 ### POL-007 — أهلية ترحيل الحساب (Account posting eligibility)
 
-**يجب (MUST)** أن يقيّم فحص أهلية الحساب لقطة الحساب مؤرخة النفاذ المحلولة عند `entry.EffectiveDate` و**يجب (MUST)** أن يرفض الترحيل إذا تحقق أي مما يلي:
+**يجب (MUST)** أن يقيّم فحص أهلية الحساب لقطة الحساب مؤرخة النفاذ المحلولة عند `entry.EffectiveDate` و**يجب (MUST)** أن يرفض الترحيل إذا تحقق أي مما يلي (مع بقاء ملكية قواعد تعريف الحساب في `MASTERDATA` وإنفاذها في محرك الأهلية):
 
-1. ينتمي الحساب إلى `CompanyID` مختلف عن القيد.
-2. الحساب غير نافذ عند `entry.EffectiveDate` (`ErrAccountNotEffective`).
+1. ينتمي الحساب إلى `CompanyID` مختلف عن القيد (`ErrAccountIdentityMismatch`).
+2. الحساب غير نافذ عند `entry.EffectiveDate` (`ErrAccountNotEffective`، المكافئ في محرك السياسات لـ `ErrAccountNotCurrent` في `MASTERDATA`).
 3. الحساب غير نشط (`IsActive == false`) أو موقوف (`Suspended`).
-4. الحساب حساب تجميعي رئيسي (`IsHeader == true`).
+4. الحساب حساب تجميعي رئيسي (`IsHeader == true`) (`ErrHeaderAccountPosting`).
 5. الحساب حساب رقابة (`IsControlAccount == true`) (`ErrControlAccountNotPostable`).
 6. الحساب مقيد بعملة محددة لا تطابق عملة السطر.
-7. الحساب يحدد `RequiresCostCenter == true` (أو تشترط السياسة مراكز التكلفة) ويفتقر السطر إلى `CostCenterID` صالح.
+7. الحساب يحدد `RequiresCostCenter == true` (أو تشترط السياسة مراكز التكلفة) ويفتقر السطر إلى `CostCenterID` صالح (`ErrCostCenterRequired`).
 
 **معايير القبول**
 
@@ -158,11 +161,11 @@
 
 ### POL-009 — بصمة `PolicyFingerprint` الحتمية المرتبطة بالمحتوى
 
-عند نجاح التحقق، **يجب (MUST)** أن يحسب أنبوب الترحيل ويثبت `PolicyFingerprint` (`sha256:<hex>`) على القيد المجمد من التمثيل القانوني الموحد (`Canonical representation`) للحقول الدلالية التالية في `PostingPolicy` و`CurrencyPolicy` المحلولتين:
+عند نجاح التحقق، **يجب (MUST)** أن يحسب أنبوب الترحيل ويثبت `PolicyFingerprint` (`sha256:<hex>` ببادئة `policy-fingerprint-v1|` وبصيغة `<key>=<utf8_value>|` باستخدام `UTC RFC3339Nano` للتواريخ و`-` للنهايات غير المعيّنة) على القيد المجمد من الحقول الدلالية التالية في `PostingPolicy` و`CurrencyPolicy` المحلولتين:
 
 - `CompanyID`، وتاريخا `EffectiveDate` و`EffectiveTo` لكل سياسة؛
-- `AllowSoftClosedPosting`، وإلزامية الأبعاد، وحدود الترحيل المعتمدة؛
-- `FunctionalCurrency`، وقائمة `AllowedCurrencies` (مفروزةً معجمياً)، و`AutoSettleRoundingDifferences`، و`RoundingDifferenceAccountID`، وطريقة التقريب.
+- `AllowSoftClosedPosting`، وضوابط التأريخ الرجعي (`MaxBackdatingDays`, `AllowBackdatingException`)، وإلزامية الأبعاد لحسابات الإيرادات والمصروفات (`RequireCostCenterForIncomeExpense`, `RequireAnalyticalDimensionForIncomeExpense`)؛
+- `FunctionalCurrency`، و`PresentationCurrency`، وقائمة `AllowedCurrencies` (مطبّعةً بأحرف كبيرة ومفروزةً معجمياً ومفصولةً بفواصل)، و`AutoSettleRoundingDifferences`، و`RoundingDifferenceAccountID`، وطريقة التقريب `RoundingMethod` (تُحل عند الفراغ إلى التقريب المصرفي `Half-to-Even` وفق `MONEY-019`).
 
 **يجب ألّا (MUST NOT)** يدخل رقم إصدار التخزين (`Version` في `PolicyVersion`) ضمن مدخلات البصمة (`ADR P11-04 §7`)، و**يجب (MUST)** أن تكون `PolicyFingerprint` دليل تدقيق فقط تشمله فحوصات عدم القابلية للتعديل بعد الترحيل.
 
@@ -180,7 +183,8 @@
 | `ErrPolicyNotFound` | لا توجد سياسة تغطي `(CompanyID, EffectiveDate)` | حل السياسة |
 | `ErrPolicyOverlap` | تكرار `EffectiveDate` أو تداخل نافذة | تسجيل السياسة |
 | `ErrCurrencyNotAllowed` | عملة السطر مستبعدة من `CurrencyPolicy` | فحص عملة السطر |
-| `ErrAccountNotEffective` | الحساب غير نافذ عند `entry.EffectiveDate` | أهلية الحساب |
+| `ErrAccountNotEffective` | الحساب غير نافذ عند `entry.EffectiveDate` (مكافئ `ErrAccountNotCurrent` في `MASTERDATA`) | أهلية الحساب |
+| `ErrHeaderAccountPosting` | الترحيل المباشر على حساب تجميعي (`IsHeader == true`) | أهلية الحساب |
 | `ErrControlAccountNotPostable` | ترحيل مباشر على `IsControlAccount == true` | أهلية الحساب |
 | `ErrCostCenterRequired` | غياب `CostCenterID` عند إلزاميته بالحساب أو السياسة | أهلية الحساب |
 
@@ -191,7 +195,8 @@
 ### REF-001 — RFC 2119 & RFC 8174
 
 - **العنوان الكامل:** Key words for use in RFCs to Indicate Requirement Levels (RFC 2119); Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words (RFC 8174).
-- **الجهة الناشرة:** IETF.
+- **الجهة الناشرة:** Internet Engineering Task Force (IETF).
+- **الإصدار والتاريخ:** RFC 2119 (مارس 1997)، RFC 8174 (مايو 2017)؛ روجعتا في 2026-11-27.
 - **الروابط الرسمية:** <https://www.rfc-editor.org/rfc/rfc2119>, <https://www.rfc-editor.org/rfc/rfc8174>
 - **القيود:** يحدد اللغة المعيارية فقط.
 
@@ -214,8 +219,14 @@
 
 ### الملحق أ — سجل القرارات الهندسية (Decision Log)
 
-- **DEC-POL-001 (النوافذ نصف المفتوحة):** اعتماد `[EffectiveDate, EffectiveTo)` للسياسات (`ADR P5-01`) لتسهيل سلاسل الإصدارات المتعاقبة والفجوات الفاشلة مغلقاً.
-- **DEC-POL-002 (استبعاد رقم الإصدار من `PolicyFingerprint`):** تضمين الحقول الدلالية فقط دون رقم إصدار قاعدة البيانات (`ADR P11-04 §7`).
+- **DEC-POL-001 (النوافذ نصف المفتوحة):**
+  - **القرار:** اعتماد `[EffectiveDate, EffectiveTo)` للسياسات (`ADR P5-01`) لتسهيل سلاسل الإصدارات المتعاقبة والفجوات الفاشلة مغلقاً.
+  - **البدائل المدروسة:** النوافذ المغلقة أو الاحتفاظ بـ"أحدث تاريخ" ضمنياً؛ رُفضا لعدم إمكانية اختبار حد النهاية والفجوات.
+  - **المالك والتاريخ ومُحفّز المراجعة:** مالك `policy` (2026-11-22)؛ ثابت عقدي.
+- **DEC-POL-002 (استبعاد رقم الإصدار من `PolicyFingerprint`):**
+  - **القرار:** تضمين الحقول الدلالية فقط دون رقم إصدار قاعدة البيانات (`ADR P11-04 §7`).
+  - **البدائل المدروسة:** تضمين رقم الإصدار؛ رُفض لأنه يبطل بصمات القيود التاريخية عند الهجرة أو إعادة التسجيل المتطابق دلالياً.
+  - **المالك والتاريخ ومُحفّز المراجعة:** مالك المعمارية ومالك `policy` (2026-11-22)؛ ثابت عقدي.
 
 ### الملحق ب — تتبع القواعد (Rule traceability)
 
@@ -234,6 +245,12 @@
 ---
 
 ## 10. سجل الإصدارات (Version history)
+
+### v1.2.0
+
+- حصر الحقول الفعلية الداخلة في `PolicyFingerprint` (`policy-fingerprint-v1|`) وتوضيح حل `RoundingMethod` إلى `Half-to-Even` وفق `MONEY-019`.
+- إضافة `ErrHeaderAccountPosting` إلى جدول الأخطاء §7 وتوثيق التكافؤ بين `ErrAccountNotEffective` و`ErrAccountNotCurrent`.
+- استيفاء ترويسة النضج والمالك وحقول `NSM-001` في المراجع وسجل القرارات.
 
 ### v1.1.0
 

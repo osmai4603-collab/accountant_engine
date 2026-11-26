@@ -1,9 +1,12 @@
 # مواصفات مجال المعرّفات والأخطاء الأساسية (Identifiers and Core Errors Domain Specification)
 
-**الإصدار:** 1.1.0  
+**الإصدار:** 1.2.0  
 **نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
+**حالة النضج:** مواصفة معيارية مرشحة للاعتماد (`Review Candidate`)  
 **حالة المطابقة:** معياري إلزامي (Normative)  
-**النطاق:** معرّفات كيانات النواة (`Kernel entity identifiers`)، ثوابت هوية نطاق الشركة، رفض المعرّف الصفري/الفارغ، قيود التحويل إلى الوحدات الصغرى الصحيحة (`int64` minor units)، تصنيف الأخطاء المهيكل، وتوحيد أسماء الأخطاء الحارسة وقابليتها لإعادة المحاولة (`Retryability semantics`).
+**المالك / المعتمد:** مالك معمارية النواة ومالك مجالي الأنواع والأخطاء (`types` / `apperrors`)  
+**تاريخ التحديث:** 2026-11-27  
+**النطاق:** معرّفات كيانات النواة (`Kernel entity identifiers`)، ثوابت هوية نطاق الشركة، رفض المعرّف الصفري/الفارغ، قيود التحويل إلى الوحدات الصغرى الصحيحة (عدد صحيح ذو إشارة 64-بت / `int64` minor units)، تصنيف الأخطاء المهيكل، وتوحيد أسماء الأخطاء الحارسة وقابليتها لإعادة المحاولة (`Retryability semantics`).
 
 ---
 
@@ -113,17 +116,17 @@
 
 - تُرفض `"   "` بصورة مطابقة لـ `""` في `IdempotencyKey` و`ReversalReason`.
 
-### ID-006 — التحويل الدقيق وحدود `int64` للوحدات الصغرى
+### ID-006 — التحويل الدقيق وحدود العدد الصحيح 64-بت للوحدات الصغرى
 
-عند تحويل قيمة `Money` إلى عدد صحيح بالوحدات الصغرى (`int64` minor units):
+عند تحويل قيمة `Money` إلى عدد صحيح ذي إشارة بسعة 64-بت بالوحدات الصغرى (`64-bit signed integer minor units`):
 
 1. **يجب (MUST)** أن يرفض المسار الصارم أي كسور تتجاوز `MinorUnit` للعملة دون تقريب صامت (`ErrSubMinorUnitAmount`).
-2. **يجب (MUST)** أن يرفض كلا المسارين (الصارم والمقرّب) أي قيمة تتجاوز سعة العدد الصحيح ذي الإشارة 64-بت (`ErrAmountExceedsPrecision`).
+2. **يجب (MUST)** أن يرفض كلا المسارين (الصارم والمقرّب) أي قيمة تتجاوز سعة العدد الصحيح ذي الإشارة 64-بت (`[-2^63, 2^63 - 1]`) بخطأ `ErrAmountExceedsPrecision`.
 
 **معايير القبول**
 
 - يفشل تمرير `1.005 USD` إلى التحويل الصارم للوحدات الصغرى بخطأ `ErrSubMinorUnitAmount`.
-- يفشل تجاوز حدود `int64` بخطأ `ErrAmountExceedsPrecision` دون التفاف رقمي (`Wraparound`).
+- يفشل تجاوز حدود العدد الصحيح ذي الإشارة 64-بت بخطأ `ErrAmountExceedsPrecision` دون التفاف رقمي (`Wraparound`).
 
 ---
 
@@ -131,7 +134,7 @@
 
 ### ERR-001 — التمثيل المهيكل للأخطاء المكوّدة
 
-**يجوز (MAY)** تغليف أخطاء المجال والتوافق العام في `CodedError` يحمل `Code` ثابتاً، و`Message` وصفياً، و`Cause` مغلفاً اختيارياً. و**يجب (MUST)** أن يدعم فحص الأخطاء فك التغليف (`Unwrapping`) بحيث يتمكن المستدعون من مطابقة كل من الأخطاء الحارسة الدلالية ورموز الأخطاء المهيكلة.
+**يجوز (MAY)** تغليف أخطاء المجال والتوافق العام في `CodedError` يحمل `Code` ثابتاً (من الرموز القياسية المعتمدة: `ERR_VALIDATION`, `ERR_NOT_FOUND`, `ERR_CONFLICT`, `ERR_FORBIDDEN`, `ERR_CONCURRENCY`, `ERR_INTERNAL`)، و`Message` وصفياً، و`Cause` مغلفاً اختيارياً. و**يجب (MUST)** أن يدعم فحص الأخطاء فك التغليف (`Unwrapping`) بحيث يتمكن المستدعون من مطابقة كل من الأخطاء الحارسة الدلالية ورموز الأخطاء المهيكلة.
 
 **معايير القبول**
 
@@ -173,8 +176,11 @@
 | `ErrCompanyScopeRequired` | `CompanyID` صفري/معدوم | ما قبل القراءة / نقطة الدخول | لا |
 | `ErrMissingEntryID` / `ErrMissingLineID` / `ErrMissingJournalID` | معرّف الكيان أو السطر أو اليومية صفري/معدوم | ما قبل التحقق / فحص الهوية | لا |
 | `ErrDuplicateLineID` | تكرار `EntryLineID` في القيد | التحقق من الهوية | لا |
-| `ErrPosterIDRequired` / `ErrIdempotencyKeyRequired` / `ErrReversalReasonRequired` | `ActorID` أو `IdempotencyKey` أو السبب فارغ بعد الاقتطاع | ما قبل التحقق | لا |
-| `ErrSubMinorUnitAmount` / `ErrAmountExceedsPrecision` | كسر دون الوحدة الصغرى أو فيضان `int64` | تحويل الوحدات الصغرى | لا |
+| `ErrPosterIDRequired` / `ErrIdempotencyKeyRequired` / `ErrReversalReasonRequired` | `ActorID` أو `IdempotencyKey` (مرادفه في عقد النطاق `ErrIdempotencyScopeRequired`) أو السبب فارغ بعد الاقتطاع | ما قبل التحقق | لا |
+| `ErrSubMinorUnitAmount` / `ErrAmountExceedsPrecision` | كسر دون الوحدة الصغرى أو فيضان العدد الصحيح 64-بت | تحويل الوحدات الصغرى | لا |
+| `ErrAccountIdentityMismatch` / `ErrCostCenterRequired` / `ErrDimensionReaderRequired` / `ErrInactiveFinancialDimension` | كيان عابر للشركات أو غياب/عدم نشاط الأبعاد التحليلية | التحقق من الحساب والأبعاد | لا |
+| `ErrAccountNotCurrent` / `ErrAccountNotEffective` | الحساب خارج نافذة نفاذه بتاريخ المعاملة | التحقق من الحساب / الأهلية | لا |
+| `ErrInvalidReversal` | رابط عكس غير صالح أو محاولة عكس قيد عكسي | التحقق من التصنيف / بناء العكس | لا |
 | `ErrIdempotencyInProgress` / `ErrConcurrentModification` / `ErrDeadlockDetected` / `ErrSerializationFailure` | تعارض قفل، فشل تسلسل، أو منع تكرار قيد التنفيذ | الحفظ / التنفيذ | نعم |
 | `ErrIdempotencyPayloadConflict` / `ErrEntryAlreadyReversed` / `ErrRevaluationAlreadyApplied` / `ErrScopeViolation` | تعارض حمولة، معكوس مسبقاً، خرق نطاق | الحفظ / التنفيذ | لا |
 
@@ -218,7 +224,10 @@
 
 ### الملحق أ — سجل القرارات الهندسية (Decision Log)
 
-- **DEC-ID-001 (الاسم المعتمد لتعارض الحمولة):** اعتماد `ErrIdempotencyPayloadConflict` في عقد النواة (ومرادفه الوثائقي `ErrIdempotencyConflict`).
+- **DEC-ID-001 (الاسم المعتمد لتعارض الحمولة وتوحيد مرادفات الأخطاء الحارسة):**
+  - **القرار:** اعتماد `ErrIdempotencyPayloadConflict` في عقد النواة (ومرادفه الوثائقي `ErrIdempotencyConflict`)، وتوثيق التطابق الدلالي بين `ErrAccountNotCurrent` (`masterdata`) و`ErrAccountNotEffective` (`policy`)، وبين `ErrIdempotencyKeyRequired` (المفتاح الفارغ) و`ErrIdempotencyScopeRequired` (نطاق المنع غير المكتمل/المزور).
+  - **البدائل المدروسة:** إزالة أحد الأسماء فوراً دون مرادف؛ رُفض لأن ذلك يكسر التوافق مع الاختبارات وعقود `SPI` القائمة.
+  - **المالك والتاريخ ومُحفّز المراجعة:** مالك المعمارية ومالكي `types`/`posting` (2026-11-27)؛ يُراجع في الإصدار الرئيسي القادم `v2.0.0`.
 
 ### الملحق ب — تتبع القواعد (Rule traceability)
 
@@ -238,6 +247,12 @@
 ---
 
 ## 9. سجل الإصدارات (Version history)
+
+### v1.2.0
+
+- توثيق الرموز القياسية لـ `CodedError` في `ERR-001` وإضافة الأخطاء الحارسة للأبعاد والنفاذ والعكس إلى جدول §6.
+- تجريد `ID-006` من اسم النوع البرمجي `int64` وتوثيق مرادفات الأخطاء الحارسة في `DEC-ID-001`.
+- استيفاء ترويسة النضج والمالك وحقول `NSM-001`.
 
 ### v1.1.0
 

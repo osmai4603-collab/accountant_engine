@@ -222,7 +222,7 @@ EXIT=0
 ### 4.7 Fuzz smoke — PASS (9/9، 30 ثانية لكل هدف)
 
 ```text
-$ go test ./internal/kernal/<pkg> -run='^$' -fuzz='^<target>$' -fuzztime=30s -count=1
+go test ./internal/kernal/<pkg> -run='^$' -fuzz='^<target>$' -fuzztime=30s -count=1
 ```
 
 | الهدف | الحزمة | التنفيذات | النتيجة |

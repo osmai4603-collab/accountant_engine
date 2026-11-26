@@ -24,10 +24,10 @@ Scope.String()   = "company=<id>|operation=<post|reverse|revaluation>|key=<trimm
 ```
 
 | العنصر | المصدر | القاعدة |
-|---|---|---|
+| --- | --- | --- |
 | `CompanyID` | `entry.CompanyID` بعد Clone والتحقق | لا يُقبل نطاق شركة فارغ أو مختلف عن القيد |
 | `Operation` | `post` افتراضياً، و`reverse` إذا كان `ReversalOfID != nil`، و`revaluation` عند تلميح نطاق موثَّق في `PostOptions.Scope` | نفس نص المفتاح في الترحيل والعكس وإعادة التقييم يمثل ثلاث عمليات مختلفة |
-| `Key` | `strings.TrimSpace(opts.IdempotencyKey)` | مفتاح فارغ أو مسافات يُرفض بـ `ErrIdempotencyScopeRequired` |
+| `Key` | `strings.TrimSpace(opts.IdempotencyKey)` | مفتاح فارغ أو مسافات يُرفض بـ `ErrIdempotencyKeyRequired` (أو `ErrIdempotencyScopeRequired` عند بناء النطاق) |
 
 `BuildIdempotencyScope` هو المصدر الوحيد لهذه القيم. يُكتب فوق `Scope` الذي يرسله المتصل قبل استدعاء Executor، باستثناء تلميح `revaluation` الموثَّق: يقبل النواة العملية الثالثة فقط إذا تطابق `Scope.CompanyID` مع شركة القيد و`Scope.Key` مع `opts.IdempotencyKey`؛ وأي انحراف يُرفض بـ `ErrIdempotencyScopeRequired`. شركة النطاق ومفتاحه لا يُؤخذان أبداً من المتصل. الدليل: `TestPostEntryStampsIdempotencyContractOnExecutorOptions`، `TestBuildIdempotencyScopeHonorsValidatedRevaluationHint` و`TestBuildIdempotencyScopeRejectsForgedRevaluationHint`.
 
@@ -36,7 +36,7 @@ Scope.String()   = "company=<id>|operation=<post|reverse|revaluation>|key=<trimm
 هناك بصمتان canonical بصيغة `sha256:<hex>`:
 
 | البصمة | الوظيفة | من يستخدمها |
-|---|---|---|
+| --- | --- | --- |
 | `RequestFingerprint` | digest للنسخة المجمدة بعد التحقق والختم، بما يشمل `FiscalPeriodID` و`PolicyFingerprint` و`PostingDate` و`PostedAt` | `(PostOptions.RequestFingerprint)` يُسلَّم إلى Executor لوصف اللقطة التي قررتها النواة بالضبط |
 | `CallerFingerprint` | digest للحقول التي يملكها المتصل قبل التحويل، ويبقى ثابتاً عبر خطوات الترحيل | `PostingCommit.Idempotency.PayloadHash` في SDK، ويُستخدم للكشف عن إعادة المفتاح بحمولة مختلفة قبل وبعد الترحيل |
 
@@ -56,7 +56,7 @@ Scope.String()   = "company=<id>|operation=<post|reverse|revaluation>|key=<trimm
 ## 4. حالة التنفيذ
 
 | الحالة | المعنى | نهائية؟ |
-|---|---|---|
+| --- | --- | --- |
 | `started` | المفتاح محجوز والتنفيذ جارٍ داخل معاملة غير مكتملة | لا |
 | `completed` | وحدة العمل التزمت بالكامل؛ `EntryID` و`Response` محفوظان | نعم |
 | `retryable_failure` | فشل مؤقت؛ يمكن إعادة المحاولة تحت سياسة مضيف محدودة | لا |
@@ -67,7 +67,7 @@ Scope.String()   = "company=<id>|operation=<post|reverse|revaluation>|key=<trimm
 ## 5. سلوك إعادة الطلب
 
 | الحالة المرصودة | السلوك |
-|---|---|
+| --- | --- |
 | لا يوجد سجل | المتابعة إلى التحقق والتفويض؛ المحول يحجز المفتاح ذرياً داخل التنفيذ |
 | `completed` والبصمة نفسها | إعادة `EntryID` والقيد المحفوظ؛ صفر كتابة جديدة؛ `IdempotentReplay = true` |
 | أي حالة والبصمة مختلفة | `ErrIdempotencyPayloadConflict`؛ لا كتابة، ولا محاولة «تحديث» السجل |
@@ -100,7 +100,7 @@ Scope.String()   = "company=<id>|operation=<post|reverse|revaluation>|key=<trimm
 ## 8. تصنيف الأخطاء
 
 | الخطأ | التصنيف | سبب التصنيف |
-|---|---|---|
+| --- | --- | --- |
 | `ErrIdempotencyInProgress` | retryable | قد ينتهي التنفيذ الآخر ويصبح نتيجته متاحة |
 | `ErrIdempotencyStorageUnavailable` | retryable | المخزن قد يعود؛ الترحيل لا يتم بدونه |
 | `ErrConcurrencyConflict` | retryable | تعارض تسلسلي يُعاد تشغيله من بداية وحدة العمل |
