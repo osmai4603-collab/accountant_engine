@@ -164,7 +164,7 @@
 
 **يجب (MUST)** أن يفشل ترحيل قيد في حالة `Posted` أو `Reversed` أو `Cancelled` بخطأ `ErrInvalidEntryState`. و**يجب (MUST)** أن تفشل محاولة إلغاء قيد في حالة `Posted` أو `Reversed` بخطأ `ErrCannotModifyPostedMove` أو `ErrInvalidEntryState`. و**يجب (MUST)** رفض قيد `Draft` يحمل معرّف `ReversedByID` موجوداً مسبقاً بخطأ `ErrInvalidReversal`.
 
-> **حالة التنفيذ (مُحدَّث 2026-11-27):** تم إغلاق فجوة التنفيذ السابقة بإضافة حالة `EntryCancelled` ودالة `Cancel()` وحقول `CancelledBy`/`CancelledAt`/`CancellationReason` إلى `internal/kernal/journal` وتصديرها عبر `pkg/api/v1/journal` ولقطة `docs/api/v1.snapshot` وتحديث قيد `chk_move_status` في PostgreSQL. تبقى الحالة مسودةً ملغاةً بلا أثر في الأستاذ العام وفق `LDG-001`.
+> **حالة التنفيذ (مُحدَّث 2026-11-28):** تم إغلاق فجوة التنفيذ السابقة بإضافة حالة `EntryCancelled` ودالة `Cancel()` وحقول `CancelledBy`/`CancelledAt`/`CancellationReason` إلى `internal/kernal/journal` وتصديرها عبر `pkg/api/v1/journal` ولقطة `docs/api/v1.snapshot` وتحديث قيد `chk_move_status` في PostgreSQL، كما تم تعريض عقد `DraftCancellationService` في `pkg/spi/application` و`pkg/sdk.DraftCancellation(engine)` وتنفيذه في محولي `Memory` و`PostgreSQL` مع تسجيل التدقيق. تبقى الحالة مسودةً ملغاةً بلا أثر في الأستاذ العام وفق `LDG-001`.
 
 **معايير القبول**
 

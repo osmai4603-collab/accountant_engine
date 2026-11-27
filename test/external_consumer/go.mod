@@ -7,6 +7,9 @@ require (
 	github.com/shopspring/decimal v1.6.0
 )
 
-require github.com/google/uuid v1.6.0 // indirect
+require (
+	github.com/google/uuid v1.6.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+)
 
 replace github.com/osmai4603-collab/accounting_engine => ../..

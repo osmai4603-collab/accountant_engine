@@ -20,9 +20,11 @@
 //     API shapes — never use them for posting eligibility or fiscal validation.
 //     Conversion rules are recorded in docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md.
 //
-//  3. Scope keys. All ledger models and projections carry CompanyID. There is no
-//     BookID or LedgerID in the kernel posting contract; multi-book scope keys
-//     are reserved for a future ADR and are not implemented here.
+//  3. Scope keys. All ledger models and projections carry CompanyID. Multi-book
+//     / multi-ledger isolation (BookID / LedgerID) is governed by ADR P12-01
+//     (docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p12-01)
+//     and propagated via storage.WithLedgerContext with "primary" as the
+//     backward-compatible default book.
 //
 //  4. Backward compatibility. AccountTypeRevenue is a documented alias for
 //     AccountTypeIncome ("income") retained for callers and public API schemas.

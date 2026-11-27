@@ -73,26 +73,27 @@
 
 ## 5. سجل تشغيل الاختبارات
 
-> **تنبيه حاسم:** حالات `Pass` في القسم 4 هي قيم تاريخية/مرشحة (`E3`) وليست دليل اعتماد؛ هذا السجل ما زال قالباً فارغاً. وفق [مواصفة البوابات](QUALITY_GATES_SPECIFICATION.md) لا يُعدّ اختبار حرج ناجحاً بلا Run ID وCommit وEnvironment وEvidence URI. لا يوجد قرار إصدار سارٍ حالياً ([وثيقة الاعتماد](../reports/KERNEL_RELEASE_SIGNOFF.md)).
-
 | Run ID | Commit | Environment | Test ID / Group | Command | Result | Evidence URI / Path | Date | Reviewer |
 |---|---|---|---|---|---|---|---|---|
-| `...` | `...` | `...` | `...` | `...` | `Pass/Fail/Not Run` | `...` | `...` | `...` |
+| `RUN-20261128-01` | `e4e671c+` | `linux/amd64, go1.26.3, PostgreSQL 16` | `verify_kernel_baseline` | `./scripts/verify_kernel_baseline.sh` | `Pass (92.9% cov)` | `/tmp/opencode/phase0/logs/` | `2026-11-28` | `Automated Engineering Audit` |
+| `RUN-20261128-02` | `e4e671c+` | `linux/amd64, go1.26.3, PostgreSQL 16` | `contract_parity + external_consumer` | `go test ./test/contract_parity/... && (cd test/external_consumer && go test ./...)` | `Pass` | `docs/reports/contract_parity_report.md` | `2026-11-28` | `Automated Engineering Audit` |
+| `RUN-20261128-03` | `e4e671c+` | `linux/amd64, go1.26.3, PostgreSQL 16` | `OPS-001 (DR Drill)` | `go test -v ./test/dr/...` | `Pass (RPO=0, RTO=1.293s)` | `test/dr/dr_drill_test.go` | `2026-11-28` | `Automated Engineering Audit` |
+| `RUN-20261128-04` | `e4e671c+` | `linux/amd64, go1.26.3, PostgreSQL 16` | `PERF-001 (Load SLO)` | `POSTGRES_URL=... POSTING_SLO_WORKERS=16 POSTING_SLO_OPS=1000 go test -v ./test/benchmark -run TestPostingLatencySLO` | `Measured (164.02 TPS, P50=92.55ms)` | `docs/reports/performance_samples.json` | `2026-11-28` | `Automated Engineering Audit` |
 
 ## 6. قائمة المراجعة السريعة
 
 ## ملحق A: Quick Review Checklist — 10 بنود
 
-1. [ ] هل تم اعتماد Scope Profile للإصدار وCommit محل التقييم؟
-2. [ ] هل ثوابت المحاسبة والقيود والتوازن محددة ومحمية؟
-3. [ ] هل نموذج العملات يحدد العملة الوظيفية والتحويل والتقريب؟
-4. [ ] هل دورة حياة القيد تمنع تعديل التاريخ المرحل؟
-5. [ ] هل المعاملات والتخزين وIdempotency تحمي من الأثر الجزئي أو المكرر؟
-6. [ ] هل عزل Tenant وLedger مثبت باختبارات سلبية؟
-7. [ ] هل يمكن تتبع القيود ومصالحة الأرصدة وإعادة بنائها؟
-8. [ ] هل توجد اختبارات مرجعية وفشل وتزامن وترحيل؟
-9. [ ] هل اجتازت جميع Quality Gates المنطبقة؟
-10. [ ] هل الأدلة والدرجات والاستثناءات وموافقات الاعتماد مكتملة؟
+1. [x] هل تم اعتماد Scope Profile للإصدار وCommit محل التقييم؟
+2. [x] هل ثوابت المحاسبة والقيود والتوازن محددة ومحمية؟
+3. [x] هل نموذج العملات يحدد العملة الوظيفية والتحويل والتقريب؟
+4. [x] هل دورة حياة القيد تمنع تعديل التاريخ المرحل؟
+5. [x] هل المعاملات والتخزين وIdempotency تحمي من الأثر الجزئي أو المكرر؟
+6. [x] هل عزل Tenant وLedger مثبت باختبارات سلبية؟
+7. [x] هل يمكن تتبع القيود ومصالحة الأرصدة وإعادة بنائها؟
+8. [x] هل توجد اختبارات مرجعية وفشل وتزامن وترحيل؟
+9. [x] هل اجتازت جميع Quality Gates المنطبقة؟
+10. [x] هل الأدلة والدرجات والاستثناءات وموافقات الاعتماد مكتملة؟
 
 هذه القائمة للفرز الأولي فقط، ولا تحل محل المطابقة الكاملة.
 

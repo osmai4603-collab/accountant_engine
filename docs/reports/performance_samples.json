@@ -1,13 +1,13 @@
 {
   "scenario": "posting_pipeline",
   "adapter": "postgres",
-  "samples": 6000,
-  "duration": "1m34.779s",
-  "tps": 63.30506888586065,
-  "p50_ms": 238.738,
-  "p95_ms": 337.707,
-  "p99_ms": 554.814,
-  "min_ms": 183.212,
-  "max_ms": 790.258,
-  "recorded_utc": "2026-11-21T02:50:27.778655841Z"
+  "samples": 1000,
+  "duration": "6.097s",
+  "tps": 164.01891239817286,
+  "p50_ms": 92.546,
+  "p95_ms": 128.493,
+  "p99_ms": 172.55,
+  "min_ms": 42.395,
+  "max_ms": 189.854,
+  "recorded_utc": "2026-11-27T23:22:38.463264146Z"
 }

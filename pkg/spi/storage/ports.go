@@ -48,6 +48,11 @@ type DraftStore interface {
 	SaveDraft(ctx context.Context, entry journal.JournalEntry) error
 }
 
+// DraftCanceller persists a draft-to-cancelled lifecycle transition atomically.
+type DraftCanceller interface {
+	CancelDraft(ctx context.Context, entry journal.JournalEntry) error
+}
+
 // EntryReader reads journal entries scoped to a company.
 type EntryReader interface {
 	GetEntry(ctx context.Context, companyID types.CompanyID, entryID types.JournalEntryID) (journal.JournalEntry, error)

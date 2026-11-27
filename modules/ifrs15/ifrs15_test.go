@@ -1170,14 +1170,15 @@ func TestDescriptorAndWorkflowValidation(t *testing.T) {
 	if descriptor.Profile.IsConfigured() {
 		t.Fatal("unconfigured profile reported as configured")
 	}
-	if len(descriptor.Profile.SupportedRequirements) != 9 || len(descriptor.Profile.UnimplementedRequirements) != 2 ||
+	if len(descriptor.Profile.SupportedRequirements) != 11 || len(descriptor.Profile.UnimplementedRequirements) != 0 ||
 		len(descriptor.Workflows) != 8 {
-		t.Fatalf("profile/workflow counts = %d/%d/%d, want 9/2/8",
+		t.Fatalf("profile/workflow counts = %d/%d/%d, want 11/0/8",
 			len(descriptor.Profile.SupportedRequirements), len(descriptor.Profile.UnimplementedRequirements), len(descriptor.Workflows))
 	}
 	for _, requirement := range descriptor.Profile.SupportedRequirements {
 		if !strings.HasPrefix(requirement.Implementation, "modules/ifrs15/") ||
-			!strings.HasPrefix(requirement.TestEvidence, "modules/ifrs15/ifrs15_test.go:") {
+			(!strings.HasPrefix(requirement.TestEvidence, "modules/ifrs15/ifrs15_test.go:") &&
+				!strings.HasPrefix(requirement.TestEvidence, "modules/ifrs15/enterprise_test.go:")) {
 			t.Errorf("requirement %s has stale evidence: %s / %s",
 				requirement.ID, requirement.Implementation, requirement.TestEvidence)
 		}

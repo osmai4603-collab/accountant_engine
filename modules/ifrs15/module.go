@@ -12,9 +12,10 @@ import (
 )
 
 type Module struct {
-	mu    sync.RWMutex
-	ports standards.ModulePorts
-	store ContractStore
+	mu            sync.RWMutex
+	ports         standards.ModulePorts
+	store         ContractStore
+	profileConfig standards.StandardProfileConfig
 }
 
 type Option func(*Module)
@@ -46,13 +47,10 @@ var (
 )
 
 func (m *Module) Descriptor() standards.ModuleDescriptor {
-	return standards.ModuleDescriptor{
-		ID:          "ifrs15",
-		Name:        "IFRS 15",
-		Version:     "1.1.0",
-		Provides:    []standards.Capability{standards.CapRevenueRecognition},
-		Description: "Expanded IFRS 15 revenue measurement, variable consideration, financing component, contract modifications, durable contract lifecycle, and financial disclosures.",
-		Profile: &standards.StandardProfile{
+	m.mu.RLock()
+	cfg := m.profileConfig
+	m.mu.RUnlock()
+	profile := &standards.StandardProfile{
 			Standard:      "IFRS 15",
 			Edition:       "Not configured; host must select the applicable issued edition",
 			Amendments:    []string{"Not configured; host must select applicable amendments"},
@@ -69,16 +67,21 @@ func (m *Module) Descriptor() standards.ModuleDescriptor {
 				{ID: "IFRS15-CONTRACT-MODIFICATION", Summary: "Three-way contract modification handling under IFRS 15.18-21 (separate contract, prospective replacement, cumulative catch-up).", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/modification.go:ApplyProspectiveModification", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestContractModificationTypeBProspective"},
 				{ID: "IFRS15-DURABLE-WORKFLOW", Summary: "Durable contract workflow state, lifecycle statuses (Draft, Active, Modified, Satisfied), and recovery across process restarts via ContractStore.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/store.go:InMemoryContractStore", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestDurableWorkflowRecoveryAcrossRestart"},
 				{ID: "IFRS15-DISCLOSURE", Summary: "Structured financial statement disclosures under IFRS 15.113-128 (revenue disaggregation, contract balances, remaining performance obligations).", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/disclosures.go:Module.GetDisclosures", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestModuleDisclosureProvider"},
-			},
-			UnimplementedRequirements: []standards.StandardRequirement{
-				{ID: "IFRS15-PRINCIPAL-VS-AGENT", Summary: "Principal versus agent evaluation (IFRS 15.B34-B38) is evaluated by the host system.", Status: standards.RequirementNotImplemented},
-				{ID: "IFRS15-IP-LICENSING-COMPLEX", Summary: "Complex intellectual property licenses and sales-based/usage-based royalties (IFRS 15.B52-B63).", Status: standards.RequirementNotImplemented},
+				{ID: "IFRS15-PRINCIPAL-VS-AGENT", Summary: "Principal versus agent gross/net evaluation under IFRS 15.B34-B38.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/enterprise.go:EvaluatePrincipalVsAgent", TestEvidence: "modules/ifrs15/enterprise_test.go:TestIFRS15EnterpriseCapabilities"},
+				{ID: "IFRS15-IP-LICENSING-COMPLEX", Summary: "Symbolic/functional IP licensing and sales/usage-based royalties under IFRS 15.B52-B63.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/enterprise.go:EvaluateIPLicense", TestEvidence: "modules/ifrs15/enterprise_test.go:TestIFRS15EnterpriseCapabilities"},
 			},
 			Exclusions: []string{
-				"Principal-versus-agent evaluations (IFRS 15.B34-B38) and complex intellectual property licensing (IFRS 15.B52-B63) are excluded from engine determination.",
-				"Service delivery, control transfer, acceptance, and progress measurement are supplied and evidenced by the host; the engine does not determine them.",
+				"Service delivery, control transfer, acceptance, and progress measurement are supplied and evidenced by the host via ControlTransferInput; the engine does not determine them.",
 			},
-		},
+		}
+	profile.ApplyConfig(cfg)
+	return standards.ModuleDescriptor{
+		ID:          "ifrs15",
+		Name:        "IFRS 15",
+		Version:     "1.1.0",
+		Provides:    []standards.Capability{standards.CapRevenueRecognition},
+		Description: "Expanded IFRS 15 revenue measurement, variable consideration, financing component, contract modifications, durable contract lifecycle, and financial disclosures.",
+		Profile:     profile,
 		Workflows: []standards.WorkflowDescriptor{
 			{
 				ID: "revenue-five-step-input-validation", Name: "Five-step input validation",

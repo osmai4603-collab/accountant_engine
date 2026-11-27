@@ -9,10 +9,10 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 )
 
-func idempotencyRecordKey(record storage.IdempotencyRecord) idempotencyKey {
+func idempotencyRecordKey(ctx context.Context, record storage.IdempotencyRecord) idempotencyKey {
 	return idempotencyKey{
 		companyID: record.CompanyID,
-		key:       record.Key,
+		key:       ledgerScopedIdempotencyKey(ctx, record.Key),
 		scope:     record.Scope,
 	}
 }
@@ -27,7 +27,7 @@ func (d *Driver) Claim(ctx context.Context, record storage.IdempotencyRecord) (e
 		return storage.IdempotencyRecord{}, false, ErrReadOnlyTransaction
 	}
 
-	key := idempotencyRecordKey(record)
+	key := idempotencyRecordKey(ctx, record)
 	if ex, ok := d.idempotency[key]; ok {
 		if ex.PayloadHash != "" && record.PayloadHash != "" && ex.PayloadHash != record.PayloadHash {
 			return storage.IdempotencyRecord{}, false, storage.ErrIdempotencyPayloadConflict
@@ -50,8 +50,9 @@ func (d *Driver) Lookup(ctx context.Context, companyID types.CompanyID, key stri
 	}
 	d.mu.RLock()
 	defer d.mu.RUnlock()
+	scopedKey := ledgerScopedIdempotencyKey(ctx, key)
 	for recordKey, record := range d.idempotency {
-		if recordKey.companyID == companyID && recordKey.key == key {
+		if recordKey.companyID == companyID && recordKey.key == scopedKey {
 			return record, true, nil
 		}
 	}

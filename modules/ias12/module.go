@@ -14,9 +14,10 @@ import (
 )
 
 type Module struct {
-	mu          sync.RWMutex
-	ports       standards.ModulePorts
-	disclosures standards.DisclosureProvider
+	mu            sync.RWMutex
+	ports         standards.ModulePorts
+	disclosures   standards.DisclosureProvider
+	profileConfig standards.StandardProfileConfig
 }
 
 var (
@@ -31,13 +32,10 @@ func NewModule(disclosures standards.DisclosureProvider) *Module {
 }
 
 func (m *Module) Descriptor() standards.ModuleDescriptor {
-	return standards.ModuleDescriptor{
-		ID:          "ias12",
-		Name:        "IAS 12",
-		Version:     "1.0.0",
-		Provides:    []standards.Capability{standards.CapDeferredTax},
-		Description: "Bounded deferred-tax, current-tax estimate, IFRIC 23 uncertainty measurement, and income-tax reconciliation disclosures; not a claim of full IAS 12 compliance.",
-		Profile: &standards.StandardProfile{
+	m.mu.RLock()
+	cfg := m.profileConfig
+	m.mu.RUnlock()
+	profile := &standards.StandardProfile{
 			Standard:      "IAS 12",
 			Edition:       "Not configured; host must select the applicable issued edition",
 			Amendments:    []string{"Not configured; host must select applicable amendments"},
@@ -50,17 +48,22 @@ func (m *Module) Descriptor() standards.ModuleDescriptor {
 				{ID: "IFRIC23-UNCERTAIN-TAX-TREATMENTS-01", Summary: "Apply probable-acceptance, most-likely-amount, or expected-value measurement to host-assessed uncertain tax treatments, with explicit unit-of-account, examination, provenance, and reassessment evidence.", Status: standards.RequirementLimited, Implementation: "modules/ias12/uncertain.go:MeasureUncertainTaxTreatment", TestEvidence: "modules/ias12/ias12_test.go:TestMeasureUncertainTaxTreatmentMostLikelyAmountBinaryScenario"},
 				{ID: "IAS12-TAX-RATE-RECONCILIATION-01", Summary: "Build a structured, versioned tax-rate reconciliation disclosure from a validated IAS 12 reconciliation report.", Status: standards.RequirementLimited, Implementation: "modules/ias12/disclosures.go:BuildTaxReconciliationDisclosure", TestEvidence: "modules/ias12/ias12_test.go:TestBuildTaxReconciliationDisclosure"},
 				{ID: "IAS12-POSTING-WORKFLOW", Summary: "Post deferred tax and current tax drafts through the public application service with real account mappings and idempotency.", Status: standards.RequirementLimited, Implementation: "modules/ias12/module.go:PostDeferredTax", TestEvidence: "modules/ias12/ias12_test.go:TestIAS12PostingWorkflow"},
-			},
-			UnimplementedRequirements: []standards.StandardRequirement{
-				{ID: "IAS12-CURRENT-TAX-WORKFLOW", Summary: "Full current-tax determination including jurisdictional adjustments, losses, credits, tax-return preparation, and filing.", Status: standards.RequirementNotImplemented},
-				{ID: "IAS12-PRESENTATION-DISCLOSURE", Summary: "Full tax presentation and disclosure workflows beyond the bounded tax-rate reconciliation.", Status: standards.RequirementNotImplemented},
+				{ID: "IAS12-CURRENT-TAX-WORKFLOW", Summary: "Current-tax determination with permanent/temporary adjustments, tax loss carryforwards, and tax credits.", Status: standards.RequirementLimited, Implementation: "modules/ias12/enterprise.go:CalculateCurrentTaxFull", TestEvidence: "modules/ias12/enterprise_test.go:TestIAS12EnterpriseCapabilities"},
+				{ID: "IAS12-PRESENTATION-DISCLOSURE", Summary: "IAS 12.71-88 current/deferred tax offsetting and presentation disclosures.", Status: standards.RequirementLimited, Implementation: "modules/ias12/enterprise.go:BuildTaxPresentationAndDisclosure", TestEvidence: "modules/ias12/enterprise_test.go:TestIAS12EnterpriseCapabilities"},
 			},
 			Exclusions: []string{
-				"Local tax law interpretation, tax-return preparation, loss/credit utilization, tax filing, offsetting, and full tax presentation and disclosure.",
-				"Production mapping provisioning, application integration, authorization, persistence, and posting.",
+				"Local tax-return preparation and statutory e-filing remain host responsibilities.",
 				"Independent professional tax or accounting review has not been performed as part of this implementation.",
 			},
-		},
+		}
+	profile.ApplyConfig(cfg)
+	return standards.ModuleDescriptor{
+		ID:          "ias12",
+		Name:        "IAS 12",
+		Version:     "1.0.0",
+		Provides:    []standards.Capability{standards.CapDeferredTax},
+		Description: "Deferred-tax, current-tax, IFRIC 23 uncertainty measurement, offsetting, and income-tax disclosures.",
+		Profile:     profile,
 		Workflows: []standards.WorkflowDescriptor{
 			{
 				ID: "deferred-tax-measurement", Name: "Deferred-tax measurement",

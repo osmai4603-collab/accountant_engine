@@ -132,6 +132,37 @@ func Run(t *testing.T, store masterdata.Store) {
 		!gotPeriod.EndDate.Equal(period.EndDate) || gotPeriod.State != period.State || gotPeriod.Type != period.Type {
 		t.Fatalf("get fiscal period = %#v; want %#v", gotPeriod, period)
 	}
+
+	// Adjustment periods 13 and 14 contract (when FiscalPeriodNumberReader is implemented).
+	if numReader, ok := store.(masterdata.FiscalPeriodNumberReader); ok {
+		p13 := masterdata.FiscalPeriod{
+			ID: types.FiscalPeriodID(uuid.New()), CompanyID: company.ID, FiscalYearID: year.ID,
+			Number: 13, Name: "Year-End Adjustment 2026", StartDate: end, EndDate: end,
+			State: masterdata.PeriodOpen, Type: masterdata.FiscalPeriodTypeYearEndAdjustment,
+		}
+		p14 := masterdata.FiscalPeriod{
+			ID: types.FiscalPeriodID(uuid.New()), CompanyID: company.ID, FiscalYearID: year.ID,
+			Number: 14, Name: "Audit Adjustment 2026", StartDate: end, EndDate: end,
+			State: masterdata.PeriodOpen, Type: masterdata.FiscalPeriodTypeAuditAdjustment,
+		}
+		if err := store.CreateFiscalPeriod(ctx, p13); err != nil {
+			t.Fatalf("create adjustment period 13: %v", err)
+		}
+		if err := store.CreateFiscalPeriod(ctx, p14); err != nil {
+			t.Fatalf("create adjustment period 14: %v", err)
+		}
+		got13, err := numReader.GetPeriodByNumber(ctx, company.ID, year.ID, 13)
+		if err != nil || got13.ID != p13.ID || got13.Type != masterdata.FiscalPeriodTypeYearEndAdjustment {
+			t.Fatalf("get period 13 = %#v, %v; want %#v", got13, err, p13)
+		}
+		got14, err := numReader.GetPeriodByNumber(ctx, company.ID, year.ID, 14)
+		if err != nil || got14.ID != p14.ID || got14.Type != masterdata.FiscalPeriodTypeAuditAdjustment {
+			t.Fatalf("get period 14 = %#v, %v; want %#v", got14, err, p14)
+		}
+		if _, err := numReader.GetPeriodByNumber(ctx, types.NewCompanyID(), year.ID, 13); err != masterdata.ErrPeriodNotFound {
+			t.Errorf("cross-company get period 13 error = %v, want ErrPeriodNotFound", err)
+		}
+	}
 }
 
 func AssertUnsupported(t *testing.T, store masterdata.Store) {

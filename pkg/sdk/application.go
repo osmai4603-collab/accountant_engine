@@ -128,12 +128,15 @@ func (a masterDataReaderAdapter) GetJournalByID(ctx context.Context, companyID t
 }
 
 func (a masterDataReaderAdapter) GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (kernalmasterdata.FiscalPeriod, error) {
+	if repo, ok := a.reader.(publicmasterdata.FiscalPeriodNumberReader); ok {
+		return repo.GetPeriodByNumber(ctx, companyID, fiscalYearID, number)
+	}
 	if repo, ok := a.reader.(interface {
 		GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (kernalmasterdata.FiscalPeriod, error)
 	}); ok {
 		return repo.GetPeriodByNumber(ctx, companyID, fiscalYearID, number)
 	}
-	return kernalmasterdata.FiscalPeriod{}, errors.New("adjustment periods not supported")
+	return kernalmasterdata.FiscalPeriod{}, fmt.Errorf("%w: adjustment periods not supported", publictypes.ErrCapabilityNotImplemented)
 }
 
 func toKernalJournal(j publicmasterdata.Journal) kernalmasterdata.Journal {
@@ -241,6 +244,8 @@ var _ publicapplication.Service = (*applicationService)(nil)
 var _ publicapplication.TransactionalService = (*applicationService)(nil)
 var _ publicapplication.IdempotentPostingLookup = (*applicationService)(nil)
 var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
+var _ publicapplication.DraftCancellationService = (*applicationService)(nil)
+var _ publicapplication.YearEndClosingService = (*applicationService)(nil)
 
 func newApplication(ports storage.Ports, config PostingConfig, authorizer publicapplication.Authorizer) *applicationService {
 	policyEngine := policy.NewPolicyEngine()
@@ -770,6 +775,60 @@ func (s *applicationService) Reverse(ctx context.Context, command publicapplicat
 	}
 
 	return publicapplication.EntryResult{Entry: posted, IdempotentReplay: false}, nil
+}
+
+func (s *applicationService) CancelDraft(ctx context.Context, command publicapplication.CancelDraftCommand) (publicapplication.EntryResult, error) {
+	entryID := command.EntryID
+	if err := s.authorize(ctx, command.Context, command.CompanyID, publicapplication.ActionCancel, &entryID, ""); err != nil {
+		return publicapplication.EntryResult{}, err
+	}
+
+	actorID := strings.TrimSpace(command.Context.Principal.ActorID)
+	if actorID == "" {
+		return publicapplication.EntryResult{}, publicapplication.NewError(
+			publicapplication.ErrValidation, "actor id is required to cancel a draft", journal.ErrInvalidCancellation)
+	}
+	reason := strings.TrimSpace(command.Reason)
+	if reason == "" {
+		return publicapplication.EntryResult{}, publicapplication.NewError(
+			publicapplication.ErrValidation, "cancellation reason is required", journal.ErrInvalidCancellation)
+	}
+	canceller, ok := s.ports.Drafts.(storage.DraftCanceller)
+	if !ok {
+		return publicapplication.EntryResult{}, ErrCapabilityNotImplemented
+	}
+
+	entry, err := s.ports.Entries.GetEntry(ctx, command.CompanyID, command.EntryID)
+	if err != nil {
+		return publicapplication.EntryResult{}, classifyError(err)
+	}
+
+	cancelledAt := command.CancelledAt
+	if cancelledAt.IsZero() {
+		cancelledAt = time.Now().UTC()
+	}
+	if err := entry.Cancel(actorID, reason, cancelledAt); err != nil {
+		return publicapplication.EntryResult{}, classifyError(err)
+	}
+
+	if err := canceller.CancelDraft(ctx, entry); err != nil {
+		return publicapplication.EntryResult{}, classifyError(err)
+	}
+
+	if s.ports.Audit != nil {
+		_ = s.ports.Audit.AppendAudit(ctx, storage.AuditRecord{
+			CompanyID:     entry.CompanyID,
+			EntityType:    "journal_entry",
+			EntityID:      entry.ID.String(),
+			Action:        string(publicapplication.ActionCancel),
+			ActorID:       actorID,
+			Reason:        reason,
+			CorrelationID: command.Context.CorrelationID,
+			OccurredAt:    cancelledAt.UTC(),
+		})
+	}
+
+	return publicapplication.EntryResult{Entry: entry, IdempotentReplay: false}, nil
 }
 
 func (s *applicationService) GetEntry(ctx context.Context, query publicapplication.GetEntryQuery) (journal.JournalEntry, error) {

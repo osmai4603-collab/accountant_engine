@@ -27,6 +27,14 @@ func (d *Driver) SaveDraft(ctx context.Context, entry journal.JournalEntry) erro
 	})
 }
 
+// CancelDraft transitions an existing unposted draft entry to cancelled in a company transaction.
+func (d *Driver) CancelDraft(ctx context.Context, entry journal.JournalEntry) error {
+	return d.WithCompanyTx(ctx, uuid.UUID(entry.CompanyID), func(tx pgx.Tx) error {
+		uow := &postgresUnitOfWork{driver: d, tx: tx}
+		return uow.CancelDraft(ctx, entry)
+	})
+}
+
 // GetEntry returns a journal entry by ID.
 func (d *Driver) GetEntry(ctx context.Context, companyID types.CompanyID, entryID types.JournalEntryID) (journal.JournalEntry, error) {
 	var entry journal.JournalEntry
@@ -66,15 +74,27 @@ func (d *Driver) CommitPosting(ctx context.Context, commit storage.PostingCommit
 		return journal.JournalEntry{}, err
 	}
 	companyCtx := storage.WithCompanyContext(ctx, commit.Entry.CompanyID)
-	err := d.ExecuteWithOptions(companyCtx, storage.TxOptions{}, func(txCtx context.Context, uow storage.UnitOfWork) error {
+	if scope, inTx := ctx.Value(transactionContextKey{}).(transactionScope); inTx {
+		if scope.companyID != uuid.UUID(commit.Entry.CompanyID) {
+			return journal.JournalEntry{}, fmt.Errorf("%w: commit company %s does not match transaction company %s", storage.ErrScopeViolation, commit.Entry.CompanyID, scope.companyID)
+		}
+		uow := &postgresUnitOfWork{driver: d, tx: scope.tx}
 		var postErr error
-		// The transaction-aware context must reach CommitPosting: ordered
-		// advisory locks are acquired through the active transaction.
-		result, postErr = uow.Posting().CommitPosting(txCtx, commit)
-		return postErr
-	})
-	if err != nil {
-		return journal.JournalEntry{}, err
+		result, postErr = uow.CommitPosting(companyCtx, commit)
+		if postErr != nil {
+			return journal.JournalEntry{}, postErr
+		}
+	} else {
+		err := d.ExecuteWithOptions(companyCtx, storage.TxOptions{}, func(txCtx context.Context, uow storage.UnitOfWork) error {
+			var postErr error
+			// The transaction-aware context must reach CommitPosting: ordered
+			// advisory locks are acquired through the active transaction.
+			result, postErr = uow.Posting().CommitPosting(txCtx, commit)
+			return postErr
+		})
+		if err != nil {
+			return journal.JournalEntry{}, err
+		}
 	}
 	if err := storage.InjectFault(ctx, storage.FaultAfterCommit); err != nil {
 		return journal.JournalEntry{}, err

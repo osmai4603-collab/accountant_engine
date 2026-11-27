@@ -9,6 +9,8 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/reporting"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
+	publicconsolidation "github.com/osmai4603-collab/accounting_engine/pkg/spi/consolidation"
+	publicreconciliation "github.com/osmai4603-collab/accounting_engine/pkg/spi/reconciliation"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/standards"
 	publicsubledger "github.com/osmai4603-collab/accounting_engine/pkg/spi/subledger"
 )
@@ -68,6 +70,17 @@ func YearEndClosing(engine Engine) (publicapplication.YearEndClosingService, err
 	return provider.YearEndClosing(), nil
 }
 
+// DraftCancellation retrieves the optional draft cancellation capability.
+func DraftCancellation(engine Engine) (publicapplication.DraftCancellationService, error) {
+	provider, ok := engine.(interface {
+		DraftCancellation() publicapplication.DraftCancellationService
+	})
+	if !ok || provider.DraftCancellation() == nil {
+		return nil, types.ErrCapabilityNotImplemented
+	}
+	return provider.DraftCancellation(), nil
+}
+
 // SubledgerARAP retrieves the optional AR/AP use-case service from an engine.
 // It returns ErrCapabilityNotImplemented when the capability was not enabled.
 func SubledgerARAP(engine Engine) (publicsubledger.ARAPService, error) {
@@ -78,4 +91,26 @@ func SubledgerARAP(engine Engine) (publicsubledger.ARAPService, error) {
 		return nil, types.ErrCapabilityNotImplemented
 	}
 	return provider.SubledgerARAP(), nil
+}
+
+// Consolidation retrieves the group consolidation service from an engine.
+func Consolidation(engine Engine) (publicconsolidation.Service, error) {
+	provider, ok := engine.(interface {
+		Consolidation() publicconsolidation.Service
+	})
+	if !ok || provider.Consolidation() == nil {
+		return nil, types.ErrCapabilityNotImplemented
+	}
+	return provider.Consolidation(), nil
+}
+
+// Reconciliation retrieves the reconciliation service from an engine.
+func Reconciliation(engine Engine) (publicreconciliation.Service, error) {
+	provider, ok := engine.(interface {
+		Reconciliation() publicreconciliation.Service
+	})
+	if !ok || provider.Reconciliation() == nil {
+		return nil, types.ErrCapabilityNotImplemented
+	}
+	return provider.Reconciliation(), nil
 }

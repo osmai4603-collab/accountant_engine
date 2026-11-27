@@ -221,6 +221,7 @@ func (d *Driver) clone() *Driver {
 	for k, v := range d.eventMappings {
 		cp.eventMappings[k] = v
 	}
+	cloneYearEndClosings(d, cp)
 	return cp
 }
 
@@ -247,6 +248,7 @@ func (d *Driver) copyFrom(src *Driver) {
 	d.idempotency = src.idempotency
 	d.eventIngestions = src.eventIngestions
 	d.eventMappings = src.eventMappings
+	copyYearEndClosings(src, d)
 }
 
 func cloneEntry(entry journal.JournalEntry) journal.JournalEntry {

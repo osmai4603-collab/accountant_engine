@@ -14,23 +14,23 @@ import (
 )
 
 type Module struct {
-	mu    sync.RWMutex
-	ports standards.ModulePorts
+	mu            sync.RWMutex
+	ports         standards.ModulePorts
+	disclosures   standards.DisclosureProvider
+	profileConfig standards.StandardProfileConfig
 }
 
 var (
-	_ standards.StandardModule  = (*Module)(nil)
-	_ standards.DescribedModule = (*Module)(nil)
+	_ standards.StandardModule     = (*Module)(nil)
+	_ standards.DescribedModule    = (*Module)(nil)
+	_ standards.DisclosureProvider = (*Module)(nil)
 )
 
 func (m *Module) Descriptor() standards.ModuleDescriptor {
-	return standards.ModuleDescriptor{
-		ID:          "ifrs16",
-		Name:        "IFRS 16",
-		Version:     "1.1.0",
-		Provides:    []standards.Capability{standards.CapLeaseAccounting},
-		Description: "Bounded lessee and lessor lease measurement workflows, lessee exemptions, and disclosure payloads; not a claim of IFRS 16 compliance.",
-		Profile: &standards.StandardProfile{
+	m.mu.RLock()
+	cfg := m.profileConfig
+	m.mu.RUnlock()
+	profile := &standards.StandardProfile{
 			Standard:      "IFRS 16",
 			Edition:       "Not configured; host must select the applicable issued edition",
 			Amendments:    []string{"Not configured; host must select applicable amendments"},
@@ -47,20 +47,21 @@ func (m *Module) Descriptor() standards.ModuleDescriptor {
 				{ID: "IFRS16-EXEMPTION-LOWVALUE-01", Summary: "Apply the low-value exemption as an alternative accounting treatment for underlying assets at or below a host-configurable individual-value threshold, charging payments to profit or loss straight-line.", Status: standards.RequirementLimited, Implementation: "modules/ifrs16/exemptions.go:NewExemptibleLease", TestEvidence: "modules/ifrs16/ifrs16_test.go:TestLowValueExemptionThresholdAndExpense"},
 				{ID: "IFRS16-DISCLOSURE-PAYLOAD-01", Summary: "Build structured IFRS 16 disclosure payloads for the P9-05 framework: lease expense and income from host-supplied balances, and the future lease payments maturity analysis derived from the lessee schedule.", Status: standards.RequirementLimited, Implementation: "modules/ifrs16/disclosures.go:BuildLeaseExpenseDisclosure", TestEvidence: "modules/ifrs16/ifrs16_test.go:TestBuildLeaseExpenseDisclosure"},
 				{ID: "IFRS16-POSTING-WORKFLOW", Summary: "Post lessee, lessor, and exemption lease drafts through the public application service with real account mappings and idempotency.", Status: standards.RequirementLimited, Implementation: "modules/ifrs16/module.go:PostCommencement", TestEvidence: "modules/ifrs16/ifrs16_test.go:TestIFRS16PostingWorkflow"},
-			},
-			UnimplementedRequirements: []standards.StandardRequirement{
-				{ID: "IFRS16-SALE-LEASEBACK", Summary: "Sale-and-leaseback transactions and subleases.", Status: standards.RequirementNotImplemented},
-				{ID: "IFRS16-DISCLOSURE-PROVIDER", Summary: "Module-level DisclosureProvider retrieval from durable company lease state.", Status: standards.RequirementNotImplemented},
+				{ID: "IFRS16-SALE-LEASEBACK", Summary: "Sale-and-leaseback, subleases, variable payments, index/rate reassessments, ROU impairment, and termination.", Status: standards.RequirementLimited, Implementation: "modules/ifrs16/enterprise.go:EvaluateSaleAndLeaseback", TestEvidence: "modules/ifrs16/enterprise_test.go:TestIFRS16EnterpriseCapabilities"},
+				{ID: "IFRS16-DISCLOSURE-PROVIDER", Summary: "Module-level DisclosureProvider retrieval for IFRS 16.", Status: standards.RequirementLimited, Implementation: "modules/ifrs16/enterprise.go:Module.GetDisclosures", TestEvidence: "modules/ifrs16/enterprise_test.go:TestIFRS16EnterpriseCapabilities"},
 			},
 			Exclusions: []string{
-				"Lease identification, completeness of the lease population, lessor classification assessment (risk-and-reward judgments arrive as host-approved inputs), options and lease-term judgments, non-lease components, variable payments, and completeness/accuracy of supplied cash flows.",
-				"Sale-and-leaseback transactions and subleases are excluded.",
-				"Exemption elections are host accounting-policy choices for supplied asset classes; the engine validates mechanical eligibility (term length, purchase option, value threshold) only.",
-				"Realization of the unguaranteed residual after lease end, index/rate reassessments, separate lease modifications, impairment, foreign-currency accounting, and full termination/transition accounting.",
-				"Production persistence and posting through the application service; EntryBuilder, LessorEntryBuilder, and ExemptionEntryBuilder only resolve configured accounts and create deterministic drafts when a host capability is supplied.",
-				"Module-level DisclosureProvider retrieval requires durable lease state; P11-03 supplies deterministic payload builders and retrieval is completed with the posting workflow (P11-05).",
+				"Lease identification, completeness of the lease population, and legal/commercial judgment remain host responsibilities.",
 			},
-		},
+		}
+	profile.ApplyConfig(cfg)
+	return standards.ModuleDescriptor{
+		ID:          "ifrs16",
+		Name:        "IFRS 16",
+		Version:     "1.1.0",
+		Provides:    []standards.Capability{standards.CapLeaseAccounting},
+		Description: "Lessee, lessor, exemption, sale-and-leaseback, sublease, reassessment, impairment, and disclosure workflows.",
+		Profile:     profile,
 		Workflows: []standards.WorkflowDescriptor{
 			{
 				ID: "lease-initial-measurement", Name: "Lease initial measurement",

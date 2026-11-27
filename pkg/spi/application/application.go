@@ -30,6 +30,7 @@ const (
 	ActionCreate           Action = "journal.create"
 	ActionValidate         Action = "journal.validate"
 	ActionPost             Action = "journal.post"
+	ActionCancel           Action = "journal.cancel"
 	ActionReverse          Action = "journal.reverse"
 	ActionCreateAdjustment Action = "journal.adjustment.create"
 	ActionClose            Action = "period.close"
@@ -162,6 +163,22 @@ type PostEntryCommand struct {
 	Context
 	CompanyID types.CompanyID
 	EntryID   types.JournalEntryID
+}
+
+// CancelDraftCommand cancels an existing unposted draft journal entry with
+// mandatory actor attribution and reason (JRN-007).
+type CancelDraftCommand struct {
+	Context
+	CompanyID   types.CompanyID
+	EntryID     types.JournalEntryID
+	Reason      string
+	CancelledAt time.Time
+}
+
+// DraftCancellationService is an application capability for cancelling
+// unposted draft journal entries.
+type DraftCancellationService interface {
+	CancelDraft(ctx context.Context, command CancelDraftCommand) (EntryResult, error)
 }
 
 // ReverseEntryCommand creates and posts a full reversal. Reason and ActorID

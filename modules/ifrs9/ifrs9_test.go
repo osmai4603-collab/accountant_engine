@@ -1477,20 +1477,17 @@ func TestVersionedGeneralECLWorkflowIsBoundedAndDoesNotPost(t *testing.T) {
 
 func TestDescriptorDeclaresClassificationHedgeExclusionAndApplicationPosting(t *testing.T) {
 	descriptor := (&Module{}).Descriptor()
-	var classificationSupported, hedgeDeferred bool
+	var classificationSupported, hedgeSupported bool
 	for _, requirement := range descriptor.Profile.SupportedRequirements {
 		if requirement.ID == "IFRS9-CLASSIFICATION-MEASUREMENT-01" {
 			classificationSupported = requirement.Status == standards.RequirementLimited
 		}
-	}
-	for _, requirement := range descriptor.Profile.UnimplementedRequirements {
-		if requirement.ID == "IFRS9-HEDGE-ACCOUNTING" &&
-			requirement.Status == standards.RequirementNotImplemented {
-			hedgeDeferred = true
+		if requirement.ID == "IFRS9-HEDGE-ACCOUNTING" {
+			hedgeSupported = requirement.Status == standards.RequirementLimited
 		}
 	}
-	if !classificationSupported || !hedgeDeferred {
-		t.Fatalf("IFRS 9 classification support or hedge exclusion is missing: %+v", descriptor.Profile)
+	if !classificationSupported || !hedgeSupported {
+		t.Fatalf("IFRS 9 classification or hedge support is missing: %+v", descriptor.Profile)
 	}
 	for _, workflowID := range []string{"financial-asset-subsequent-measurement", "versioned-general-ecl-posting"} {
 		var found bool

@@ -19,6 +19,7 @@ import (
 )
 
 var _ masterdata.Store = (*Driver)(nil)
+var _ masterdata.FiscalPeriodNumberReader = (*Driver)(nil)
 var _ masterdata.EffectiveAccountReader = (*Driver)(nil)
 var _ masterdata.AccountVersionWriter = (*Driver)(nil)
 
@@ -423,6 +424,35 @@ func (d *Driver) GetPeriodForDate(ctx context.Context, companyID types.CompanyID
 		err := tx.QueryRow(ctx, `SELECT id, company_id, year_id, period_number, name, start_date, end_date, state, period_type
 			FROM fiscal_periods WHERE company_id=$1 AND start_date <= $2 AND end_date >= $2 AND period_type='normal'
 			ORDER BY period_number ASC LIMIT 1`, uuid.UUID(companyID), date).Scan(
+			&pID, &cID, &yID, &period.Number, &period.Name,
+			&period.StartDate, &period.EndDate, &state, &pType)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return masterdata.ErrPeriodNotFound
+		}
+		if err != nil {
+			return err
+		}
+		period.ID = types.FiscalPeriodID(pID)
+		period.CompanyID = types.CompanyID(cID)
+		period.FiscalYearID = types.FiscalYearID(yID)
+		period.State = masterdata.PeriodState(state)
+		period.Type = masterdata.FiscalPeriodType(pType)
+		return nil
+	})
+	return period, err
+}
+
+func (d *Driver) GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (masterdata.FiscalPeriod, error) {
+	var period masterdata.FiscalPeriod
+	if err := d.assertReadScope(ctx, companyID, masterdata.ErrPeriodNotFound); err != nil {
+		return period, err
+	}
+	err := d.WithCompanyTx(ctx, uuid.UUID(companyID), func(tx pgx.Tx) error {
+		var pID, cID, yID uuid.UUID
+		var state, pType string
+		err := tx.QueryRow(ctx, `SELECT id, company_id, year_id, period_number, name, start_date, end_date, state, period_type
+			FROM fiscal_periods WHERE company_id=$1 AND year_id=$2 AND period_number=$3`,
+			uuid.UUID(companyID), uuid.UUID(fiscalYearID), number).Scan(
 			&pID, &cID, &yID, &period.Number, &period.Name,
 			&period.StartDate, &period.EndDate, &state, &pType)
 		if errors.Is(err, pgx.ErrNoRows) {

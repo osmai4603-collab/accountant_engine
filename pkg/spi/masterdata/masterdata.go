@@ -121,3 +121,10 @@ type Store interface {
 type JournalRepository interface {
 	GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID types.JournalID) (Journal, error)
 }
+
+// FiscalPeriodNumberReader resolves a fiscal period by its period number
+// within a fiscal year (including adjustment periods 13 and 14) strictly inside
+// the requested company.
+type FiscalPeriodNumberReader interface {
+	GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (FiscalPeriod, error)
+}

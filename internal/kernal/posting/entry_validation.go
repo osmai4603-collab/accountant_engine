@@ -272,7 +272,7 @@ func validateTargetPeriodClassification(entry journal.JournalEntry) error {
 		}
 	case 13, 14:
 		if entry.Classification != journal.EntryClassAdjusting &&
-			!(entry.TargetPeriodNumber == 13 && entry.Classification == journal.EntryClassClosing) {
+			!(entry.TargetPeriodNumber == 13 && (entry.Classification == journal.EntryClassClosing || (entry.Classification == journal.EntryClassReversing && entry.ReversalOfID != nil))) {
 			return masterdata.ErrInvalidAdjustmentPeriod
 		}
 	default:

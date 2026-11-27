@@ -49,11 +49,12 @@ var rlsProtectedTables = []string{
 	"reporting_taxonomies",
 	"reporting_taxonomy_nodes",
 	"reporting_account_tags",
+	"year_end_closings",
 }
 
 func TestEveryFinancialTableHasForcedRLS(t *testing.T) {
-	if len(rlsProtectedTables) != 43 {
-		t.Fatalf("expected exactly 43 RLS protected tables, got %d", len(rlsProtectedTables))
+	if len(rlsProtectedTables) != 44 {
+		t.Fatalf("expected exactly 44 RLS protected tables, got %d", len(rlsProtectedTables))
 	}
 
 	ctx := context.Background()

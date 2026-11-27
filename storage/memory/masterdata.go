@@ -15,6 +15,7 @@ import (
 // Ensure Driver implements the baseline master-data port and the optional
 // effective-account / analytical-dimension capabilities introduced in Phase 11.
 var _ masterdata.Store = (*Driver)(nil)
+var _ masterdata.FiscalPeriodNumberReader = (*Driver)(nil)
 var _ masterdata.EffectiveAccountReader = (*Driver)(nil)
 var _ masterdata.AccountVersionWriter = (*Driver)(nil)
 var _ masterdata.CostCenterReader = (*Driver)(nil)
@@ -353,6 +354,27 @@ func (d *Driver) GetPeriodForDate(ctx context.Context, companyID types.CompanyID
 	}
 	for _, p := range pMap {
 		if p.Type == masterdata.FiscalPeriodTypeNormal && !date.Before(p.StartDate) && !date.After(p.EndDate) {
+			return p, nil
+		}
+	}
+	return masterdata.FiscalPeriod{}, masterdata.ErrPeriodNotFound
+}
+
+func (d *Driver) GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (masterdata.FiscalPeriod, error) {
+	if err := ctx.Err(); err != nil {
+		return masterdata.FiscalPeriod{}, err
+	}
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if err := d.assertReadScope(ctx, companyID, masterdata.ErrPeriodNotFound); err != nil {
+		return masterdata.FiscalPeriod{}, err
+	}
+	pMap, ok := d.periods[companyID]
+	if !ok {
+		return masterdata.FiscalPeriod{}, masterdata.ErrPeriodNotFound
+	}
+	for _, p := range pMap {
+		if p.FiscalYearID == fiscalYearID && p.Number == number {
 			return p, nil
 		}
 	}

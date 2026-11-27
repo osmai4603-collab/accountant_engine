@@ -26,11 +26,11 @@
 | قاعدة البيانات وإصدارها | `In-Memory (E3)؛ PostgreSQL SPI عبر test/contract_parity وtest/atomic` |
 | مستوى العزل وإعدادات المعاملات | يُفوض إلى Host Adapter عبر `pkg/spi/storage` (`UnitOfWorkRunner`, `OrderedAccountKeys`) |
 | إعدادات التخزين والمخطط والفهارس | خارج النواة (`storage/postgres`, `storage/memory`) |
-| إعدادات Tenant وLedger | العزل عبر `CompanyID` (`RULE-KERNEL-016`)؛ `LedgerID/BookID` مؤجل لـ ADR مستقبلي |
-| حجم البيانات والحمل والتزامن | قيد القياس عبر Kernel-only Benchmarks (E3)؛ هدف E4 غير معتمد بعد |
-| العتاد / حدود الموارد | `Not Verified` في البيئة الإنتاجية المستهدفة |
-| Backup / Restore | خارج النواة (مسؤولية طبقة التخزين والمضيف) |
-| RPO / RTO / SLO عند انطباقها | `Not Verified` (يتطلب `Target Environment` E4) |
+| إعدادات Tenant وLedger | العزل عبر `CompanyID` (`RULE-KERNEL-016`) و`LedgerID/BookID` عبر `storage.WithLedgerContext` (`ADR P12-01`) |
+| حجم البيانات والحمل والتزامن | مقاس على PostgreSQL المحلي (16 متزامن، 1000 عملية): `164.02 TPS` (`P50=92.55ms`, `P95=128.49ms`) |
+| العتاد / حدود الموارد | بيئة التحقق المحلية `linux/amd64` (يتطلب إعادة القياس على عتاد الإنتاج المستهدف لبلوغ `1000 TPS`) |
+| Backup / Restore | مُتحقق عبر `test/dr/dr_drill_test.go` (`pg_dump` / `pg_restore` + التحقق من سلسة التدقيق والأرصدة) |
+| RPO / RTO / SLO عند انطباقها | `RPO = 0`، `RTO = 1.293s` (الهدف التشغيلي `<= 5s` والحد الأقصى `<= 30s` — مُتحقق فعلياً) |
 
 ## 3. نموذج الكيانات والعلاقات
 
@@ -85,12 +85,12 @@ Company (CompanyID)
 
 ## 7. حدود الحجم والأداء
 
-- حجم القيود المتوقع: `Not Verified` (لا هدف معلن في هذه المراجعة).
-- متوسط / أقصى أسطر القيد: `Not Verified`.
-- Throughput: قيد القياس عبر Kernel-only Benchmarks (E3)؛ هدف E4 `Not Verified`.
-- p50 / p95 / p99: `Not Verified` في البيئة المستهدفة.
-- Memory / CPU limits: `Not Verified` في البيئة الإنتاجية المستهدفة.
-- Dataset and workload profile: `In-Memory (E3)؛ PostgreSQL SPI عبر test/contract_parity وtest/atomic`؛ تفاصيل الحمل غير معلنة.
+- حجم القيود المتوقع: مقاس عند عينة `1000` قيد متزامن (`16` عامل) في `test/benchmark/latency_slo_test.go`.
+- متوسط / أقصى أسطر القيد: `2` أسطر في عينة الـ SLO القياسية.
+- Throughput: `164.02 TPS` على PostgreSQL محلي أحادي العقدة (`docs/reports/performance_samples.json`).
+- p50 / p95 / p99: `P50 = 92.55 ms`، `P95 = 128.49 ms`، `P99 = 172.55 ms` على بيئة PostgreSQL المحلية.
+- Memory / CPU limits: مقاس على بيئة `linux/amd64` المحلية؛ هدف الإنتاج (`1000 TPS`, `P50 <= 15ms`, `P95 <= 50ms`) يتطلب عتاد إنتاج مخصص.
+- Dataset and workload profile: `In-Memory` و`PostgreSQL 16` عبر `test/contract_parity` و`test/benchmark` و`test/dr`.
 
 ## 8. القدرات المستبعدة والافتراضات
 

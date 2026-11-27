@@ -72,6 +72,34 @@ type StandardProfile struct {
 	Exclusions                []string              `json:"exclusions"`
 }
 
+// StandardProfileConfig carries host-supplied edition, amendments, effective
+// date, and reporting jurisdiction applied uniformly across standard modules.
+type StandardProfileConfig struct {
+	Edition       string   `json:"edition"`
+	Amendments    []string `json:"amendments"`
+	EffectiveDate string   `json:"effective_date"`
+	Jurisdiction  string   `json:"jurisdiction"`
+}
+
+// ApplyConfig overrides any non-empty host-configured standard profile fields.
+func (p *StandardProfile) ApplyConfig(cfg StandardProfileConfig) {
+	if p == nil {
+		return
+	}
+	if v := strings.TrimSpace(cfg.Edition); v != "" {
+		p.Edition = v
+	}
+	if len(cfg.Amendments) > 0 {
+		p.Amendments = append([]string(nil), cfg.Amendments...)
+	}
+	if v := strings.TrimSpace(cfg.EffectiveDate); v != "" {
+		p.EffectiveDate = v
+	}
+	if v := strings.TrimSpace(cfg.Jurisdiction); v != "" {
+		p.Jurisdiction = v
+	}
+}
+
 func (p StandardProfile) Validate() error {
 	if strings.TrimSpace(p.Standard) == "" ||
 		strings.TrimSpace(p.Edition) == "" ||

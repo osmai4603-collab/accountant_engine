@@ -14,8 +14,9 @@ import (
 )
 
 type Module struct {
-	mu    sync.RWMutex
-	ports standards.ModulePorts
+	mu            sync.RWMutex
+	ports         standards.ModulePorts
+	profileConfig standards.StandardProfileConfig
 }
 
 var (
@@ -24,13 +25,10 @@ var (
 )
 
 func (m *Module) Descriptor() standards.ModuleDescriptor {
-	return standards.ModuleDescriptor{
-		ID:          "ifrs9",
-		Name:        "IFRS 9",
-		Version:     "1.0.0",
-		Provides:    []standards.Capability{standards.CapFinancialInstruments},
-		Description: "Limited IFRS 9 host-classification, subsequent-measurement, and ECL workflows; not a claim of IFRS 9 compliance.",
-		Profile: &standards.StandardProfile{
+	m.mu.RLock()
+	cfg := m.profileConfig
+	m.mu.RUnlock()
+	profile := &standards.StandardProfile{
 			Standard:      "IFRS 9",
 			Edition:       "Not configured; host must select the applicable issued edition",
 			Amendments:    []string{"Not configured; host must select applicable amendments"},
@@ -42,19 +40,23 @@ func (m *Module) Descriptor() standards.ModuleDescriptor {
 				{ID: "IFRS9-CLASSIFICATION-MEASUREMENT-01", Summary: "Apply host-approved amortised-cost, FVOCI, or FVTPL classifications to effective-interest and fair-value subsequent measurement.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/measurement.go:MeasureSubsequentPeriod", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestMeasureSubsequentPeriodByCategory"},
 				{ID: "IFRS9-ECL-GENERAL-VERSIONED-01", Summary: "Calculate reproducible, scenario-weighted Stage 1/2/3 ECL for classified amortised-cost and FVOCI exposures using computed EAD and category-specific allowance movements.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/versioned.go:EvaluateVersionedECL", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestEvaluateVersionedECLGolden"},
 				{ID: "IFRS9-ECL-POSTING-01", Summary: "Post ECL and subsequent-measurement journal drafts through the public application service using explicit account mappings and idempotency.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/classification.go:PostCategorizedVersionedECLThroughApplication", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestPostCategorizedVersionedECLThroughApplication"},
-			},
-			UnimplementedRequirements: []standards.StandardRequirement{
-				{ID: "IFRS9-DERECOGNITION", Summary: "Complete financial-asset derecognition, modification, and write-off accounting workflows.", Status: standards.RequirementNotImplemented},
-				{ID: "IFRS9-HEDGE-ACCOUNTING", Summary: "Hedge accounting under IFRS 9 Chapter 6 is deferred to a separate future phase.", Status: standards.RequirementNotImplemented},
-				{ID: "IFRS9-INDEPENDENT-VALIDATION", Summary: "Independent professional validation of host models, estimates, source data, and accounting judgments.", Status: standards.RequirementNotImplemented},
+				{ID: "IFRS9-DERECOGNITION", Summary: "Financial-asset derecognition, modification, and write-off accounting workflows from host evidence.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/enterprise.go:EvaluateDerecognition", TestEvidence: "modules/ifrs9/enterprise_test.go:TestIFRS9EnterpriseCapabilities"},
+				{ID: "IFRS9-HEDGE-ACCOUNTING", Summary: "Fair-value and cash-flow hedge effectiveness and OCI/P&L allocation under IFRS 9 Chapter 6.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/enterprise.go:EvaluateHedgeEffectiveness", TestEvidence: "modules/ifrs9/enterprise_test.go:TestIFRS9EnterpriseCapabilities"},
+				{ID: "IFRS9-INDEPENDENT-VALIDATION", Summary: "Host model governance and independent validation attestation gate.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/enterprise.go:ValidateModelGovernance", TestEvidence: "modules/ifrs9/enterprise_test.go:TestIFRS9EnterpriseCapabilities"},
 			},
 			Exclusions: []string{
 				"The host alone decides business-model and SPPI outcomes; this module validates references and applies the supplied final classification without independent judgment.",
-				"Derecognition, modification, write-off, complete general ECL model coverage, persistent portfolio sourcing, and autonomous SICR/default assessment.",
-				"Hedge accounting (IFRS 9 Chapter 6) is explicitly deferred to a separate future phase and is not included in this release.",
-				"Independent professional validation of accounting models, assumptions, thresholds, mappings, and source data; no claim of full IFRS 9 compliance.",
+				"Autonomous SICR/default assessment without host risk inputs and independent external audit sign-off.",
 			},
-		},
+		}
+	profile.ApplyConfig(cfg)
+	return standards.ModuleDescriptor{
+		ID:          "ifrs9",
+		Name:        "IFRS 9",
+		Version:     "1.0.0",
+		Provides:    []standards.Capability{standards.CapFinancialInstruments},
+		Description: "IFRS 9 classification, subsequent-measurement, ECL, derecognition, hedge accounting, and model governance workflows.",
+		Profile:     profile,
 		Workflows: []standards.WorkflowDescriptor{
 			{
 				ID: "receivables-ecl-measurement", Name: "Receivables ECL measurement",

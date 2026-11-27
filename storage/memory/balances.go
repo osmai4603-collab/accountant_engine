@@ -33,6 +33,9 @@ func (d *Driver) GetAccountBalance(ctx context.Context, companyID types.CompanyI
 
 	total := decimal.Zero
 	for _, entry := range d.entries[companyID] {
+		if !d.entryVisibleInLedger(ctx, entry.ID) {
+			continue
+		}
 		if entry.Status != journal.EntryPosted {
 			continue
 		}

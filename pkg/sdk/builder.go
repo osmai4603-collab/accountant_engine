@@ -13,7 +13,9 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/reporting"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
+	publicconsolidation "github.com/osmai4603-collab/accounting_engine/pkg/spi/consolidation"
 	publicmasterdata "github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
+	publicreconciliation "github.com/osmai4603-collab/accounting_engine/pkg/spi/reconciliation"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/standards"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 	publicsubledger "github.com/osmai4603-collab/accounting_engine/pkg/spi/subledger"
@@ -299,6 +301,23 @@ func (e *engineInstance) Standards() StandardsService {
 
 func (e *engineInstance) Scheduler() standards.SchedulerPort {
 	return e.scheduler
+}
+
+func (e *engineInstance) YearEndClosing() publicapplication.YearEndClosingService {
+	return e.yearEndClosing
+}
+
+func (e *engineInstance) DraftCancellation() publicapplication.DraftCancellationService {
+	capability, _ := e.useCases.(publicapplication.DraftCancellationService)
+	return capability
+}
+
+func (e *engineInstance) Consolidation() publicconsolidation.Service {
+	return &defaultConsolidationService{}
+}
+
+func (e *engineInstance) Reconciliation() publicreconciliation.Service {
+	return &defaultReconciliationService{}
 }
 
 func (e *engineInstance) Close() error {

@@ -33,6 +33,10 @@ func (t transactionAwareDriver) SaveDraft(ctx context.Context, entry journal.Jou
 	return transactionDriver(ctx, t.driver).SaveDraft(ctx, entry)
 }
 
+func (t transactionAwareDriver) CancelDraft(ctx context.Context, entry journal.JournalEntry) error {
+	return transactionDriver(ctx, t.driver).CancelDraft(ctx, entry)
+}
+
 func (t transactionAwareDriver) GetEntry(ctx context.Context, companyID types.CompanyID, entryID types.JournalEntryID) (journal.JournalEntry, error) {
 	return transactionDriver(ctx, t.driver).GetEntry(ctx, companyID, entryID)
 }
@@ -75,6 +79,42 @@ func (t transactionAwareDriver) GetFiscalYear(ctx context.Context, companyID typ
 
 func (t transactionAwareDriver) GetPeriodForDate(ctx context.Context, companyID types.CompanyID, date time.Time) (masterdata.FiscalPeriod, error) {
 	return transactionDriver(ctx, t.driver).GetPeriodForDate(ctx, companyID, date)
+}
+
+func (t transactionAwareDriver) GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (masterdata.FiscalPeriod, error) {
+	return transactionDriver(ctx, t.driver).GetPeriodByNumber(ctx, companyID, fiscalYearID, number)
+}
+
+func (t transactionAwareDriver) ListAccounts(ctx context.Context, companyID types.CompanyID) ([]masterdata.Account, error) {
+	return transactionDriver(ctx, t.driver).ListAccounts(ctx, companyID)
+}
+
+func (t transactionAwareDriver) ListFiscalYears(ctx context.Context, companyID types.CompanyID) ([]masterdata.FiscalYear, error) {
+	return transactionDriver(ctx, t.driver).ListFiscalYears(ctx, companyID)
+}
+
+func (t transactionAwareDriver) ListFiscalPeriods(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID) ([]masterdata.FiscalPeriod, error) {
+	return transactionDriver(ctx, t.driver).ListFiscalPeriods(ctx, companyID, fiscalYearID)
+}
+
+func (t transactionAwareDriver) ListEntriesByDateRange(ctx context.Context, companyID types.CompanyID, start, end time.Time) ([]journal.JournalEntry, error) {
+	return transactionDriver(ctx, t.driver).ListEntriesByDateRange(ctx, companyID, start, end)
+}
+
+func (t transactionAwareDriver) UpdateFiscalPeriodState(ctx context.Context, companyID types.CompanyID, periodID types.FiscalPeriodID, state masterdata.PeriodState, actorID, reason string) error {
+	return transactionDriver(ctx, t.driver).UpdateFiscalPeriodState(ctx, companyID, periodID, state, actorID, reason)
+}
+
+func (t transactionAwareDriver) UpdateFiscalYearState(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, state masterdata.FiscalYearState, actorID, reason string) error {
+	return transactionDriver(ctx, t.driver).UpdateFiscalYearState(ctx, companyID, fiscalYearID, state, actorID, reason)
+}
+
+func (t transactionAwareDriver) SaveYearEndCloseRecord(ctx context.Context, record storage.YearEndCloseRecord) error {
+	return transactionDriver(ctx, t.driver).SaveYearEndCloseRecord(ctx, record)
+}
+
+func (t transactionAwareDriver) GetYearEndCloseRecord(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID) (storage.YearEndCloseRecord, bool, error) {
+	return transactionDriver(ctx, t.driver).GetYearEndCloseRecord(ctx, companyID, fiscalYearID)
 }
 
 func (t transactionAwareDriver) GetAccountBalance(ctx context.Context, companyID types.CompanyID, accountID types.AccountID, asOf time.Time, currency string) (decimal.Decimal, error) {
@@ -175,6 +215,9 @@ func (t transactionAwareDriver) ListVersions(ctx context.Context, companyID type
 }
 
 var _ masterdata.Store = transactionAwareDriver{}
+var _ masterdata.FiscalPeriodNumberReader = transactionAwareDriver{}
+var _ storage.DraftCanceller = transactionAwareDriver{}
+var _ storage.YearEndClosingStore = transactionAwareDriver{}
 var _ masterdata.EffectiveAccountReader = transactionAwareDriver{}
 var _ masterdata.AccountVersionWriter = transactionAwareDriver{}
 var _ masterdata.CostCenterReader = transactionAwareDriver{}

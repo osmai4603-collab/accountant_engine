@@ -43,6 +43,38 @@ func (d *Driver) SaveDraft(ctx context.Context, entry journal.JournalEntry) erro
 
 	entry.Status = journal.EntryDraft
 	eMap[entry.ID] = cloneEntry(entry)
+	d.setEntryLedger(ctx, entry.ID)
+	return nil
+}
+
+// CancelDraft transitions an existing unposted draft to cancelled.
+func (d *Driver) CancelDraft(ctx context.Context, entry journal.JournalEntry) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if entry.ID == (types.JournalEntryID{}) || entry.CompanyID == (types.CompanyID{}) {
+		return ErrInvalidEntry
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.readOnly {
+		return ErrReadOnlyTransaction
+	}
+
+	eMap, ok := d.entries[entry.CompanyID]
+	if !ok {
+		return ErrEntryNotFound
+	}
+	existing, exists := eMap[entry.ID]
+	if !exists {
+		return ErrEntryNotFound
+	}
+	if existing.Status != journal.EntryDraft {
+		return fmt.Errorf("%w: memory: cannot cancel non-draft journal entry %s with status %s", types.ErrCannotModifyPostedMove, entry.ID, existing.Status)
+	}
+
+	entry.Status = journal.EntryCancelled
+	eMap[entry.ID] = cloneEntry(entry)
 	return nil
 }
 
@@ -58,7 +90,7 @@ func (d *Driver) GetEntry(ctx context.Context, companyID types.CompanyID, entryI
 		return journal.JournalEntry{}, ErrEntryNotFound
 	}
 	e, ok := eMap[entryID]
-	if !ok {
+	if !ok || !d.entryVisibleInLedger(ctx, entryID) {
 		return journal.JournalEntry{}, ErrEntryNotFound
 	}
 	return cloneEntry(e), nil
@@ -181,7 +213,7 @@ func (d *Driver) commitPostingLocked(ctx context.Context, commit storage.Posting
 		}
 		idempotencyRecordKey = idempotencyKey{
 			companyID: entry.CompanyID,
-			key:       commit.Idempotency.Key,
+			key:       ledgerScopedIdempotencyKey(ctx, commit.Idempotency.Key),
 			scope:     commit.Idempotency.Scope,
 		}
 		if existing, ok := d.idempotency[idempotencyRecordKey]; ok {

@@ -49,6 +49,38 @@ func (u *postgresUnitOfWork) SaveDraft(ctx context.Context, entry journal.Journa
 	return nil
 }
 
+func (u *postgresUnitOfWork) CancelDraft(ctx context.Context, entry journal.JournalEntry) error {
+	if entry.ID == (types.JournalEntryID{}) || entry.CompanyID == (types.CompanyID{}) {
+		return ErrInvalidEntry
+	}
+	entry.Status = journal.EntryCancelled
+	data, err := marshalEntryForStorage(entry)
+	if err != nil {
+		return err
+	}
+	var currentStatus string
+	err = u.tx.QueryRow(ctx, `SELECT status FROM account_moves WHERE company_id=$1 AND id=$2 FOR UPDATE`,
+		uuid.UUID(entry.CompanyID), uuid.UUID(entry.ID)).Scan(&currentStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrEntryNotFound
+	}
+	if err != nil {
+		return translateTransactionError(err)
+	}
+	if currentStatus != "draft" {
+		return fmt.Errorf("%w: postgres: cannot cancel non-draft journal entry %s with status %s", types.ErrCannotModifyPostedMove, entry.ID, currentStatus)
+	}
+	result, err := u.tx.Exec(ctx, `UPDATE account_moves SET status='cancelled', entry=$3 WHERE company_id=$1 AND id=$2 AND status='draft'`,
+		uuid.UUID(entry.CompanyID), uuid.UUID(entry.ID), data)
+	if err != nil {
+		return translateTransactionError(err)
+	}
+	if result.RowsAffected() != 1 {
+		return storage.ErrConcurrentModification
+	}
+	return nil
+}
+
 func (u *postgresUnitOfWork) GetEntry(ctx context.Context, companyID types.CompanyID, entryID types.JournalEntryID) (journal.JournalEntry, error) {
 	var data []byte
 	err := u.tx.QueryRow(ctx, `SELECT entry FROM account_moves WHERE company_id=$1 AND id=$2`,

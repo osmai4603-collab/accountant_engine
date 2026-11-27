@@ -11,7 +11,34 @@ type contextKey string
 const (
 	companyContextKey contextKey = "storage.company_id"
 	actorContextKey   contextKey = "storage.actor_id"
+	ledgerContextKey  contextKey = "storage.ledger_id"
 )
+
+// DefaultLedgerID is the canonical primary statutory book used when no
+// explicit multi-ledger book is attached to the context (ADR P12-01).
+const DefaultLedgerID = "primary"
+
+// WithLedgerContext attaches the active ledger/book ID to the context for
+// multi-ledger isolation (ADR P12-01).
+func WithLedgerContext(ctx context.Context, ledgerID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, ledgerContextKey, ledgerID)
+}
+
+// LedgerFromContext extracts the active ledger/book ID from the context,
+// returning DefaultLedgerID when none was explicitly attached.
+func LedgerFromContext(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return DefaultLedgerID, false
+	}
+	val, ok := ctx.Value(ledgerContextKey).(string)
+	if !ok || val == "" {
+		return DefaultLedgerID, false
+	}
+	return val, true
+}
 
 // WithCompanyContext attaches the active company ID to the context.
 // Storage adapters must extract this value and enforce tenant boundaries
