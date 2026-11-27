@@ -370,21 +370,21 @@ func (s *defaultLedgerService) PostEntry(ctx context.Context, entry journal.Jour
 	}
 	appCtx := commandContext(ctx, entry.CompanyID, "sdk", "sdk", s.requirePrincipal)
 	cmd := publicapplication.CreateDraftCommand{
-		Context:                     appCtx,
-		CompanyID:                   entry.CompanyID,
-		JournalID:                   entry.JournalID,
-		FiscalPeriodID:              entry.FiscalPeriodID,
-		EffectiveDate:               entry.EffectiveDate,
-		PostingDate:                 entry.PostingDate,
-		Description:                 entry.Description,
-		SourceModule:                entry.SourceModule,
-		ReferenceID:                 entry.ReferenceID,
-		TransactionCurrency:         entry.TransactionCurrency,
-		Classification:              entry.Classification,
-		TargetPeriodNumber:          entry.TargetPeriodNumber,
-		AdjustingEntryType:          entry.AdjustingEntryType,
-		AdjustmentReason:            entry.AdjustmentReason,
-		Lines:                       entry.Lines,
+		Context:             appCtx,
+		CompanyID:           entry.CompanyID,
+		JournalID:           entry.JournalID,
+		FiscalPeriodID:      entry.FiscalPeriodID,
+		EffectiveDate:       entry.EffectiveDate,
+		PostingDate:         entry.PostingDate,
+		Description:         entry.Description,
+		SourceModule:        entry.SourceModule,
+		ReferenceID:         entry.ReferenceID,
+		TransactionCurrency: entry.TransactionCurrency,
+		Classification:      entry.Classification,
+		TargetPeriodNumber:  entry.TargetPeriodNumber,
+		AdjustingEntryType:  entry.AdjustingEntryType,
+		AdjustmentReason:    entry.AdjustmentReason,
+		Lines:               entry.Lines,
 	}
 
 	var draftResult publicapplication.EntryResult

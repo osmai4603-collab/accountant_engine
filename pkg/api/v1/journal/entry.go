@@ -9,9 +9,10 @@ type EntryLine = kernalJournal.EntryLine
 type JournalEntry = kernalJournal.JournalEntry
 
 const (
-	EntryDraft    = kernalJournal.EntryDraft
-	EntryPosted   = kernalJournal.EntryPosted
-	EntryReversed = kernalJournal.EntryReversed
+	EntryDraft     = kernalJournal.EntryDraft
+	EntryPosted    = kernalJournal.EntryPosted
+	EntryReversed  = kernalJournal.EntryReversed
+	EntryCancelled = kernalJournal.EntryCancelled
 
 	EntryClassRegular   = kernalJournal.EntryClassRegular
 	EntryClassAdjusting = kernalJournal.EntryClassAdjusting
@@ -23,4 +24,15 @@ const (
 	AdjustingEntryDeferral          = kernalJournal.AdjustingEntryDeferral
 	AdjustingEntryProvisionEstimate = kernalJournal.AdjustingEntryProvisionEstimate
 	AdjustingEntryReclassification  = kernalJournal.AdjustingEntryReclassification
+	AdjustingEntryAudit             = kernalJournal.AdjustingEntryAudit
+	AdjustingEntryAuditLegacy       = kernalJournal.AdjustingEntryAuditLegacy
+)
+
+var (
+	ErrInvalidEntryStatus      = kernalJournal.ErrInvalidEntryStatus
+	ErrInvalidStatusTransition = kernalJournal.ErrInvalidStatusTransition
+	ErrImmutableEntry          = kernalJournal.ErrImmutableEntry
+	ErrInvalidReversalLinkage  = kernalJournal.ErrInvalidReversalLinkage
+	ErrInvalidLineMutation     = kernalJournal.ErrInvalidLineMutation
+	ErrInvalidCancellation     = kernalJournal.ErrInvalidCancellation
 )

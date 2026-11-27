@@ -94,6 +94,9 @@ func (a *Account) Validate() error {
 	if !a.IsContraAccount && a.NormalBalance != DefaultNormalBalance(a.Type) {
 		return ErrInvalidAccountType
 	}
+	if a.IsMonetary != nil && *a.IsMonetary && a.Type != AccountTypeAsset && a.Type != AccountTypeLiability {
+		return ErrInvalidAccountType
+	}
 	if a.IsControlAccount && (!a.IsReconcilable || (a.Type != AccountTypeAsset && a.Type != AccountTypeLiability)) {
 		return ErrInvalidControlAccount
 	}
@@ -102,6 +105,12 @@ func (a *Account) Validate() error {
 	}
 	if a.SubClassification != "" && !validSubClassification(a.Type, a.SubClassification) {
 		return ErrInvalidSubClassificationForType
+	}
+	if strings.TrimSpace(a.Currency) != "" {
+		currencyInfo, ok := types.LookupCurrency(a.Currency)
+		if !ok || currencyInfo.IsSpecial() {
+			return types.ErrInvalidCurrency
+		}
 	}
 	return nil
 }
@@ -171,6 +180,19 @@ func (a Account) IsCurrent(asOf time.Time) bool {
 
 func (a Account) EffectiveIsCashEquivalent(asOf time.Time) bool {
 	return a.IsCurrent(asOf) && a.IsCashEquivalent
+}
+
+// MonetaryClassification reports whether the account represents a monetary item
+// eligible for closing-rate FX revaluation under IAS 21 (MD-004 / VAL-006),
+// and whether IsMonetary was explicitly declared on the account.
+func (a Account) MonetaryClassification() (isMonetary bool, explicit bool) {
+	if a.Type != AccountTypeAsset && a.Type != AccountTypeLiability {
+		return false, true
+	}
+	if a.IsMonetary == nil {
+		return false, false
+	}
+	return *a.IsMonetary, true
 }
 
 func (a *Account) IsValid() error {

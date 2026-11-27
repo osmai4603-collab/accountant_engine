@@ -159,6 +159,9 @@ func FingerprintRequest(entry journal.JournalEntry, opts PostOptions, scope Idem
 	if err := scope.Validate(); err != nil {
 		return "", err
 	}
+	if err := validateCanonicalEntryFields(entry, opts, scope); err != nil {
+		return "", err
+	}
 
 	var canonical strings.Builder
 	canonical.WriteString("posting-request-fingerprint-v1|")
@@ -228,6 +231,9 @@ func FingerprintRequest(entry journal.JournalEntry, opts PostOptions, scope Idem
 // before and after an entry is posted.
 func FingerprintCallerPayload(entry journal.JournalEntry, opts PostOptions, scope IdempotencyScope) (string, error) {
 	if err := scope.Validate(); err != nil {
+		return "", err
+	}
+	if err := validateCanonicalEntryFields(entry, opts, scope); err != nil {
 		return "", err
 	}
 	var canonical strings.Builder
@@ -300,4 +306,48 @@ func fingerprintIDPtr[T interface{ String() string }](value *T) string {
 		return "-"
 	}
 	return (*value).String()
+}
+
+func validateCanonicalEntryFields(entry journal.JournalEntry, opts PostOptions, scope IdempotencyScope) error {
+	for _, item := range []struct {
+		name  string
+		value string
+	}{
+		{"scope.operation", string(scope.Operation)},
+		{"entry.entry_number", entry.EntryNumber},
+		{"entry.legal_number", entry.LegalNumber},
+		{"entry.status", string(entry.Status)},
+		{"entry.classification", string(entry.Classification)},
+		{"entry.adjusting_entry_type", string(entry.AdjustingEntryType)},
+		{"entry.adjustment_reason", entry.AdjustmentReason},
+		{"entry.description", entry.Description},
+		{"entry.source_module", entry.SourceModule},
+		{"entry.reference_id", entry.ReferenceID},
+		{"entry.transaction_currency", entry.TransactionCurrency},
+		{"entry.policy_fingerprint", entry.PolicyFingerprint},
+		{"entry.created_by", entry.CreatedBy},
+		{"entry.reversal_reason", entry.ReversalReason},
+		{"opts.actor_id", opts.ActorID},
+		{"opts.reason", opts.Reason},
+	} {
+		if strings.ContainsAny(item.value, "|\r\n\x00") {
+			return fmt.Errorf("%w: %s contains reserved delimiter or control character", ErrInvalidEntry, item.name)
+		}
+	}
+	for i, line := range entry.Lines {
+		for _, item := range []struct {
+			name  string
+			value string
+		}{
+			{"matching_number", line.MatchingNumber},
+			{"transaction_currency", line.TransactionCurrency},
+			{"functional_debit_currency", line.FunctionalDebit.Currency()},
+			{"functional_credit_currency", line.FunctionalCredit.Currency()},
+		} {
+			if strings.ContainsAny(item.value, "|\r\n\x00") {
+				return fmt.Errorf("%w: line[%d].%s contains reserved delimiter or control character", ErrInvalidEntry, i, item.name)
+			}
+		}
+	}
+	return nil
 }

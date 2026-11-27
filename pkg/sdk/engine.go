@@ -79,4 +79,3 @@ func SubledgerARAP(engine Engine) (publicsubledger.ARAPService, error) {
 	}
 	return provider.SubledgerARAP(), nil
 }
-

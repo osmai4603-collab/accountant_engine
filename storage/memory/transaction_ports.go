@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
@@ -60,6 +61,10 @@ func (t transactionAwareDriver) GetJournalByCode(ctx context.Context, companyID 
 	return transactionDriver(ctx, t.driver).GetJournalByCode(ctx, companyID, code)
 }
 
+func (t transactionAwareDriver) GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID masterdata.JournalID) (masterdata.Journal, error) {
+	return transactionDriver(ctx, t.driver).GetJournalByID(ctx, companyID, journalID)
+}
+
 func (t transactionAwareDriver) HasAccountChildren(ctx context.Context, companyID types.CompanyID, accountID types.AccountID) (bool, error) {
 	return transactionDriver(ctx, t.driver).HasAccountChildren(ctx, companyID, accountID)
 }
@@ -74,6 +79,10 @@ func (t transactionAwareDriver) GetPeriodForDate(ctx context.Context, companyID 
 
 func (t transactionAwareDriver) GetAccountBalance(ctx context.Context, companyID types.CompanyID, accountID types.AccountID, asOf time.Time, currency string) (decimal.Decimal, error) {
 	return transactionDriver(ctx, t.driver).GetAccountBalance(ctx, companyID, accountID, asOf, currency)
+}
+
+func (t transactionAwareDriver) GetTransactionBalances(ctx context.Context, filter ledger.ForeignCurrencyBalanceFilter) ([]ledger.ForeignCurrencyBalance, error) {
+	return transactionDriver(ctx, t.driver).GetTransactionBalances(ctx, filter)
 }
 
 func (t transactionAwareDriver) AppendAudit(ctx context.Context, record storage.AuditRecord) error {
@@ -173,3 +182,4 @@ var _ masterdata.CostCenterWriter = transactionAwareDriver{}
 var _ masterdata.AnalyticalDimensionReader = transactionAwareDriver{}
 var _ masterdata.AnalyticalDimensionWriter = transactionAwareDriver{}
 var _ storage.PolicyStore = transactionAwareDriver{}
+var _ storage.TransactionBalanceReader = transactionAwareDriver{}

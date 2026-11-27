@@ -3,6 +3,7 @@ package ledger
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
@@ -61,6 +62,66 @@ type AccountBalance struct {
 	Credit             types.Money
 	Net                types.Money
 	MovementCount      int
+}
+
+// ForeignCurrencyBalanceFilter narrows RebuildForeignCurrencyBalances by tenant,
+// account, transaction currency, posting cutoff, and analytical dimensions (LDG-003).
+type ForeignCurrencyBalanceFilter struct {
+	CompanyID           types.CompanyID
+	AccountID           types.AccountID
+	TransactionCurrency string
+	AsOf                time.Time
+	PartnerID           *types.PartnerID
+	CostCenterID        *types.CostCenterID
+	ProjectID           *types.ProjectID
+	SegmentID           *types.SegmentID
+	BusinessUnitID      *types.BusinessUnitID
+	GroupByDimensions   bool
+}
+
+// ForeignCurrencyBalanceKey identifies a deterministic foreign-currency rebuild bucket.
+type ForeignCurrencyBalanceKey struct {
+	CompanyID           types.CompanyID
+	AccountID           types.AccountID
+	TransactionCurrency string
+	FunctionalCurrency  string
+	PartnerID           types.PartnerID
+	CostCenterID        types.CostCenterID
+	ProjectID           types.ProjectID
+	SegmentID           types.SegmentID
+	BusinessUnitID      types.BusinessUnitID
+}
+
+// ForeignCurrencyBalance is a deterministic read projection pairing functional
+// carrying-book totals with the signed transaction-currency balance required
+// for IAS 21 end-of-period FX revaluation (LDG-003 / DEC-LDG-001).
+type ForeignCurrencyBalance struct {
+	CompanyID           types.CompanyID
+	AccountID           types.AccountID
+	TransactionCurrency string
+	FunctionalCurrency  string
+	PartnerID           *types.PartnerID
+	CostCenterID        *types.CostCenterID
+	ProjectID           *types.ProjectID
+	SegmentID           *types.SegmentID
+	BusinessUnitID      *types.BusinessUnitID
+	TransactionDebit    decimal.Decimal
+	TransactionCredit   decimal.Decimal
+	TransactionNet      decimal.Decimal
+	FunctionalDebit     types.Money
+	FunctionalCredit    types.Money
+	FunctionalNet       types.Money
+	MovementCount       int
+}
+
+// UnsignedTransactionPosition converts the signed TransactionNet read balance
+// into a strictly non-negative magnitude and explicit normal-side indicator
+// so FX revaluation generators preserve JRN-003 (positive EntryLine amounts).
+func (b ForeignCurrencyBalance) UnsignedTransactionPosition() (magnitude decimal.Decimal, isCredit bool) {
+	if b.TransactionNet.IsNegative() {
+		return b.TransactionNet.Abs(), true
+	}
+	return b.TransactionNet, false
 }
 
 // IsPostedAccountingFact reports whether the entry status participates in the
@@ -162,11 +223,11 @@ func ProjectPostedMovements(entries []journal.JournalEntry) ([]PostedMovement, e
 				EffectiveDate:       entry.EffectiveDate.UTC(),
 				PostingDate:         entry.PostingDate.UTC(),
 				AccountID:           line.AccountID,
-				PartnerID:           clonePartnerID(line.PartnerID),
-				CostCenterID:        cloneCostCenterID(line.CostCenterID),
-				ProjectID:           cloneProjectID(line.ProjectID),
-				SegmentID:           cloneSegmentID(line.SegmentID),
-				BusinessUnitID:      cloneBusinessUnitID(line.BusinessUnitID),
+				PartnerID:           clonePointer(line.PartnerID),
+				CostCenterID:        clonePointer(line.CostCenterID),
+				ProjectID:           clonePointer(line.ProjectID),
+				SegmentID:           clonePointer(line.SegmentID),
+				BusinessUnitID:      clonePointer(line.BusinessUnitID),
 				TransactionAmount:   line.TransactionAmount,
 				TransactionCurrency: line.TransactionCurrency,
 				ExchangeRate:        line.ExchangeRate,
@@ -177,8 +238,8 @@ func ProjectPostedMovements(entries []journal.JournalEntry) ([]PostedMovement, e
 				SourceModule:        entry.SourceModule,
 				ReferenceID:         entry.ReferenceID,
 				Status:              entry.Status,
-				ReversalOfID:        cloneJournalEntryID(entry.ReversalOfID),
-				ReversedByID:        cloneJournalEntryID(entry.ReversedByID),
+				ReversalOfID:        clonePointer(entry.ReversalOfID),
+				ReversedByID:        clonePointer(entry.ReversedByID),
 			})
 		}
 	}
@@ -236,47 +297,199 @@ func RebuildAccountBalances(entries []journal.JournalEntry) (map[AccountBalanceK
 	return balances, nil
 }
 
-func cloneJournalEntryID(v *types.JournalEntryID) *types.JournalEntryID {
-	if v == nil {
-		return nil
+// RebuildForeignCurrencyBalances deterministically projects functional carrying
+// balances alongside transaction-currency balances filtered by asOf, transaction
+// currency, and optional analytical dimensions in total canonical order (LDG-003).
+func RebuildForeignCurrencyBalances(
+	entries []journal.JournalEntry,
+	filter ForeignCurrencyBalanceFilter,
+) (map[ForeignCurrencyBalanceKey]ForeignCurrencyBalance, error) {
+	cutoffUTC := filter.AsOf.UTC()
+	hasCutoff := !filter.AsOf.IsZero()
+	filteredEntries := make([]journal.JournalEntry, 0, len(entries))
+	for _, entry := range entries {
+		if hasCutoff {
+			ts := entry.PostingDate.UTC()
+			if ts.IsZero() {
+				ts = entry.EffectiveDate.UTC()
+			}
+			if ts.After(cutoffUTC) {
+				continue
+			}
+		}
+		filteredEntries = append(filteredEntries, entry)
 	}
-	clone := *v
-	return &clone
+
+	movements, err := ProjectPostedMovements(filteredEntries)
+	if err != nil {
+		return nil, err
+	}
+
+	wantCurrency := strings.ToUpper(strings.TrimSpace(filter.TransactionCurrency))
+	balances := make(map[ForeignCurrencyBalanceKey]ForeignCurrencyBalance)
+	for _, mv := range movements {
+		txCurrency := strings.ToUpper(strings.TrimSpace(mv.TransactionCurrency))
+		if txCurrency == "" {
+			txCurrency = mv.FunctionalCurrency
+		}
+		if !movementMatchesFilter(mv, filter, wantCurrency, txCurrency) {
+			continue
+		}
+
+		key := ForeignCurrencyBalanceKey{
+			CompanyID:           mv.CompanyID,
+			AccountID:           mv.AccountID,
+			TransactionCurrency: txCurrency,
+			FunctionalCurrency:  mv.FunctionalCurrency,
+		}
+		if filter.GroupByDimensions {
+			key.PartnerID = derefOrZero(mv.PartnerID)
+			key.CostCenterID = derefOrZero(mv.CostCenterID)
+			key.ProjectID = derefOrZero(mv.ProjectID)
+			key.SegmentID = derefOrZero(mv.SegmentID)
+			key.BusinessUnitID = derefOrZero(mv.BusinessUnitID)
+		}
+
+		balance, ok := balances[key]
+		if !ok {
+			zeroFunc, err := types.Zero(mv.FunctionalCurrency)
+			if err != nil {
+				return nil, err
+			}
+			balance = ForeignCurrencyBalance{
+				CompanyID:           mv.CompanyID,
+				AccountID:           mv.AccountID,
+				TransactionCurrency: txCurrency,
+				FunctionalCurrency:  mv.FunctionalCurrency,
+				FunctionalDebit:     zeroFunc,
+				FunctionalCredit:    zeroFunc,
+				FunctionalNet:       zeroFunc,
+			}
+			if filter.GroupByDimensions {
+				balance.PartnerID = clonePointer(mv.PartnerID)
+				balance.CostCenterID = clonePointer(mv.CostCenterID)
+				balance.ProjectID = clonePointer(mv.ProjectID)
+				balance.SegmentID = clonePointer(mv.SegmentID)
+				balance.BusinessUnitID = clonePointer(mv.BusinessUnitID)
+			}
+		}
+
+		funcDebit, err := balance.FunctionalDebit.Add(mv.FunctionalDebit)
+		if err != nil {
+			return nil, err
+		}
+		funcCredit, err := balance.FunctionalCredit.Add(mv.FunctionalCredit)
+		if err != nil {
+			return nil, err
+		}
+		funcNet, err := funcDebit.Subtract(funcCredit)
+		if err != nil {
+			return nil, err
+		}
+
+		txAbs := mv.TransactionAmount.Amount().Abs()
+		if mv.FunctionalDebit.Amount().IsPositive() {
+			balance.TransactionDebit = balance.TransactionDebit.Add(txAbs)
+		}
+		if mv.FunctionalCredit.Amount().IsPositive() {
+			balance.TransactionCredit = balance.TransactionCredit.Add(txAbs)
+		}
+		balance.TransactionNet = balance.TransactionDebit.Sub(balance.TransactionCredit)
+		balance.FunctionalDebit = funcDebit
+		balance.FunctionalCredit = funcCredit
+		balance.FunctionalNet = funcNet
+		balance.MovementCount++
+		balances[key] = balance
+	}
+	return balances, nil
 }
 
-func clonePartnerID(v *types.PartnerID) *types.PartnerID {
-	if v == nil {
-		return nil
+// SortedForeignCurrencyBalances returns a deterministically ordered slice from a
+// foreign-currency balance rebuild map.
+func SortedForeignCurrencyBalances(balances map[ForeignCurrencyBalanceKey]ForeignCurrencyBalance) []ForeignCurrencyBalance {
+	keys := make([]ForeignCurrencyBalanceKey, 0, len(balances))
+	for k := range balances {
+		keys = append(keys, k)
 	}
-	clone := *v
-	return &clone
+	sort.Slice(keys, func(i, j int) bool {
+		a, b := keys[i], keys[j]
+		if a.CompanyID != b.CompanyID {
+			return a.CompanyID.String() < b.CompanyID.String()
+		}
+		if a.AccountID != b.AccountID {
+			return a.AccountID.String() < b.AccountID.String()
+		}
+		if a.TransactionCurrency != b.TransactionCurrency {
+			return a.TransactionCurrency < b.TransactionCurrency
+		}
+		if a.FunctionalCurrency != b.FunctionalCurrency {
+			return a.FunctionalCurrency < b.FunctionalCurrency
+		}
+		if a.PartnerID != b.PartnerID {
+			return a.PartnerID.String() < b.PartnerID.String()
+		}
+		if a.CostCenterID != b.CostCenterID {
+			return a.CostCenterID.String() < b.CostCenterID.String()
+		}
+		if a.ProjectID != b.ProjectID {
+			return a.ProjectID.String() < b.ProjectID.String()
+		}
+		if a.SegmentID != b.SegmentID {
+			return a.SegmentID.String() < b.SegmentID.String()
+		}
+		return a.BusinessUnitID.String() < b.BusinessUnitID.String()
+	})
+	out := make([]ForeignCurrencyBalance, len(keys))
+	for i, k := range keys {
+		out[i] = balances[k]
+	}
+	return out
 }
 
-func cloneCostCenterID(v *types.CostCenterID) *types.CostCenterID {
-	if v == nil {
-		return nil
+func movementMatchesFilter(
+	mv PostedMovement,
+	filter ForeignCurrencyBalanceFilter,
+	wantCurrency string,
+	txCurrency string,
+) bool {
+	if filter.CompanyID != (types.CompanyID{}) && mv.CompanyID != filter.CompanyID {
+		return false
 	}
-	clone := *v
-	return &clone
+	if filter.AccountID != (types.AccountID{}) && mv.AccountID != filter.AccountID {
+		return false
+	}
+	if wantCurrency != "" && txCurrency != wantCurrency {
+		return false
+	}
+	if !matchOptionalID(mv.PartnerID, filter.PartnerID) ||
+		!matchOptionalID(mv.CostCenterID, filter.CostCenterID) ||
+		!matchOptionalID(mv.ProjectID, filter.ProjectID) ||
+		!matchOptionalID(mv.SegmentID, filter.SegmentID) ||
+		!matchOptionalID(mv.BusinessUnitID, filter.BusinessUnitID) {
+		return false
+	}
+	return true
 }
 
-func cloneProjectID(v *types.ProjectID) *types.ProjectID {
-	if v == nil {
-		return nil
+func matchOptionalID[T comparable](actual, filter *T) bool {
+	if filter == nil {
+		return true
 	}
-	clone := *v
-	return &clone
+	if actual == nil {
+		return false
+	}
+	return *actual == *filter
 }
 
-func cloneSegmentID(v *types.SegmentID) *types.SegmentID {
+func derefOrZero[T comparable](v *T) T {
 	if v == nil {
-		return nil
+		var zero T
+		return zero
 	}
-	clone := *v
-	return &clone
+	return *v
 }
 
-func cloneBusinessUnitID(v *types.BusinessUnitID) *types.BusinessUnitID {
+func clonePointer[T any](v *T) *T {
 	if v == nil {
 		return nil
 	}

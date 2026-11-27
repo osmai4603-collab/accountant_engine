@@ -3,11 +3,11 @@
 - **المعرّف:** RB-OPS-001 / `P7-03` → `T7`
 - **الجمهور:** مهندسو العمليات والموثوقية ومسؤولو قواعد البيانات
 - **النطاق:** النواة المدمجة (`pkg/sdk`) مع PostgreSQL فقط؛ لا يوجد في هذا المشروع خادم HTTP أو gRPC ولا منفذ `/readyz`.
-- **المراجع:** [تقرير التحقق النهائي](../../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، [اعتماد الإصدار](../../reports/KERNEL_RELEASE_SIGNOFF.md)، [عقد مستودع التدقيق](../../contracts/KERNEL_AUDIT_REPOSITORY_CONTRACT.md).
+- **المراجع:** [تقرير التحقق النهائي](../../reports/KERNEL_FINAL_VERIFICATION_REPORT.md) *(سجل تاريخي)*، [اعتماد الإصدار](../../reports/KERNEL_RELEASE_SIGNOFF.md) **`SUPERSEDED` — ليس إذناً سارياً**، [عقد مستودع التدقيق](../../contracts/KERNEL_AUDIT_REPOSITORY_CONTRACT.md)، [تحليل التضاربات](../../analysis/DOCS_CONFLICT_ANALYSIS.md).
 
 ## 1. شروط ما قبل البدء
 
-1. نسخة معتمدة من `pg_dump --format=custom` أو نقطة PITR مع سلسلة WAL كاملة.
+1. نسخة معتمدة من `pg_dump --format=custom` أو نقطة PITR مع سلسلة WAL كاملة. نسخة `pg_dump` المنطقية وحدها لا تضمن `RPO = 0`؛ الرقم صالح فقط عند إثبات نقطة PITR/سلسلة WAL أو توقف كتابة مُثبت قبل النسخة.
 2. قاعدة هدف جديدة فارغة ومعزولة؛ لا تُكتب أبداً فوق قاعدة المصدر.
 3. إيقاف كتابة التطبيق المضيف على المصدر المعزول وتسجيل وقت الحادث وإصدار الموديول المستخدم.
 4. توفر `pg_dump` و`pg_restore` متوافقين مع إصدار الخادم، وضبط `POSTGRES_URL` أو المقبس المحلي `/var/run/postgresql`.
@@ -45,8 +45,8 @@ pg_restore --exit-on-error --no-owner --no-privileges \
 | 10 | عكس ذري | Idempotent reversal ناجح |
 | 11 | إقفال سنوي | إقفال ذري مع قيد افتتاح للسنة التالية |
 
-- **RPO المستهدف:** 0 (آخر معاملة ملتزمة قبل النسخة/نقطة PITR).
-- **RTO المستهدف:** < 5 ثوانٍ داخل التمرين الآلي؛ يُسجَّل الزمن الفعلي في `docs/reports/p7_gate_evidence.md`.
+- **RPO المستهدف:** 0 (آخر معاملة ملتزمة قبل النسخة/نقطة PITR) — ادعاء بيئة مستهدفة؛ يُصنَّف `Not Verified` في [ملف النطاق](../../quality/SCOPE_PROFILE_KERNEL_v1.md) و[فهرس الاختبارات](../../quality/COMPLIANCE_TEST_SUITE_INDEX.md) حتى يتوفر دليل `E4`.
+- **RTO المستهدف:** < 5 ثوانٍ داخل التمرين الآلي؛ بينما [معايير النجاح](../../rules/ACCOUNTING_ENGINE_SUCCESS_CRITERIA.md) تنص على `RTO ≤ 30 seconds`. الفرق بين رقمين (:5ث في الدليل و30ث في المعيار) غير مبرر؛ يُسجَّل الزمن الفعلي في سجل الحادث نفسه لأن ملف `p7_gate_evidence.md` المحذوف لم يعد موجوداً، ولا يُغلق الحادث دون تبرير الفرق.
 
 ## 4. قرار الاستئناف
 

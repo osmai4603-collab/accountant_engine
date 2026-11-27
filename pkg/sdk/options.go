@@ -67,6 +67,28 @@ func WithPostingConfig(config PostingConfig) Option {
 	}
 }
 
+// WithAllowSyntheticDefaultJournal enables the legacy "GENERAL" fallback when
+// storage.MasterDataReader does not implement masterdata.JournalRepository.
+func WithAllowSyntheticDefaultJournal() Option {
+	return func(b *EngineBuilder) error {
+		b.postingConfig.AllowSyntheticDefaultJournal = true
+		return nil
+	}
+}
+
+// WithPolicyCacheTTL configures how long loaded policy versions stay cached
+// per company before reloading from storage.PolicyStore. Zero caches until
+// explicit invalidation via PolicyCacheManager.
+func WithPolicyCacheTTL(ttl time.Duration) Option {
+	return func(b *EngineBuilder) error {
+		if ttl < 0 {
+			return errors.New("policy cache TTL must not be negative")
+		}
+		b.postingConfig.PolicyCacheTTL = ttl
+		return nil
+	}
+}
+
 // WithPostingCapabilities supplies optional controls used by PostingConfig.
 func WithPostingCapabilities(capabilities storage.PostingCapabilities) Option {
 	return func(b *EngineBuilder) error {
@@ -127,4 +149,3 @@ func isNilDependency(value any) bool {
 		return false
 	}
 }
-

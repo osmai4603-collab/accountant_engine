@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 )
 
 // PostingConfig declares the posting controls that are required for an SDK
@@ -14,13 +15,19 @@ type PostingConfig struct {
 	RequireFinancialDimensions bool
 	RequireMakerCheckerPolicy  bool
 	RequirePolicy              bool
+	// AllowSyntheticDefaultJournal explicitly opts in to the legacy fallback
+	// that synthesizes a "GENERAL" journal when MasterDataReader does not
+	// implement masterdata.JournalRepository. Disabled (fail-closed) by default.
+	AllowSyntheticDefaultJournal bool
+	// PolicyCacheTTL bounds how long versioned policies remain cached per company
+	// before reloading from storage.PolicyStore. Zero caches until invalidated.
+	PolicyCacheTTL time.Duration
 }
 
 func (c PostingConfig) requiresCapabilities() bool {
 	return c.RequireApproval || c.RequireFinancialDimensions ||
 		c.RequireMakerCheckerPolicy || c.RequirePolicy
 }
-
 
 func isNilCapability(capability any) bool {
 	if capability == nil {

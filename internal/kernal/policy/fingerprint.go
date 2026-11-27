@@ -56,6 +56,32 @@ func appendField(builder *strings.Builder, format string, args ...any) {
 	builder.WriteString(fmt.Sprintf(format, args...))
 }
 
+// FingerprintChecked validates both policy versions and rejects delimiter-unsafe
+// characters before computing the canonical policy-fingerprint-v1 digest.
+func FingerprintChecked(posting PostingPolicy, currency CurrencyPolicy) (string, error) {
+	if err := posting.Validate(); err != nil {
+		return "", err
+	}
+	if err := currency.Validate(); err != nil {
+		return "", err
+	}
+	for _, value := range []string{
+		currency.FunctionalCurrency,
+		currency.PresentationCurrency,
+		string(currency.RoundingMethod),
+	} {
+		if strings.ContainsAny(value, "|\r\n\x00") {
+			return "", ErrInvalidPolicy
+		}
+	}
+	for _, code := range currency.AllowedCurrencies {
+		if strings.ContainsAny(code, "|\r\n\x00") {
+			return "", ErrInvalidPolicy
+		}
+	}
+	return Fingerprint(posting, currency), nil
+}
+
 func fingerprintTime(value time.Time) string {
 	if value.IsZero() {
 		return "-"

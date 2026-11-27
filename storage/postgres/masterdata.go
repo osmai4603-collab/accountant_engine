@@ -158,8 +158,33 @@ func (d *Driver) GetJournalByCode(ctx context.Context, companyID types.CompanyID
 	return journal, err
 }
 
+func (d *Driver) GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID masterdata.JournalID) (masterdata.Journal, error) {
+	if companyID == (types.CompanyID{}) || journalID == (masterdata.JournalID{}) {
+		return masterdata.Journal{}, masterdata.ErrInvalidJournal
+	}
+	if err := d.assertReadScope(ctx, companyID, masterdata.ErrJournalNotFound); err != nil {
+		return masterdata.Journal{}, err
+	}
+	var journal masterdata.Journal
+	err := d.WithCompanyTx(ctx, uuid.UUID(companyID), func(tx pgx.Tx) error {
+		var jID, cID uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id, company_id, code, name FROM journals WHERE company_id=$1 AND id=$2`,
+			uuid.UUID(companyID), uuid.UUID(journalID)).Scan(&jID, &cID, &journal.Code, &journal.Name)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return masterdata.ErrJournalNotFound
+		}
+		if err != nil {
+			return err
+		}
+		journal.ID = masterdata.JournalID(jID)
+		journal.CompanyID = types.CompanyID(cID)
+		return nil
+	})
+	return journal, err
+}
+
 const accountSelect = `SELECT id, company_id, code, name, account_type, normal_balance, currency_id, parent_id,
-	is_reconcilable, is_control_account, is_contra_account, is_active, requires_cost_center, is_cash_equivalent, is_non_cash_adjustment,
+	is_reconcilable, is_control_account, is_contra_account, is_active, requires_cost_center, is_monetary, is_cash_equivalent, is_non_cash_adjustment,
 	cash_flow_activity, sub_classification, ifrs_category, display_order
 	FROM accounts`
 
@@ -177,22 +202,22 @@ func (d *Driver) CreateAccount(ctx context.Context, account masterdata.Account) 
 			`INSERT INTO accounts (
 				id, company_id, code, name, account_type, normal_balance, currency_id, parent_id,
 				is_reconcilable, is_control_account, is_contra_account, is_active, requires_cost_center,
-				is_cash_equivalent, is_non_cash_adjustment, cash_flow_activity, sub_classification,
+				is_monetary, is_cash_equivalent, is_non_cash_adjustment, cash_flow_activity, sub_classification,
 				ifrs_category, display_order, created_at, updated_at
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW(),NOW())
 			ON CONFLICT(id) DO UPDATE SET
 				code=EXCLUDED.code, name=EXCLUDED.name, account_type=EXCLUDED.account_type,
 				normal_balance=EXCLUDED.normal_balance, currency_id=EXCLUDED.currency_id,
 				parent_id=EXCLUDED.parent_id, is_reconcilable=EXCLUDED.is_reconcilable,
 				is_control_account=EXCLUDED.is_control_account, is_contra_account=EXCLUDED.is_contra_account,
 				is_active=EXCLUDED.is_active, requires_cost_center=EXCLUDED.requires_cost_center,
-				is_cash_equivalent=EXCLUDED.is_cash_equivalent, is_non_cash_adjustment=EXCLUDED.is_non_cash_adjustment,
+				is_monetary=EXCLUDED.is_monetary, is_cash_equivalent=EXCLUDED.is_cash_equivalent, is_non_cash_adjustment=EXCLUDED.is_non_cash_adjustment,
 				cash_flow_activity=EXCLUDED.cash_flow_activity, sub_classification=EXCLUDED.sub_classification,
 				ifrs_category=EXCLUDED.ifrs_category, display_order=EXCLUDED.display_order, updated_at=NOW()`,
 			uuid.UUID(account.ID), uuid.UUID(account.CompanyID), account.Code, account.Name,
 			string(account.Type), string(account.NormalBalance), nullableString(account.Currency, "USD"), parentID,
 			account.IsReconcilable, account.IsControlAccount, account.IsContraAccount, account.IsActive,
-			account.RequiresCostCenter, account.IsCashEquivalent, account.IsNonCashAdjustment,
+			account.RequiresCostCenter, account.IsMonetary, account.IsCashEquivalent, account.IsNonCashAdjustment,
 			nullableString(account.CashFlowActivity, "unclassified"),
 			nullableString(account.SubClassification, "unclassified"),
 			nullableString(account.IFRSCategory, "unclassified"), account.DisplayOrder)
@@ -218,7 +243,7 @@ func (d *Driver) GetAccount(ctx context.Context, companyID types.CompanyID, acco
 			&aID, &cID, &account.Code, &account.Name, &aType, &nBal,
 			&account.Currency, &parentID, &account.IsReconcilable, &account.IsControlAccount,
 			&account.IsContraAccount, &account.IsActive, &account.RequiresCostCenter,
-			&account.IsCashEquivalent, &account.IsNonCashAdjustment, &account.CashFlowActivity,
+			&account.IsMonetary, &account.IsCashEquivalent, &account.IsNonCashAdjustment, &account.CashFlowActivity,
 			&account.SubClassification, &account.IFRSCategory, &account.DisplayOrder,
 		)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -254,7 +279,7 @@ func (d *Driver) GetAccountByCode(ctx context.Context, companyID types.CompanyID
 			&aID, &cID, &account.Code, &account.Name, &aType, &nBal,
 			&account.Currency, &parentID, &account.IsReconcilable, &account.IsControlAccount,
 			&account.IsContraAccount, &account.IsActive, &account.RequiresCostCenter,
-			&account.IsCashEquivalent, &account.IsNonCashAdjustment, &account.CashFlowActivity,
+			&account.IsMonetary, &account.IsCashEquivalent, &account.IsNonCashAdjustment, &account.CashFlowActivity,
 			&account.SubClassification, &account.IFRSCategory, &account.DisplayOrder,
 		)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -432,7 +457,7 @@ func phase11DateEndUTC(value time.Time) time.Time {
 const accountVersionColumns = `company_id, account_id, name, account_type, ifrs_category,
 	effective_from, effective_to, code, normal_balance, currency_id, parent_id,
 	is_reconcilable, is_control_account, is_contra_account, is_active, requires_cost_center,
-	is_cash_equivalent, is_non_cash_adjustment, cash_flow_activity, sub_classification, display_order`
+	is_monetary, is_cash_equivalent, is_non_cash_adjustment, cash_flow_activity, sub_classification, display_order`
 
 func (d *Driver) SaveAccountVersion(ctx context.Context, account masterdata.Account) error {
 	if err := ctx.Err(); err != nil {
@@ -484,12 +509,12 @@ func (d *Driver) SaveAccountVersion(ctx context.Context, account masterdata.Acco
 			effectiveTo = to
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO account_versions (`+accountVersionColumns+`)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
 			companyID, accountID, account.Name, string(account.Type),
 			nullableString(account.IFRSCategory, "unclassified"), from, effectiveTo,
 			account.Code, string(account.NormalBalance), nullableString(account.Currency, "USD"), parentID,
 			account.IsReconcilable, account.IsControlAccount, account.IsContraAccount, account.IsActive,
-			account.RequiresCostCenter, account.IsCashEquivalent, account.IsNonCashAdjustment,
+			account.RequiresCostCenter, account.IsMonetary, account.IsCashEquivalent, account.IsNonCashAdjustment,
 			nullableString(account.CashFlowActivity, "unclassified"),
 			nullableString(account.SubClassification, "unclassified"), account.DisplayOrder)
 		if err != nil {
@@ -512,14 +537,14 @@ func (d *Driver) SaveAccountVersion(ctx context.Context, account masterdata.Acco
 		_, err = tx.Exec(ctx, `UPDATE accounts SET
 			code=$3, name=$4, account_type=$5, normal_balance=$6, currency_id=$7, parent_id=$8,
 			is_reconcilable=$9, is_control_account=$10, is_contra_account=$11, is_active=$12,
-			requires_cost_center=$13, is_cash_equivalent=$14, is_non_cash_adjustment=$15,
-			cash_flow_activity=$16, sub_classification=$17, ifrs_category=$18, display_order=$19,
+			requires_cost_center=$13, is_monetary=$14, is_cash_equivalent=$15, is_non_cash_adjustment=$16,
+			cash_flow_activity=$17, sub_classification=$18, ifrs_category=$19, display_order=$20,
 			updated_at=NOW()
 			WHERE company_id=$1 AND id=$2`,
 			companyID, accountID, account.Code, account.Name, string(account.Type),
 			string(account.NormalBalance), nullableString(account.Currency, "USD"), parentID,
 			account.IsReconcilable, account.IsControlAccount, account.IsContraAccount, account.IsActive,
-			account.RequiresCostCenter, account.IsCashEquivalent, account.IsNonCashAdjustment,
+			account.RequiresCostCenter, account.IsMonetary, account.IsCashEquivalent, account.IsNonCashAdjustment,
 			nullableString(account.CashFlowActivity, "unclassified"),
 			nullableString(account.SubClassification, "unclassified"),
 			nullableString(account.IFRSCategory, "unclassified"), account.DisplayOrder)
@@ -543,7 +568,7 @@ func (d *Driver) GetAccountAsOf(ctx context.Context, companyID types.CompanyID, 
 		var aType, nBal string
 		err := tx.QueryRow(ctx, `SELECT name, code, account_type, normal_balance, currency_id, parent_id,
 			is_reconcilable, is_control_account, is_contra_account, is_active, requires_cost_center,
-			is_cash_equivalent, is_non_cash_adjustment, cash_flow_activity, sub_classification,
+			is_monetary, is_cash_equivalent, is_non_cash_adjustment, cash_flow_activity, sub_classification,
 			ifrs_category, display_order, effective_from, effective_to
 			FROM account_versions
 			WHERE company_id=$1 AND account_id=$2 AND effective_from <= $3::date
@@ -552,7 +577,7 @@ func (d *Driver) GetAccountAsOf(ctx context.Context, companyID types.CompanyID, 
 			uuid.UUID(companyID), uuid.UUID(accountID), asOfDate).Scan(
 			&account.Name, &account.Code, &aType, &nBal, &account.Currency, &parentID,
 			&account.IsReconcilable, &account.IsControlAccount, &account.IsContraAccount,
-			&account.IsActive, &account.RequiresCostCenter, &account.IsCashEquivalent,
+			&account.IsActive, &account.RequiresCostCenter, &account.IsMonetary, &account.IsCashEquivalent,
 			&account.IsNonCashAdjustment, &account.CashFlowActivity, &account.SubClassification,
 			&account.IFRSCategory, &account.DisplayOrder, &from, &toDate)
 		if errors.Is(err, pgx.ErrNoRows) {

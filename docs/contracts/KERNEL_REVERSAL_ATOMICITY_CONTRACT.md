@@ -4,7 +4,7 @@
 - **المرحلة:** 7 — المعاملات والذرية ومنع التكرار
 - **التاريخ:** 2026-11-22
 - **خط الأساس المرجعي:** الالتزام `94054d9c9a5f8d8419c9871b2d61b17b44d5b556`
-- **الخطة:** [`KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المهام 10–11 و16
+- **الخطة:** ~~`KERNEL_REMEDIATION_EXECUTION_PLAN.md`~~ *(حُذف مجلد `plans/`)*، المهام 10–11 و16
 - **التنفيذ المرجعي:** `storage/postgres/uow.go`، `storage/memory/posting.go`، `storage/postgres/posting.go`
 - **الوثائق المرتبطة:** [عقد معاملة الترحيل](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، [مواصفة التدفق](./KERNEL_POSTING_FLOW_SPECIFICATION.md)
 
@@ -67,7 +67,7 @@
 - إمكانية إلغاء كل التغييرات عند أي خطأ قبل Commit، بما فيها تحديث الحالة والرابط.
 - نفس قواعد idempotency الموضحة في [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، مع `operation=reverse`.
 
-لا شيء من هذا يفرض SQL داخل `internal/kernal`؛ النواة تمرر `OriginalEntryID` و`ReversalOfID` و`PostingIdempotency` فقط.
+لا شيء من هذا يفرض SQL داخل `internal/kernal`؛ **النواة تمرّر `ReversalOfID` و`PostingIdempotency` فقط**، والمحول هو من يضيف `OriginalEntryID`/`ReversedEntryID` في JSON عند الحفظ ويترجمها عند القراءة (القسم 5). لا تُنسَب أسماء JSON إلى نموذج النواة.
 
 ## 7. الحكم
 

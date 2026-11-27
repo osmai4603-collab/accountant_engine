@@ -2,12 +2,17 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
+	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 	"github.com/shopspring/decimal"
 )
+
+var _ storage.TransactionBalanceReader = (*Driver)(nil)
 
 // GetAccountBalance derives the balance from committed, posted entries so the
 // as-of boundary and functional-currency resolution follow the same rules as
@@ -52,4 +57,31 @@ func (d *Driver) GetAccountBalance(ctx context.Context, companyID types.CompanyI
 		}
 	}
 	return total, nil
+}
+
+// GetTransactionBalances implements storage.TransactionBalanceReader (LDG-003)
+// using deterministic movement projection without changing BalanceReader semantics.
+func (d *Driver) GetTransactionBalances(ctx context.Context, filter ledger.ForeignCurrencyBalanceFilter) ([]ledger.ForeignCurrencyBalance, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if filter.CompanyID == (types.CompanyID{}) {
+		return nil, errors.New("memory: company_id is required")
+	}
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if err := d.assertReadScope(ctx, filter.CompanyID, storage.ErrScopeViolation); err != nil {
+		return nil, err
+	}
+
+	entries := make([]journal.JournalEntry, 0, len(d.entries[filter.CompanyID]))
+	for _, entry := range d.entries[filter.CompanyID] {
+		entries = append(entries, cloneEntry(entry))
+	}
+	balances, err := ledger.RebuildForeignCurrencyBalances(entries, filter)
+	if err != nil {
+		return nil, err
+	}
+	return ledger.SortedForeignCurrencyBalances(balances), nil
 }

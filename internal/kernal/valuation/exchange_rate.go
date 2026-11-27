@@ -3,6 +3,7 @@ package valuation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -41,15 +42,18 @@ func (r ExchangeRate) Validate() error {
 	from := strings.ToUpper(strings.TrimSpace(r.FromCurrency))
 	to := strings.ToUpper(strings.TrimSpace(r.ToCurrency))
 	fromCurrency, fromOK := types.LookupCurrency(from)
-	if !fromOK || fromCurrency.Code == types.XXX {
+	if !fromOK || fromCurrency.IsSpecial() {
 		return ErrInvalidCurrency
 	}
 	toCurrency, toOK := types.LookupCurrency(to)
-	if !toOK || toCurrency.Code == types.XXX {
+	if !toOK || toCurrency.IsSpecial() {
 		return ErrInvalidCurrency
 	}
 	if !r.Rate.IsPositive() || r.EffectiveDate.IsZero() {
 		return ErrInvalidRate
+	}
+	if err := types.ValidateExchangeRatePrecision(r.Rate); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidRate, err)
 	}
 	if !validRateType(r.Type) {
 		return ErrInvalidRate
@@ -71,7 +75,7 @@ func validateRateQuery(from, to string, rateType RateType, asOf time.Time) (stri
 	to = strings.ToUpper(strings.TrimSpace(to))
 	fromCurrency, fromOK := types.LookupCurrency(from)
 	toCurrency, toOK := types.LookupCurrency(to)
-	if !fromOK || !toOK || fromCurrency.Code == types.XXX || toCurrency.Code == types.XXX {
+	if !fromOK || !toOK || fromCurrency.IsSpecial() || toCurrency.IsSpecial() {
 		return "", "", ErrInvalidCurrency
 	}
 	if asOf.IsZero() || !validRateType(rateType) {
@@ -157,7 +161,7 @@ func (r *RateRegistry) GetRate(ctx context.Context, rateType RateType, from, to 
 	invKey := r.rateKey(rateType, to, from)
 	if list, ok := r.rates[invKey]; ok && len(list) > 0 {
 		if rate, found := findEffectiveRate(list, asOf); found {
-			invRate := decimal.NewFromInt(1).DivRound(rate.Rate, 12)
+			invRate := decimal.NewFromInt(1).DivRound(rate.Rate, types.InternalScale)
 			return invRate, rate, true, nil
 		}
 	}

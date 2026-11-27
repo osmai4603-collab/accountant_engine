@@ -69,4 +69,3 @@ func newIsolatedPostgresDriver(t *testing.T, ctx context.Context) (*postgres.Dri
 	}
 	return postgres.NewDriverWithPool(testPool), nil
 }
-

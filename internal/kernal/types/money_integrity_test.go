@@ -95,7 +95,10 @@ func TestNewMoneyPrecisionBoundaryMatrix(t *testing.T) {
 func TestMinorUnitsContractAcrossRegistry(t *testing.T) {
 	for _, currency := range AllCurrencies() {
 		code := string(currency.Code)
-		if code == string(XXX) {
+		if currency.IsSpecial() {
+			if _, err := NewMoneyFromString("1", code); !errors.Is(err, ErrInvalidCurrency) {
+				t.Fatalf("special currency %s unexpectedly accepted: %v", code, err)
+			}
 			continue
 		}
 		minor := currency.MinorUnit

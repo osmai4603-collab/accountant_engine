@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
+	publicgovernance "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
@@ -35,9 +35,9 @@ func TestPostgresAuditPhase10AtomicSnapshotAndCheckpoint(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 
-	first, err := chain.AppendAt(ctx, kernalgovernance.AuditLog{
+	first, err := chain.AppendAt(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-1",
 		Action: "POST", ActorID: "actor-1", Reason: "approved",
 		CorrelationID: "corr-1", Payload: []byte(`{"amount":"100"}`),
@@ -45,7 +45,7 @@ func TestPostgresAuditPhase10AtomicSnapshotAndCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := chain.AppendAt(ctx, kernalgovernance.AuditLog{
+	second, err := chain.AppendAt(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-2",
 		Action: "POST", ActorID: "actor-1", Reason: "approved",
 		CorrelationID: "corr-2", Payload: []byte(`{"amount":"200"}`),
@@ -56,7 +56,7 @@ func TestPostgresAuditPhase10AtomicSnapshotAndCheckpoint(t *testing.T) {
 	if second.SequenceNumber != 2 || second.PreviousLogHash != first.CurrentLogHash {
 		t.Fatalf("second audit log = %+v", second)
 	}
-	if err := driver.SetExternalAuditCheckpoint(ctx, company, kernalgovernance.AuditCheckpoint{
+	if err := driver.SetExternalAuditCheckpoint(ctx, company, publicgovernance.AuditCheckpoint{
 		CompanyID: company, SequenceNumber: second.SequenceNumber,
 		Version: 1, LogHash: second.CurrentLogHash,
 	}); err != nil {
@@ -92,7 +92,7 @@ func TestPostgresLegacyAppendUsesKernelV2Hash(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 	valid, err := chain.VerifyAuditIntegrity(ctx, company)
 	if !valid || err != nil {
 		t.Fatalf("legacy append kernel verification = (%v, %v)", valid, err)
@@ -111,12 +111,12 @@ func newPhase10Company(t *testing.T, ctx context.Context, driver *postgres.Drive
 	return company
 }
 
-func assertPhase10SnapshotChain(t *testing.T, snapshot kernalgovernance.AuditVerificationSnapshot, company types.CompanyID) {
+func assertPhase10SnapshotChain(t *testing.T, snapshot publicgovernance.AuditVerificationSnapshot, company types.CompanyID) {
 	t.Helper()
 	if uint64(len(snapshot.Logs)) != snapshot.SnapshotSequence {
 		t.Fatalf("snapshot boundary = %d logs, want %d", len(snapshot.Logs), snapshot.SnapshotSequence)
 	}
-	previous := kernalgovernance.GenesisHash
+	previous := publicgovernance.GenesisHash
 	for index, log := range snapshot.Logs {
 		wantSequence := uint64(index + 1)
 		if log.SequenceNumber != wantSequence {
@@ -128,7 +128,7 @@ func assertPhase10SnapshotChain(t *testing.T, snapshot kernalgovernance.AuditVer
 		if log.PreviousLogHash != previous {
 			t.Fatalf("snapshot log %d previous hash = %s, want %s", index, log.PreviousLogHash, previous)
 		}
-		if computed := kernalgovernance.CalculateHash(log); computed != log.CurrentLogHash {
+		if computed := publicgovernance.CalculateHash(log); computed != log.CurrentLogHash {
 			t.Fatalf("snapshot log %d stored hash = %s, computed %s", index, log.CurrentLogHash, computed)
 		}
 		previous = log.CurrentLogHash
@@ -152,7 +152,7 @@ func TestPostgresAuditPhase10ConcurrentAppendSequenceAndChain(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			log, err := driver.AppendAuditLogAtomic(ctx, kernalgovernance.AuditLog{
+			log, err := driver.AppendAuditLogAtomic(ctx, publicgovernance.AuditLog{
 				CompanyID: company, EntityType: "journal_entry",
 				EntityID: fmt.Sprintf("JE-%02d", i), Action: "POST",
 				ActorID: "actor-1", Reason: "concurrent", CorrelationID: fmt.Sprintf("corr-%02d", i),
@@ -184,7 +184,7 @@ func TestPostgresAuditPhase10ConcurrentAppendSequenceAndChain(t *testing.T) {
 		}
 	}
 
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 	if valid, err := chain.VerifyAuditIntegrity(ctx, company); !valid || err != nil {
 		t.Fatalf("chain after concurrent appends = (%v, %v)", valid, err)
 	}
@@ -196,7 +196,7 @@ func TestPostgresAuditPhase10ConcurrentAppendSequenceAndChain(t *testing.T) {
 		t.Fatalf("snapshot contains %d logs, want %d", len(snapshot.Logs), appenders)
 	}
 	first := snapshot.Logs[0]
-	if first.SequenceNumber != 1 || first.PreviousLogHash != kernalgovernance.GenesisHash {
+	if first.SequenceNumber != 1 || first.PreviousLogHash != publicgovernance.GenesisHash {
 		t.Fatalf("first log = %+v, want sequence 1 and genesis previous hash", first)
 	}
 	assertPhase10SnapshotChain(t, snapshot, company)
@@ -210,9 +210,9 @@ func TestPostgresAuditPhase10SnapshotIsStableDuringConcurrentAppends(t *testing.
 	}
 	defer driver.Close()
 	company := newPhase10Company(t, ctx, driver)
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 
-	seed, err := chain.Append(ctx, kernalgovernance.AuditLog{
+	seed, err := chain.Append(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-seed", Action: "POST",
 	})
 	if err != nil {
@@ -243,10 +243,10 @@ func TestPostgresAuditPhase10SnapshotIsStableDuringConcurrentAppends(t *testing.
 				return
 			}
 			// Check the snapshot's own boundary and links while writes continue.
-			previous := kernalgovernance.GenesisHash
+			previous := publicgovernance.GenesisHash
 			for index, log := range snapshot.Logs {
 				if log.SequenceNumber != uint64(index+1) || log.PreviousLogHash != previous ||
-					kernalgovernance.CalculateHash(log) != log.CurrentLogHash {
+					publicgovernance.CalculateHash(log) != log.CurrentLogHash {
 					readerErr <- fmt.Errorf("inconsistent snapshot during append at log %d", index)
 					return
 				}
@@ -266,7 +266,7 @@ func TestPostgresAuditPhase10SnapshotIsStableDuringConcurrentAppends(t *testing.
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, err := driver.AppendAuditLogAtomic(ctx, kernalgovernance.AuditLog{
+			_, err := driver.AppendAuditLogAtomic(ctx, publicgovernance.AuditLog{
 				CompanyID: company, EntityType: "journal_entry",
 				EntityID: fmt.Sprintf("JE-%02d", i), Action: "POST",
 			})
@@ -289,7 +289,7 @@ func TestPostgresAuditPhase10SnapshotIsStableDuringConcurrentAppends(t *testing.
 	if err != nil || last == nil {
 		t.Fatalf("last audit log = %v, %v", last, err)
 	}
-	if err := driver.SetExternalAuditCheckpoint(ctx, company, kernalgovernance.AuditCheckpoint{
+	if err := driver.SetExternalAuditCheckpoint(ctx, company, publicgovernance.AuditCheckpoint{
 		CompanyID: company, SequenceNumber: last.SequenceNumber, Version: 1, LogHash: last.CurrentLogHash,
 	}); err != nil {
 		t.Fatal(err)
@@ -321,11 +321,11 @@ func TestPostgresAuditPhase10TamperingIsDetected(t *testing.T) {
 	}
 	defer driver.Close()
 	company := newPhase10Company(t, ctx, driver)
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 
-	var last *kernalgovernance.AuditLog
+	var last *publicgovernance.AuditLog
 	for i := range 3 {
-		log, err := chain.Append(ctx, kernalgovernance.AuditLog{
+		log, err := chain.Append(ctx, publicgovernance.AuditLog{
 			CompanyID: company, EntityType: "journal_entry",
 			EntityID: fmt.Sprintf("JE-%d", i), Action: "POST", Payload: []byte(`{"amount":"10"}`),
 		})
@@ -334,7 +334,7 @@ func TestPostgresAuditPhase10TamperingIsDetected(t *testing.T) {
 		}
 		last = &log
 	}
-	if err := driver.SetExternalAuditCheckpoint(ctx, company, kernalgovernance.AuditCheckpoint{
+	if err := driver.SetExternalAuditCheckpoint(ctx, company, publicgovernance.AuditCheckpoint{
 		CompanyID: company, SequenceNumber: last.SequenceNumber, Version: 1, LogHash: last.CurrentLogHash,
 	}); err != nil {
 		t.Fatal(err)
@@ -356,7 +356,7 @@ func TestPostgresAuditPhase10TamperingIsDetected(t *testing.T) {
 		t.Fatalf("commit tampering: %v", err)
 	}
 
-	if valid, err := chain.VerifyAuditIntegrity(ctx, company); valid || !errors.Is(err, kernalgovernance.ErrAuditChainBroken) {
+	if valid, err := chain.VerifyAuditIntegrity(ctx, company); valid || !errors.Is(err, publicgovernance.ErrAuditChainBroken) {
 		t.Fatalf("verification after middle-record tampering = (%v, %v), want chain broken", valid, err)
 	}
 	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, company); valid || err == nil {
@@ -372,11 +372,11 @@ func TestPostgresAuditPhase10TailDeletionFailsClosedWithCheckpoint(t *testing.T)
 	}
 	defer driver.Close()
 	company := newPhase10Company(t, ctx, driver)
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 
-	var last *kernalgovernance.AuditLog
+	var last *publicgovernance.AuditLog
 	for i := range 3 {
-		log, err := chain.Append(ctx, kernalgovernance.AuditLog{
+		log, err := chain.Append(ctx, publicgovernance.AuditLog{
 			CompanyID: company, EntityType: "journal_entry", EntityID: fmt.Sprintf("JE-%d", i), Action: "POST",
 		})
 		if err != nil {
@@ -384,7 +384,7 @@ func TestPostgresAuditPhase10TailDeletionFailsClosedWithCheckpoint(t *testing.T)
 		}
 		last = &log
 	}
-	if err := driver.SetExternalAuditCheckpoint(ctx, company, kernalgovernance.AuditCheckpoint{
+	if err := driver.SetExternalAuditCheckpoint(ctx, company, publicgovernance.AuditCheckpoint{
 		CompanyID: company, SequenceNumber: last.SequenceNumber, Version: 1, LogHash: last.CurrentLogHash,
 	}); err != nil {
 		t.Fatal(err)
@@ -409,7 +409,7 @@ func TestPostgresAuditPhase10TailDeletionFailsClosedWithCheckpoint(t *testing.T)
 		t.Fatalf("remaining prefix verification = (%v, %v), want valid", valid, err)
 	}
 	if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, company); valid ||
-		!errors.Is(err, kernalgovernance.ErrAuditCheckpointMismatch) {
+		!errors.Is(err, publicgovernance.ErrAuditCheckpointMismatch) {
 		t.Fatalf("tail deletion = (%v, %v), want checkpoint mismatch", valid, err)
 	}
 }
@@ -422,17 +422,17 @@ func TestPostgresAuditPhase10MissingCheckpointFailsClosed(t *testing.T) {
 	}
 	defer driver.Close()
 	company := newPhase10Company(t, ctx, driver)
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 
 	check := func(phase string) {
 		t.Helper()
 		if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, company); valid ||
-			!errors.Is(err, kernalgovernance.ErrAuditCheckpointMismatch) {
+			!errors.Is(err, publicgovernance.ErrAuditCheckpointMismatch) {
 			t.Fatalf("%s without checkpoint = (%v, %v), want checkpoint mismatch", phase, valid, err)
 		}
 	}
 	check("empty chain")
-	if _, err := chain.Append(ctx, kernalgovernance.AuditLog{
+	if _, err := chain.Append(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-1", Action: "POST",
 	}); err != nil {
 		t.Fatal(err)
@@ -451,11 +451,11 @@ func TestPostgresAuditPhase10CheckpointCannotRegress(t *testing.T) {
 	}
 	defer driver.Close()
 	company := newPhase10Company(t, ctx, driver)
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 
-	var logs []kernalgovernance.AuditLog
+	var logs []publicgovernance.AuditLog
 	for i := range 2 {
-		log, err := chain.Append(ctx, kernalgovernance.AuditLog{
+		log, err := chain.Append(ctx, publicgovernance.AuditLog{
 			CompanyID: company, EntityType: "journal_entry", EntityID: fmt.Sprintf("JE-%d", i), Action: "POST",
 		})
 		if err != nil {
@@ -463,7 +463,7 @@ func TestPostgresAuditPhase10CheckpointCannotRegress(t *testing.T) {
 		}
 		logs = append(logs, log)
 	}
-	anchor := kernalgovernance.AuditCheckpoint{
+	anchor := publicgovernance.AuditCheckpoint{
 		CompanyID: company, SequenceNumber: 1, Version: 1, LogHash: logs[0].CurrentLogHash,
 	}
 	if err := driver.SetExternalAuditCheckpoint(ctx, company, anchor); err != nil {
@@ -472,17 +472,17 @@ func TestPostgresAuditPhase10CheckpointCannotRegress(t *testing.T) {
 
 	// The checkpoint hash is trusted external custody: the adapter checks its
 	// shape and monotonic position, not whether the hash matches internal logs.
-	rejected := []kernalgovernance.AuditCheckpoint{
+	rejected := []publicgovernance.AuditCheckpoint{
 		{CompanyID: company, SequenceNumber: 2, Version: 1, LogHash: logs[1].CurrentLogHash},
-		{CompanyID: company, SequenceNumber: 0, Version: 3, LogHash: kernalgovernance.GenesisHash},
+		{CompanyID: company, SequenceNumber: 0, Version: 3, LogHash: publicgovernance.GenesisHash},
 		{CompanyID: company, SequenceNumber: 2, Version: 0, LogHash: logs[1].CurrentLogHash},
 	}
 	for _, checkpoint := range rejected {
-		if err := driver.SetExternalAuditCheckpoint(ctx, company, checkpoint); !errors.Is(err, kernalgovernance.ErrInvalidAuditCheckpoint) {
+		if err := driver.SetExternalAuditCheckpoint(ctx, company, checkpoint); !errors.Is(err, publicgovernance.ErrInvalidAuditCheckpoint) {
 			t.Fatalf("regressive checkpoint %+v = %v, want ErrInvalidAuditCheckpoint", checkpoint, err)
 		}
 	}
-	if err := driver.SetExternalAuditCheckpoint(ctx, company, kernalgovernance.AuditCheckpoint{
+	if err := driver.SetExternalAuditCheckpoint(ctx, company, publicgovernance.AuditCheckpoint{
 		CompanyID: company, SequenceNumber: 2, Version: 2, LogHash: logs[1].CurrentLogHash,
 	}); err != nil {
 		t.Fatalf("valid advancing checkpoint: %v", err)
@@ -561,10 +561,10 @@ func TestPostgresPhase10BackfillRechainsLegacyRows(t *testing.T) {
 		Scan(&firstSequence, &firstPrevious, &firstCurrent); err != nil {
 		t.Fatalf("read backfilled first row: %v", err)
 	}
-	if firstSequence != 1 || firstPrevious != kernalgovernance.GenesisHash || firstCurrent == legacyHashes[0] {
+	if firstSequence != 1 || firstPrevious != publicgovernance.GenesisHash || firstCurrent == legacyHashes[0] {
 		t.Fatalf("backfilled first row = (%d, %s, %s)", firstSequence, firstPrevious, firstCurrent)
 	}
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 	if valid, err := chain.VerifyAuditIntegrity(ctx, company); !valid || err != nil {
 		t.Fatalf("backfilled v2 chain verification = (%v, %v)", valid, err)
 	}
@@ -701,9 +701,9 @@ func TestPostgresPhase10PostingAuditFailureRollsBack(t *testing.T) {
 
 			// No trusted checkpoint was set, so checkpoint verification fails
 			// closed rather than silently accepting the empty chain.
-			chain := kernalgovernance.NewAuditChain(driver)
+			chain := publicgovernance.NewAuditChain(driver)
 			if valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, company); valid ||
-				!errors.Is(err, kernalgovernance.ErrAuditCheckpointMismatch) {
+				!errors.Is(err, publicgovernance.ErrAuditCheckpointMismatch) {
 				t.Fatalf("%s: checkpoint verification = (%v, %v), want fail closed", point, valid, err)
 			}
 		})

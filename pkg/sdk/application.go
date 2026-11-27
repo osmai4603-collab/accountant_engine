@@ -9,11 +9,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/apperrors"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
 	kernalmasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/policy"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation"
+	publictypes "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	publicmasterdata "github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
@@ -45,7 +49,8 @@ func NewApplicationServiceWithPostingConfig(
 }
 
 type masterDataReaderAdapter struct {
-	reader storage.MasterDataReader
+	reader                       storage.MasterDataReader
+	allowSyntheticDefaultJournal bool
 }
 
 func (a masterDataReaderAdapter) GetCompany(ctx context.Context, companyID types.CompanyID) (kernalmasterdata.Company, error) {
@@ -105,6 +110,9 @@ func (a masterDataReaderAdapter) GetJournalByID(ctx context.Context, companyID t
 			return kernalmasterdata.Journal{}, err
 		}
 		return toKernalJournal(j), nil
+	}
+	if !a.allowSyntheticDefaultJournal {
+		return kernalmasterdata.Journal{}, kernalmasterdata.ErrJournalReaderRequired
 	}
 	j, err := a.reader.GetJournalByCode(ctx, companyID, "GENERAL")
 	if err == nil && j.ID == journalID {
@@ -208,9 +216,11 @@ type applicationService struct {
 
 	// Policy configuration is process-wide state. Locks are per company so
 	// unrelated tenants do not block each other on first load.
-	policyLocksMu     sync.Mutex
-	policyLocks       map[types.CompanyID]*sync.Mutex
-	syntheticPolicies map[types.CompanyID]bool
+	policyLocksMu        sync.Mutex
+	policyLocks          map[types.CompanyID]*sync.Mutex
+	policyLoadedAt       map[types.CompanyID]time.Time
+	policyVersionDigests map[types.CompanyID]string
+	syntheticPolicies    map[types.CompanyID]bool
 }
 
 func (s *applicationService) companyPolicyLock(companyID types.CompanyID) *sync.Mutex {
@@ -234,17 +244,22 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
 
 func newApplication(ports storage.Ports, config PostingConfig, authorizer publicapplication.Authorizer) *applicationService {
 	policyEngine := policy.NewPolicyEngine()
-	mdAdapter := masterDataReaderAdapter{reader: ports.MasterData}
+	mdAdapter := masterDataReaderAdapter{
+		reader:                       ports.MasterData,
+		allowSyntheticDefaultJournal: config.AllowSyntheticDefaultJournal,
+	}
 
 	app := &applicationService{
-		ports:             ports,
-		config:            config,
-		authorizer:        authorizer,
-		policyEngine:      policyEngine,
-		policyStore:       policyStoreFromPorts(ports),
-		policiesLoaded:    make(map[types.CompanyID]bool),
-		policyLocks:       make(map[types.CompanyID]*sync.Mutex),
-		syntheticPolicies: make(map[types.CompanyID]bool),
+		ports:                ports,
+		config:               config,
+		authorizer:           authorizer,
+		policyEngine:         policyEngine,
+		policyStore:          policyStoreFromPorts(ports),
+		policiesLoaded:       make(map[types.CompanyID]bool),
+		policyLocks:          make(map[types.CompanyID]*sync.Mutex),
+		policyLoadedAt:       make(map[types.CompanyID]time.Time),
+		policyVersionDigests: make(map[types.CompanyID]string),
+		syntheticPolicies:    make(map[types.CompanyID]bool),
 	}
 
 	// Optional capabilities are detected, never assumed. A reader that exposes
@@ -808,14 +823,113 @@ func classifyError(err error) error {
 	}
 	if errors.Is(err, kernalmasterdata.ErrCompanyNotFound) ||
 		errors.Is(err, kernalmasterdata.ErrJournalNotFound) ||
-		strings.Contains(strings.ToLower(err.Error()), "not found") {
+		errors.Is(err, kernalmasterdata.ErrAccountNotFound) ||
+		errors.Is(err, kernalmasterdata.ErrFiscalPeriodNotFound) ||
+		errors.Is(err, types.ErrAccountNotFound) ||
+		errors.Is(err, types.ErrFiscalPeriodNotFound) ||
+		errors.Is(err, valuation.ErrRateNotFound) ||
+		errors.Is(err, storage.ErrEntryNotFound) ||
+		errors.Is(err, storage.ErrPolicyVersionNotFound) ||
+		errors.Is(err, policy.ErrPolicyNotFound) ||
+		errors.Is(err, policy.ErrPolicyNotEffective) ||
+		errors.Is(err, publicmasterdata.ErrCompanyNotFound) ||
+		errors.Is(err, publicmasterdata.ErrAccountNotFound) ||
+		errors.Is(err, publicmasterdata.ErrJournalNotFound) ||
+		errors.Is(err, publicmasterdata.ErrFiscalYearNotFound) ||
+		errors.Is(err, publicmasterdata.ErrPeriodNotFound) {
 		return publicapplication.NewError(publicapplication.ErrNotFound, err.Error(), err)
+	}
+	if errors.Is(err, types.ErrFiscalPeriodClosed) ||
+		errors.Is(err, kernalmasterdata.ErrFiscalPeriodClosed) ||
+		errors.Is(err, kernalmasterdata.ErrClosedFiscalYear) ||
+		errors.Is(err, kernalmasterdata.ErrClosedPeriod) ||
+		errors.Is(err, apperrors.ErrPeriodClosed) {
+		return publicapplication.NewError(publicapplication.ErrPeriodClosed, err.Error(), err)
 	}
 	if errors.Is(err, posting.ErrUnbalancedEntry) ||
 		errors.Is(err, posting.ErrMinimumLines) ||
 		errors.Is(err, posting.ErrInvalidEntry) ||
+		errors.Is(err, posting.ErrLineMustHaveOneSide) ||
+		errors.Is(err, posting.ErrMissingJournalID) ||
+		errors.Is(err, posting.ErrMissingEntryID) ||
+		errors.Is(err, posting.ErrMissingLineID) ||
+		errors.Is(err, posting.ErrDuplicateLineID) ||
+		errors.Is(err, posting.ErrZeroEntryDate) ||
+		errors.Is(err, posting.ErrCompanyMismatch) ||
+		errors.Is(err, posting.ErrMissingTransactionCurrency) ||
+		errors.Is(err, posting.ErrMissingFunctionalCurrency) ||
+		errors.Is(err, posting.ErrInvalidExchangeRate) ||
+		errors.Is(err, posting.ErrFunctionalBalanceMismatch) ||
+		errors.Is(err, posting.ErrInvalidAdjustingEntryMetadata) ||
+		errors.Is(err, posting.ErrAdjustingEntryMetadataRequired) ||
+		errors.Is(err, posting.ErrInvalidAdjustingEntryPeriod) ||
+		errors.Is(err, posting.ErrInvalidReversal) ||
+		errors.Is(err, posting.ErrReversalDateBeforeOriginal) ||
+		errors.Is(err, posting.ErrReversalActorRequired) ||
+		errors.Is(err, posting.ErrReversalReasonRequired) ||
+		errors.Is(err, posting.ErrRoundingAccountRequired) ||
+		errors.Is(err, posting.ErrPosterIDRequired) ||
+		errors.Is(err, posting.ErrInvalidEntryState) ||
+		errors.Is(err, posting.ErrSourceTraceabilityRequired) ||
+		errors.Is(err, posting.ErrSourceReferenceRequired) ||
+		errors.Is(err, posting.ErrInactiveFinancialDimension) ||
+		errors.Is(err, posting.ErrRoundingPolicyRequired) ||
+		errors.Is(err, posting.ErrDimensionReaderRequired) ||
+		errors.Is(err, posting.ErrInvalidDimensionReference) ||
 		errors.Is(err, types.ErrInvalidAmount) ||
-		errors.Is(err, types.ErrInvalidCurrency) {
+		errors.Is(err, types.ErrAmountExceedsPrecision) ||
+		errors.Is(err, types.ErrSubMinorUnitAmount) ||
+		errors.Is(err, types.ErrNegativeAmountProhibited) ||
+		errors.Is(err, types.ErrZeroAmountLine) ||
+		errors.Is(err, types.ErrUnbalancedMove) ||
+		errors.Is(err, types.ErrCurrencyMismatch) ||
+		errors.Is(err, types.ErrInvalidCurrency) ||
+		errors.Is(err, types.ErrCannotPostToParentAccount) ||
+		errors.Is(err, types.ErrZeroDenominator) ||
+		errors.Is(err, kernalmasterdata.ErrHeaderAccountPosting) ||
+		errors.Is(err, kernalmasterdata.ErrAccountCycle) ||
+		errors.Is(err, kernalmasterdata.ErrDuplicateAccountID) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidParent) ||
+		errors.Is(err, kernalmasterdata.ErrAccountNotCurrent) ||
+		errors.Is(err, kernalmasterdata.ErrAccountIdentityMismatch) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidCostCenter) ||
+		errors.Is(err, kernalmasterdata.ErrCostCenterCycle) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidAnalyticalDimension) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidJournal) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidJournalType) ||
+		errors.Is(err, kernalmasterdata.ErrJournalCurrency) ||
+		errors.Is(err, kernalmasterdata.ErrJournalAccount) ||
+		errors.Is(err, kernalmasterdata.ErrJournalNotCurrent) ||
+		errors.Is(err, kernalmasterdata.ErrJournalReaderRequired) ||
+		errors.Is(err, kernalmasterdata.ErrJournalIdentityMismatch) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidEffectiveRange) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidAdjustmentPeriod) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidFiscalPeriod) ||
+		errors.Is(err, kernalmasterdata.ErrPeriodOutsideFiscalYear) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidPeriodTransition) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidFiscalYearTransition) ||
+		errors.Is(err, kernalmasterdata.ErrPeriodTransitionNeedsAudit) ||
+		errors.Is(err, kernalmasterdata.ErrPeriodReopenRequiresAudit) ||
+		errors.Is(err, kernalmasterdata.ErrAccountCodeRequired) ||
+		errors.Is(err, kernalmasterdata.ErrAccountNameRequired) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidAccountType) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidNormalBalance) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidSubClassificationForType) ||
+		errors.Is(err, kernalmasterdata.ErrInvalidControlAccount) ||
+		errors.Is(err, policy.ErrInvalidPolicy) ||
+		errors.Is(err, valuation.ErrInvalidRate) ||
+		errors.Is(err, valuation.ErrInvalidCurrency) ||
+		errors.Is(err, valuation.ErrInvalidPosition) ||
+		errors.Is(err, valuation.ErrZeroRevaluationDifference) ||
+		errors.Is(err, journal.ErrInvalidEntryStatus) ||
+		errors.Is(err, journal.ErrInvalidStatusTransition) ||
+		errors.Is(err, journal.ErrInvalidReversalLinkage) ||
+		errors.Is(err, journal.ErrInvalidLineMutation) ||
+		errors.Is(err, journal.ErrInvalidCancellation) ||
+		errors.Is(err, governance.ErrInvalidAuditCompany) ||
+		errors.Is(err, governance.ErrInvalidAuditCheckpoint) ||
+		errors.Is(err, governance.ErrInvalidAuditSnapshot) ||
+		errors.Is(err, apperrors.ErrUnbalancedEntry) {
 		return publicapplication.NewError(publicapplication.ErrValidation, err.Error(), err)
 	}
 	if errors.Is(err, storage.ErrIdempotencyPayloadConflict) ||
@@ -825,24 +939,51 @@ func classifyError(err error) error {
 		errors.Is(err, storage.ErrPolicyVersionConflict) ||
 		errors.Is(err, policy.ErrPolicyOverlap) ||
 		errors.Is(err, posting.ErrRevaluationAlreadyApplied) ||
-		errors.Is(err, posting.ErrIdempotencyConflict) {
+		errors.Is(err, posting.ErrIdempotencyConflict) ||
+		errors.Is(err, posting.ErrIdempotencyInProgress) ||
+		errors.Is(err, posting.ErrConcurrencyConflict) ||
+		errors.Is(err, posting.ErrEntryAlreadyReversed) ||
+		errors.Is(err, posting.ErrReversalAlreadyApplied) ||
+		errors.Is(err, posting.ErrEntryNotDraft) ||
+		errors.Is(err, posting.ErrEntryNotPosted) ||
+		errors.Is(err, types.ErrMoveAlreadyPosted) ||
+		errors.Is(err, types.ErrCannotModifyPostedMove) ||
+		errors.Is(err, types.ErrDuplicateAccountCode) ||
+		errors.Is(err, journal.ErrImmutableEntry) ||
+		errors.Is(err, valuation.ErrDuplicateRate) ||
+		errors.Is(err, publicmasterdata.ErrDuplicateCompanyCode) ||
+		errors.Is(err, publicmasterdata.ErrDuplicateAccountCode) ||
+		errors.Is(err, publicmasterdata.ErrDuplicateJournalCode) ||
+		errors.Is(err, publicmasterdata.ErrDuplicateJournalID) {
 		return publicapplication.NewError(publicapplication.ErrConflict, err.Error(), err)
 	}
-	if errors.Is(err, storage.ErrPolicyVersionNotFound) ||
-		errors.Is(err, policy.ErrPolicyNotFound) ||
-		errors.Is(err, policy.ErrPolicyNotEffective) {
-		return publicapplication.NewError(publicapplication.ErrNotFound, err.Error(), err)
-	}
-	if errors.Is(err, storage.ErrIdempotencyUnavailable) {
+	if errors.Is(err, storage.ErrIdempotencyUnavailable) ||
+		errors.Is(err, posting.ErrIdempotencyStorageUnavailable) {
 		return publicapplication.NewError(publicapplication.ErrDependencyUnavailable, err.Error(), err)
 	}
-	if errors.Is(err, storage.ErrAtomicCommitFailed) {
+	if errors.Is(err, storage.ErrAtomicCommitFailed) ||
+		errors.Is(err, posting.ErrAtomicityViolation) {
 		return publicapplication.NewError(publicapplication.ErrInternal, err.Error(), err)
 	}
 	// A company-scope violation is never a conflict to retry: the caller asked
 	// to act outside its own tenant boundary. Phase 8 classifies it as forbidden.
-	if errors.Is(err, storage.ErrScopeViolation) {
+	if errors.Is(err, storage.ErrScopeViolation) ||
+		errors.Is(err, kernalmasterdata.ErrCompanyScopeRequired) ||
+		errors.Is(err, kernalmasterdata.ErrCompanyIdentityMismatch) ||
+		errors.Is(err, kernalmasterdata.ErrCompanyInactive) ||
+		errors.Is(err, publictypes.ErrMakerCheckerViolation) {
 		return publicapplication.NewError(publicapplication.ErrForbidden, err.Error(), err)
+	}
+	var coded *apperrors.CodedError
+	if errors.As(err, &coded) {
+		switch apperrors.CategoryOf(err) {
+		case apperrors.CategoryConcurrency:
+			return publicapplication.NewError(publicapplication.ErrConflict, err.Error(), err)
+		case apperrors.CategoryPersistence, apperrors.CategoryInfrastructure:
+			return publicapplication.NewError(publicapplication.ErrDependencyUnavailable, err.Error(), err)
+		case apperrors.CategoryValidation, apperrors.CategoryDomain:
+			return publicapplication.NewError(publicapplication.ErrValidation, err.Error(), err)
+		}
 	}
 	return err
 }

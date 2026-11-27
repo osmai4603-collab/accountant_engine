@@ -3,7 +3,7 @@
 - **رمز الوثيقة:** `AE-REMED-P10-THREAT`
 - **المرحلة:** 10 — التدقيق وسلامة الأدلة
 - **التاريخ:** 2026-11-22
-- **المرجع:** [الخطة](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ADR P10-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p10-01)، [عقد المستودع](./KERNEL_AUDIT_REPOSITORY_CONTRACT.md)
+- **المرجع:** ~~الخطة~~ *(حُذف مجلد `plans/`)*، [ADR P10-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p10-01)، [عقد المستودع](./KERNEL_AUDIT_REPOSITORY_CONTRACT.md)
 - **القواعد:** `RULE-KERNEL-025` و`RULE-KERNEL-026`
 
 ## الأصول والحدود
@@ -25,7 +25,7 @@
 | T-04 | حذف سجل من الوسط | انكسار الرابط + فحص حد اللقطة مقابل النقطة | `TestAuditSnapshotVerificationDetectsMiddleDeletion`، `TestAuditSnapshotVerificationDetectsReorderedLogs`، `TestPostgresAuditPhase10TamperingIsDetected` (تلاعب السجل الوسط) | none |
 | T-05 | حذف الذيل | النقطة الخارجية تقارن الطول والهاش النهائي؛ غيابها فشل مغلق | `TestAuditCheckpointDetectsDeletedTail`، `TestPostgresAuditPhase10TailDeletionFailsClosedWithCheckpoint` | بدون نقطة موثوقة لا يُكتشف؛ مُصرَّح به صراحةً |
 | T-06 | تزوير نقطة بقيمة فارغة أو شكل غير قانوني | `ValidateCheckpoint`: هاش 64 سداسياً، شركة غير صفرية، إصدار موجب عند تسلسل موجب، هاش التكوين عند الصفر | `TestValidateCheckpointRejectsMalformedAnchors`، `TestCheckpointVerificationFailsClosedWithoutTrustedCheckpoint` | النقطة نفسها مُوثوق بها تعاقدياً؛ التوقيع خارج النواة |
-| T-07 | تراجع النقطة إلى إصدار/موضع أقدم | رفض في المحولين + trigger في PostgreSQL | `TestPostgresAuditPhase10CheckpointCannotRegress` | none داخل قاعدة البيانات |
+| T-07 | تراجع النقطة إلى إصدار/موضع أقدم | رفض في المحولين + trigger WORM في PostgreSQL (مسموح وفق `PRIN-INFRA-04` لأغراض حماية النزاهة فقط دون منطق محاسبي) | `TestPostgresAuditPhase10CheckpointCannotRegress` | none داخل قاعدة البيانات |
 | T-08 | إضافة متزامنة تكرر التسلسل أو تكسر الرابط | قفل الشركة/معاملة + قيد تفرد + تسلسل محسوب داخل القفل | `TestMemoryPhase10ConcurrentAppendBuildsOneChain`، `TestPostgresAuditPhase10ConcurrentAppendSequenceAndChain` | none |
 | T-09 | لقطة غير متماسكة أثناء الإضافات | لقطة واحدة Repeatable Read / قفل قراءة، ورفض أي انحراف في الحد أو الهاش | `TestPostgresAuditPhase10SnapshotIsStableDuringConcurrentAppends`، `TestAuditSnapshotVerificationIsSafeDuringConcurrentAppends` | none |
 | T-10 | قيد مرحّل دون أثر تدقيقي | أثر v2 داخل نفس وحدة العمل، rollback عند فشل التدقيق | `TestMemoryPhase10PostingWritesVerifiableAuditEvidence`، `TestMemoryPhase10AuditFailureRollsBackPostingEffect` | PostgreSQL يضمن ذلك عبر معاملة `uow.AppendAudit` |

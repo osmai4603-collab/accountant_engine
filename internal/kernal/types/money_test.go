@@ -377,3 +377,26 @@ func TestISO4217NumericRegistry(t *testing.T) {
 		}
 	}
 }
+
+func TestZeroValueMoneyAndCheckedSubMinorUnits(t *testing.T) {
+	var zeroVal Money
+	if zeroVal.Equal(zeroVal) || zeroVal.GreaterThan(zeroVal) || zeroVal.LessThan(zeroVal) {
+		t.Fatal("zero-value Money must not equal or compare ordered with itself")
+	}
+	if _, err := zeroVal.HasSubMinorUnitFractionChecked(); !errors.Is(err, ErrInvalidCurrency) {
+		t.Fatalf("zero-value HasSubMinorUnitFractionChecked error = %v, want ErrInvalidCurrency", err)
+	}
+	m := mustMoney(t, "10.005", "USD")
+	hasFrac, err := m.HasSubMinorUnitFractionChecked()
+	if err != nil || !hasFrac {
+		t.Fatalf("HasSubMinorUnitFractionChecked(10.005 USD) = (%v, %v), want (true, nil)", hasFrac, err)
+	}
+	for _, special := range []string{"XXX", "XTS", "XDR", "XAU", "XAG", "XPT", "XPD"} {
+		if _, err := NewMoneyFromString("10", special); !errors.Is(err, ErrInvalidCurrency) {
+			t.Fatalf("NewMoneyFromString(10, %s) error = %v, want ErrInvalidCurrency", special, err)
+		}
+	}
+	if _, err := NewMoneyFromString("10.00", "XCG"); err != nil {
+		t.Fatalf("NewMoneyFromString(10.00, XCG) failed: %v", err)
+	}
+}

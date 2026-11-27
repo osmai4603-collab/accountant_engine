@@ -222,6 +222,184 @@ func TestRevaluationIdempotencyScopeIsDeterministicAndOperationScoped(t *testing
 	if functionalScope == scope {
 		t.Fatal("transaction currency and functional currency must derive different operation keys")
 	}
+
+	ccA := types.NewCostCenterID()
+	ccB := types.NewCostCenterID()
+	partner := types.NewPartnerID()
+	dimScopeA, err := RevaluationIdempotencyScopeWithDimensions(company, account, "USD", date, RevaluationDimensions{
+		PartnerID:    &partner,
+		CostCenterID: &ccA,
+	})
+	if err != nil {
+		t.Fatalf("RevaluationIdempotencyScopeWithDimensions A: %v", err)
+	}
+	dimScopeB, err := RevaluationIdempotencyScopeWithDimensions(company, account, "USD", date, RevaluationDimensions{
+		PartnerID:    &partner,
+		CostCenterID: &ccB,
+	})
+	if err != nil {
+		t.Fatalf("RevaluationIdempotencyScopeWithDimensions B: %v", err)
+	}
+	if dimScopeA == dimScopeB || dimScopeA == scope {
+		t.Fatalf("dimension-scoped revaluation keys collided: A=%s B=%s base=%s", dimScopeA.Key, dimScopeB.Key, scope.Key)
+	}
+	emptyDimScope, err := RevaluationIdempotencyScopeWithDimensions(company, account, "USD", date, RevaluationDimensions{})
+	if err != nil || emptyDimScope != scope {
+		t.Fatalf("empty dimensions scope = (%v, %v), want %v", emptyDimScope, err, scope)
+	}
+}
+
+func TestRevaluationAllowsZeroCarryingAmountAndEntryOptions(t *testing.T) {
+	ctx := context.Background()
+	date := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	registry := NewRateRegistry()
+	if err := registry.RegisterRate(ExchangeRate{
+		FromCurrency:  "USD",
+		ToCurrency:    "SAR",
+		Rate:          decimal.RequireFromString("3.75"),
+		EffectiveDate: date,
+		Type:          ClosingRate,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cc := types.NewCostCenterID()
+	partner := types.NewPartnerID()
+	zeroSAR, _ := types.Zero("SAR")
+	pos := MonetaryPosition{
+		AccountID:              types.NewAccountID(),
+		ForeignCurrencyBalance: decimal.NewFromInt(100),
+		TransactionCurrency:    "USD",
+		FunctionalCurrency:     "SAR",
+		CarryingAmount:         zeroSAR,
+		Type:                   Monetary,
+		Dimensions: RevaluationDimensions{
+			PartnerID:    &partner,
+			CostCenterID: &cc,
+		},
+	}
+	res, err := NewRevaluationEngine(registry).Calculate(ctx, pos, date)
+	if err != nil {
+		t.Fatalf("Calculate with zero CarryingAmount failed: %v", err)
+	}
+	if !res.IsGain || res.Difference.Amount().StringFixed(2) != "375.00" {
+		t.Fatalf("unexpected zero-carrying revaluation result: %+v", res)
+	}
+	accounts := FXJournalAccounts{
+		CompanyID:        types.NewCompanyID(),
+		JournalID:        types.NewJournalID(),
+		UnrealizedGainID: types.NewAccountID(),
+		UnrealizedLossID: types.NewAccountID(),
+	}
+	entry, err := GenerateRevaluationEntryAtWithOptions(res, accounts, date, date.Add(time.Hour), RevaluationEntryOptions{
+		AdjustingEntryType: journal.AdjustingEntryAudit,
+		CreatedBy:          "treasury-bot",
+	})
+	if err != nil {
+		t.Fatalf("GenerateRevaluationEntryAtWithOptions failed: %v", err)
+	}
+	if entry.CreatedBy != "treasury-bot" || entry.AdjustingEntryType != journal.AdjustingEntryAudit || entry.TargetPeriodNumber != 14 {
+		t.Fatalf("unexpected custom revaluation metadata: createdBy=%q type=%q period=%d",
+			entry.CreatedBy, entry.AdjustingEntryType, entry.TargetPeriodNumber)
+	}
+	if entry.Lines[0].PartnerID == nil || *entry.Lines[0].PartnerID != partner ||
+		entry.Lines[0].CostCenterID == nil || *entry.Lines[0].CostCenterID != cc ||
+		entry.Lines[1].CostCenterID == nil || *entry.Lines[1].CostCenterID != cc {
+		t.Fatalf("expected dimensions propagated cleanly onto revaluation lines: %+v", entry.Lines)
+	}
+}
+
+func TestRevaluationEnforcesIsMonetaryAndAccountTypeEligibility(t *testing.T) {
+	ctx := context.Background()
+	date := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	registry := NewRateRegistry()
+	if err := registry.RegisterRate(ExchangeRate{
+		FromCurrency:  "USD",
+		ToCurrency:    "SAR",
+		Rate:          decimal.RequireFromString("3.75"),
+		EffectiveDate: date,
+		Type:          ClosingRate,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	engine := NewRevaluationEngine(registry)
+	yes, no := true, false
+	carrying, _ := types.NewMoneyFromString("37000.00", "SAR")
+	basePos := MonetaryPosition{
+		ForeignCurrencyBalance: decimal.NewFromInt(10000),
+		TransactionCurrency:    "USD",
+		FunctionalCurrency:     "SAR",
+		CarryingAmount:         carrying,
+		Type:                   Monetary,
+	}
+
+	monetaryAsset := masterdata.Account{
+		ID: types.NewAccountID(), CompanyID: types.NewCompanyID(), Code: "1010", Name: "USD Bank",
+		Type: masterdata.AccountTypeAsset, IsMonetary: &yes,
+	}
+	res, err := engine.CalculateForAccount(ctx, basePos, monetaryAsset, date)
+	if err != nil || !res.IsGain {
+		t.Fatalf("CalculateForAccount monetary asset = (%+v, %v)", res, err)
+	}
+
+	monetaryLiability := masterdata.Account{
+		ID: types.NewAccountID(), CompanyID: monetaryAsset.CompanyID, Code: "2010", Name: "USD AP",
+		Type: masterdata.AccountTypeLiability, IsMonetary: &yes,
+	}
+	resLiab, err := engine.CalculateForAccount(ctx, basePos, monetaryLiability, date)
+	if err != nil || resLiab.IsGain {
+		t.Fatalf("CalculateForAccount monetary liability = (%+v, %v), want loss when rate increases", resLiab, err)
+	}
+
+	for _, tc := range []struct {
+		name string
+		acc  masterdata.Account
+	}{
+		{"non-monetary asset", masterdata.Account{ID: types.NewAccountID(), Type: masterdata.AccountTypeAsset, IsMonetary: &no}},
+		{"unspecified IsMonetary", masterdata.Account{ID: types.NewAccountID(), Type: masterdata.AccountTypeAsset}},
+		{"equity account", masterdata.Account{ID: types.NewAccountID(), Type: masterdata.AccountTypeEquity}},
+		{"income account", masterdata.Account{ID: types.NewAccountID(), Type: masterdata.AccountTypeIncome}},
+		{"expense account", masterdata.Account{ID: types.NewAccountID(), Type: masterdata.AccountTypeExpense}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := engine.CalculateForAccount(ctx, basePos, tc.acc, date); !errors.Is(err, ErrInvalidAccountType) || !errors.Is(err, ErrInvalidPosition) {
+				t.Fatalf("CalculateForAccount(%s) error = %v, want ErrInvalidAccountType & ErrInvalidPosition", tc.name, err)
+			}
+		})
+	}
+
+	// AccountID mismatch and AccountType/IsLiability mismatch rejected.
+	mismatchPos := basePos
+	mismatchPos.AccountID = types.NewAccountID()
+	if _, err := engine.CalculateForAccount(ctx, mismatchPos, monetaryAsset, date); !errors.Is(err, ErrInvalidPosition) {
+		t.Fatalf("mismatched AccountID error = %v, want ErrInvalidPosition", err)
+	}
+	contradictory := basePos
+	contradictory.AccountID = monetaryAsset.ID
+	contradictory.AccountType = masterdata.AccountTypeAsset
+	contradictory.IsLiability = true
+	if _, err := engine.Calculate(ctx, contradictory, date); !errors.Is(err, ErrInvalidPosition) {
+		t.Fatalf("asset+IsLiability error = %v, want ErrInvalidPosition", err)
+	}
+	contradictory.AccountType = masterdata.AccountTypeLiability
+	contradictory.IsLiability = false
+	if _, err := engine.Calculate(ctx, contradictory, date); !errors.Is(err, ErrInvalidPosition) {
+		t.Fatalf("liability+!IsLiability error = %v, want ErrInvalidPosition", err)
+	}
+
+	// Zero difference wraps ErrZeroRevaluationDifference as well as ErrInvalidPosition.
+	zeroSAR, _ := types.Zero("SAR")
+	if _, err := GenerateRevaluationEntry(FXResult{
+		AccountID:  monetaryAsset.ID,
+		Currency:   "USD",
+		Difference: zeroSAR,
+	}, FXJournalAccounts{
+		CompanyID:        monetaryAsset.CompanyID,
+		JournalID:        types.NewJournalID(),
+		UnrealizedGainID: types.NewAccountID(),
+		UnrealizedLossID: types.NewAccountID(),
+	}, date); !errors.Is(err, ErrZeroRevaluationDifference) || !errors.Is(err, ErrInvalidPosition) {
+		t.Fatalf("zero difference error = %v, want ErrZeroRevaluationDifference & ErrInvalidPosition", err)
+	}
 }
 
 func TestRevaluationRegistryRejectsConflictingPayloadForSameKey(t *testing.T) {

@@ -308,5 +308,33 @@ func TestContractParity_GLRebuildDeterminismAndParity(t *testing.T) {
 				t.Fatalf("rebuild determinism violated on shuffle round %d", round)
 			}
 		}
+
+		// LDG-003: verify TransactionBalanceReader parity with RebuildForeignCurrencyBalances
+		if txReader, ok := h.Ports.Balance.(storage.TransactionBalanceReader); ok {
+			txFilter := ledger.ForeignCurrencyBalanceFilter{
+				CompanyID:           f.Company.ID,
+				AccountID:           f.CashAccount.ID,
+				TransactionCurrency: f.FunctionalCurrency,
+				AsOf:                asOf,
+			}
+			gotTxBalances, err := txReader.GetTransactionBalances(ctx, txFilter)
+			if err != nil {
+				t.Fatalf("GetTransactionBalances failed: %v", err)
+			}
+			expectedMap, err := ledger.RebuildForeignCurrencyBalances(canonicalEntries, txFilter)
+			if err != nil {
+				t.Fatalf("RebuildForeignCurrencyBalances failed: %v", err)
+			}
+			expectedTxBalances := ledger.SortedForeignCurrencyBalances(expectedMap)
+			if len(gotTxBalances) != len(expectedTxBalances) {
+				t.Fatalf("TransactionBalanceReader count = %d, want %d", len(gotTxBalances), len(expectedTxBalances))
+			}
+			for i := range expectedTxBalances {
+				if !gotTxBalances[i].TransactionNet.Equal(expectedTxBalances[i].TransactionNet) ||
+					!gotTxBalances[i].FunctionalNet.Equal(expectedTxBalances[i].FunctionalNet) {
+					t.Fatalf("tx balance[%d] = %+v, want %+v", i, gotTxBalances[i], expectedTxBalances[i])
+				}
+			}
+		}
 	})
 }

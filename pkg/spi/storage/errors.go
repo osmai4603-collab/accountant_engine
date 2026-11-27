@@ -34,4 +34,7 @@ var (
 	// boundary (entry company, idempotency scope, or adapter tenant context).
 	// It is non-retryable: a retry with the same scope cannot become valid.
 	ErrScopeViolation = errors.New("storage: company scope violation")
+
+	// ErrEntryNotFound reports that no journal entry exists in the requested company.
+	ErrEntryNotFound = errors.New("storage: entry not found")
 )

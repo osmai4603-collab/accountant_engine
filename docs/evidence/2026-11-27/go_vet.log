@@ -1,0 +1,12 @@
+Commit (HEAD): de7e525a78cc0561cc0577334716423e148ed321
+Working tree: MODIFIED (uncommitted); SHA-256 fingerprint below is authoritative
+Tree SHA-256: 88cf8438c82def56a8c617af2f5dddd934510d7807b8651d7e772f5e26bf7426
+Environment: go version go1.26.3 linux/amd64 linux/amd64
+UTC: 2026-11-27T03:49:57+00:00
+$ go vet ./internal/kernal/...
+Exit Code: 0
+
+--- stdout ---
+
+--- stderr ---
+

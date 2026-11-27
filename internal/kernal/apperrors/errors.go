@@ -35,6 +35,12 @@ func (e *CodedError) Error() string {
 
 func (e *CodedError) Unwrap() error { return e.Cause }
 
+// ErrorCode returns the stable machine-readable error code.
+func (e *CodedError) ErrorCode() string { return e.Code }
+
+// ErrorCategory returns the operational error category.
+func (e *CodedError) ErrorCategory() ErrorCategory { return e.Category }
+
 func New(code, message string, cause error) *CodedError {
 	return &CodedError{
 		Code:      code,

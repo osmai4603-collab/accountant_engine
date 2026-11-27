@@ -151,7 +151,7 @@ func RoundEntryWithRoundingPolicy(
 	}
 	normalizedEntry := *entry
 	normalizedEntry.Lines = normalizedLines
-	if err := ValidateEntryDoubleEntry(&normalizedEntry, nil); err != nil {
+	if err := ValidateEntryDoubleEntry(&normalizedEntry, round); err != nil {
 		return err
 	}
 	*entry = normalizedEntry

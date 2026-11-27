@@ -1,12 +1,14 @@
 # خط الأساس المعتمد للنواة المحاسبية — Kernel Release Baseline (Phase 12 Final)
 
+> **Superseded (متجاوز):** خط أساس تاريخي للمرحلة 12 وليس اعتماداً سارياً. قرار الإصدار مُلغى في [وثيقة الاعتماد](../../docs/reports/KERNEL_RELEASE_SIGNOFF.md). بوابات `G1–G15` الواردة أدناه نظام تشغيلي قديم؛ الترقيم الرسمي هو `G01–G11` في [مواصفة البوابات](../../docs/quality/QUALITY_GATES_SPECIFICATION.md). راجع [مقارنة kernal بـ docs](../../docs/analysis/KERNAL_VS_DOCS_COMPARISON.md).
+
 - **رمز الوثيقة:** `AE-BASELINE-KERNEL-REMEDIATION-FINAL`
 - **الإصدار الأساس السابق:** Kernel v11 / v12 Stabilization Baseline
 - **الإصدار الحالي المستهدف:** Remediation Phase 12 Final Verification & Release
 - **تاريخ الاعتماد:** 2026-11-22
 - **بيئة البناء والاعتماد:** `go version go1.26.3 linux/amd64`
 - **النطاق البرمجي الملزم:** `internal/kernal/` بالإضافة إلى عقود SPI ومحولات التخزين لاختبار التكافؤ
-- **الخطة المرجعية:** [`docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../../docs/plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
+- **المرجع الحالي:** [`DOCS_CONFLICT_ANALYSIS.md`](../../docs/analysis/DOCS_CONFLICT_ANALYSIS.md) (الخطة القديمة في `docs/plans/` لم تعد موجودة)
 - **تقرير التحقق النهائي:** [`docs/KERNEL_FINAL_VERIFICATION_REPORT.md`](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md)
 
 ---
@@ -14,11 +16,11 @@
 ## 1. ملخص البوابات العامة للإصدار (Phase 12 Gates)
 
 | البوابة | المتطلب | الحالة | الدليل التنفيذي |
-|---|---|:---:|---|
+| --- | --- | :---: | --- |
 | **G1 — Scope** | الالتزام الصارم بالنواة وعقودها | **PASS** | نقاء تام في استيرادات `internal/kernal/` |
 | **G2 — Architecture** | خلو تام من الاعتمادات المحظورة | **PASS** | `./scripts/verify_architecture.sh` (11/11 خضراء) |
 | **G3 — Accounting** | استيفاء القواعد المحاسبية الـ 27 | **PASS** | `KERNEL_ACCOUNTING_INVARIANTS.md` و`doc_test.go` |
-| **G4 — Precision** | دقة حسابية ومنع الفاقد والـ Float | **PASS** | `types` tests + 6 Fuzz targets + Banker's rounding |
+| **G4 — Precision** | دقة حسابية ومنع الفاقد والـ Float | **PASS** | `types` tests + 16 Fuzz target + Banker's rounding |
 | **G5 — Lifecycle** | دورة حياة القيد وعدم التعديل بعد الترحيل | **PASS** | State machine وWORM triggers على المحولين |
 | **G6 — Posting** | خط أنابيب الترحيل المركزي | **PASS** | `PostingPipeline` مع التحقق الشامل قبل التفويض |
 | **G7 — Atomicity** | ذرية الترحيل ومنع الحالات الجزئية | **PASS** | `phase7_transaction_contract_test.go` |
@@ -35,7 +37,7 @@
 
 ## 2. ملخص المقاييس التقنية
 
-- **تغطية كود النواة (Kernel Coverage):** **92.4%** من العبارات البرمجية (`go tool cover -func=/tmp/kernel.cover`).
+- **تغطية كود النواة (Kernel Coverage):** **92.4%** تاريخياً من العبارات البرمجية (`go tool cover -func=/tmp/kernel.cover`). القيمة المقيسة في 2026-11-27 على شجرة العمل: **91.8%** (راجع [مقارنة kernal بـ docs](../../docs/analysis/KERNAL_VS_DOCS_COMPARISON.md)).
 - **فحص سباق البيانات (Race Detector):** 0 تحذيرات، 0 أخطاء تحت `go test -race ./... -count=1`.
 - **اختبار الطفرات الدلالية الموجهة (Mutation Score):** **100.0%** (8/8 طفرات قُتلت عبر `scripts/run_mutation_tests.sh`).
 - **فحص الفازينج (Fuzz Targets):** **16/16 هدفاً** اجتازت الفحص بـ 0 panics عبر `scripts/run_fuzz_all.sh`.

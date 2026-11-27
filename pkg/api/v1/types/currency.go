@@ -166,10 +166,16 @@ const (
 	VUV CurrencyCode = "VUV"
 	WST CurrencyCode = "WST"
 	XAF CurrencyCode = "XAF"
+	XAG CurrencyCode = "XAG"
+	XAU CurrencyCode = "XAU"
 	XCD CurrencyCode = "XCD"
+	XCG CurrencyCode = "XCG"
 	XDR CurrencyCode = "XDR"
 	XOF CurrencyCode = "XOF"
+	XPD CurrencyCode = "XPD"
 	XPF CurrencyCode = "XPF"
+	XPT CurrencyCode = "XPT"
+	XTS CurrencyCode = "XTS"
 	YER CurrencyCode = "YER"
 	ZAR CurrencyCode = "ZAR"
 	ZMW CurrencyCode = "ZMW"
@@ -269,16 +275,46 @@ var currencies = map[CurrencyCode]Currency{
 	VED: {Code: VED, NumericCode: "926", Symbol: "VED", Name: "Bolivar Soberano", MinorUnit: 2}, VES: {Code: VES, NumericCode: "928", Symbol: "VES", Name: "Bolivar Soberano", MinorUnit: 2},
 	VND: {Code: VND, NumericCode: "704", Symbol: "VND", Name: "Dong", MinorUnit: 0}, VUV: {Code: VUV, NumericCode: "548", Symbol: "VUV", Name: "Vatu", MinorUnit: 0},
 	WST: {Code: WST, NumericCode: "882", Symbol: "WST", Name: "Tala", MinorUnit: 2}, XAF: {Code: XAF, NumericCode: "950", Symbol: "XAF", Name: "CFA Franc BEAC", MinorUnit: 0},
-	XCD: {Code: XCD, NumericCode: "951", Symbol: "XCD", Name: "East Caribbean Dollar", MinorUnit: 2}, XDR: {Code: XDR, NumericCode: "960", Symbol: "XDR", Name: "SDR", MinorUnit: 0},
-	XOF: {Code: XOF, NumericCode: "952", Symbol: "XOF", Name: "CFA Franc BCEAO", MinorUnit: 0}, XPF: {Code: XPF, NumericCode: "953", Symbol: "XPF", Name: "CFP Franc", MinorUnit: 0},
+	XAG: {Code: XAG, NumericCode: "961", Symbol: "XAG", Name: "Silver", MinorUnit: 0}, XAU: {Code: XAU, NumericCode: "959", Symbol: "XAU", Name: "Gold", MinorUnit: 0},
+	XCD: {Code: XCD, NumericCode: "951", Symbol: "XCD", Name: "East Caribbean Dollar", MinorUnit: 2}, XCG: {Code: XCG, NumericCode: "532", Symbol: "XCG", Name: "Caribbean Guilder", MinorUnit: 2},
+	XDR: {Code: XDR, NumericCode: "960", Symbol: "XDR", Name: "SDR", MinorUnit: 0}, XOF: {Code: XOF, NumericCode: "952", Symbol: "XOF", Name: "CFA Franc BCEAO", MinorUnit: 0},
+	XPD: {Code: XPD, NumericCode: "964", Symbol: "XPD", Name: "Palladium", MinorUnit: 0}, XPF: {Code: XPF, NumericCode: "953", Symbol: "XPF", Name: "CFP Franc", MinorUnit: 0},
+	XPT: {Code: XPT, NumericCode: "962", Symbol: "XPT", Name: "Platinum", MinorUnit: 0}, XTS: {Code: XTS, NumericCode: "963", Symbol: "XTS", Name: "Testing Currency Code", MinorUnit: 0},
 	YER: {Code: YER, NumericCode: "886", Symbol: "YER", Name: "Yemeni Rial", MinorUnit: 2}, ZAR: {Code: ZAR, NumericCode: "710", Symbol: "ZAR", Name: "Rand", MinorUnit: 2},
 	ZMW: {Code: ZMW, NumericCode: "967", Symbol: "ZMW", Name: "Zambian Kwacha", MinorUnit: 2}, ZWG: {Code: ZWG, NumericCode: "924", Symbol: "ZWG", Name: "Zimbabwe Gold", MinorUnit: 2},
 	XXX: {Code: XXX, NumericCode: "999", Symbol: "", Name: "No currency", MinorUnit: 0},
 }
 
+// IsSpecial reports whether the currency is an ISO 4217 non-spendable or special
+// settlement code (XXX, XTS, XDR, or precious metals XAU/XAG/XPT/XPD) per MONEY-014.
+func (c Currency) IsSpecial() bool {
+	switch c.Code {
+	case XXX, XTS, XDR, XAU, XAG, XPT, XPD:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsHistoric reports whether the currency code has been superseded in the active
+// ISO 4217 table (for example ANG, superseded by XCG with numeric code 532).
+func (c Currency) IsHistoric() bool {
+	return c.Code == ANG
+}
+
+// IsSpendable reports whether the currency represents a spendable monetary unit.
+func (c Currency) IsSpendable() bool {
+	return c.Code != "" && !c.IsSpecial()
+}
+
 func LookupCurrencyByNumericCode(numericCode string) (Currency, bool) {
 	trimmed := strings.TrimSpace(numericCode)
-	for _, currency := range currencies {
+	for _, currency := range AllCurrencies() {
+		if currency.NumericCode == trimmed && !currency.IsHistoric() {
+			return currency, true
+		}
+	}
+	for _, currency := range AllCurrencies() {
 		if currency.NumericCode == trimmed {
 			return currency, true
 		}

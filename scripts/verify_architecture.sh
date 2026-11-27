@@ -101,6 +101,9 @@ scan_imports "R3c: internal/kernal/* free of concrete storage/* imports" "$stora
 sql_pattern="$(import_pattern '(database/sql|github\.com/jackc/pgx(/[^\"]*)?)')"
 scan_imports "R3d: internal/kernal/* free of database/sql and pgx" "$sql_pattern" internal/kernal/
 
+internal_pattern="$(import_pattern "${module_path}/internal(/[^\"]*)?")"
+scan_imports "R3e: storage/* free of internal/* imports" "$internal_pattern" storage/
+
 # Rule 4: pruned components must stay pruned.
 forbidden_dirs="$(find . -type d \( -name cmd -o -name proto \) -print 2>/dev/null || true)"
 if [[ -n "$forbidden_dirs" ]]; then

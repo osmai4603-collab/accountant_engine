@@ -330,4 +330,3 @@ func findMigration(migrations []migrationFile, version int64) (migrationFile, bo
 	}
 	return migrationFile{}, false
 }
-

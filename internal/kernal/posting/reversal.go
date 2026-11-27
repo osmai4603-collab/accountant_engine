@@ -29,6 +29,9 @@ func BuildReversalEntryAt(original journal.JournalEntry, reversalDate time.Time,
 	if original.ReversedByID != nil {
 		return journal.JournalEntry{}, ErrEntryAlreadyReversed
 	}
+	if original.Classification == journal.EntryClassReversing || original.ReversalOfID != nil {
+		return journal.JournalEntry{}, ErrInvalidReversal
+	}
 
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {

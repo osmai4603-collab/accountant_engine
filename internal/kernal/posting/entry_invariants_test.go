@@ -299,6 +299,123 @@ func TestReversalLifecycle(t *testing.T) {
 	if !errors.Is(err, ErrEntryAlreadyReversed) {
 		t.Fatalf("expected ErrEntryAlreadyReversed, got %v", err)
 	}
+
+	// 5. Reversing a reversing entry is forbidden (PST-008 / RULE-ACC-026)
+	reversingPosted := reversal
+	reversingPosted.Status = journal.EntryPosted
+	_, err = BuildReversalEntry(reversingPosted, revDate, "creator-1", "Reverse reversal")
+	if !errors.Is(err, ErrInvalidReversal) {
+		t.Fatalf("expected ErrInvalidReversal when reversing a reversing entry, got %v", err)
+	}
+
+	mismatchedReversal := entry
+	mismatchedReversal.Classification = journal.EntryClassRegular
+	origID := types.NewJournalEntryID()
+	mismatchedReversal.ReversalOfID = &origID
+	_, err = BuildReversalEntry(mismatchedReversal, revDate, "creator-1", "Reverse with ReversalOfID")
+	if !errors.Is(err, ErrInvalidReversal) {
+		t.Fatalf("expected ErrInvalidReversal when reversing entry with ReversalOfID, got %v", err)
+	}
+}
+
+func TestValidateEntryLinePST004AndExchangeRatePrecision(t *testing.T) {
+	acc1 := types.NewAccountID()
+	lineID := types.NewJournalEntryLineID()
+
+	// Exceeding 0.5 minor-unit tolerance (PST-004) must fail closed.
+	divergent := journal.EntryLine{
+		ID:                  lineID,
+		AccountID:           acc1,
+		TransactionCurrency: "EUR",
+		TransactionAmount:   makeMoney(t, "10.005", "EUR"),
+		ExchangeRate:        decimal.RequireFromString("3.75"),
+		FunctionalDebit:     makeMoney(t, "37.50", "SAR"),
+		FunctionalCredit:    makeMoney(t, "0.00", "SAR"),
+	}
+	if err := ValidateEntryLine(divergent, nil); !errors.Is(err, types.ErrInvalidAmount) {
+		t.Fatalf("divergent functional amount error = %v, want ErrInvalidAmount", err)
+	}
+
+	// Both round to 12.04 USD under banker's rounding, but diff > 0.005 must fail PST-004.
+	sneakyDivergent := journal.EntryLine{
+		ID:                  lineID,
+		AccountID:           acc1,
+		TransactionCurrency: "EUR",
+		TransactionAmount:   makeMoney(t, "10.00", "EUR"),
+		ExchangeRate:        decimal.RequireFromString("1.2045"),
+		FunctionalDebit:     makeMoney(t, "12.036", "USD"),
+		FunctionalCredit:    makeMoney(t, "0.00", "USD"),
+	}
+	if err := ValidateEntryLine(sneakyDivergent, nil); !errors.Is(err, types.ErrInvalidAmount) {
+		t.Fatalf("sub-cent >0.5 minor-unit divergence error = %v, want ErrInvalidAmount", err)
+	}
+
+	// MONEY-025: exchange rate with 13 fractional digits must fail closed.
+	overScaledRate := journal.EntryLine{
+		ID:                  lineID,
+		AccountID:           acc1,
+		TransactionCurrency: "EUR",
+		TransactionAmount:   makeMoney(t, "10.00", "EUR"),
+		ExchangeRate:        decimal.RequireFromString("1.1234567890123"),
+		FunctionalDebit:     makeMoney(t, "11.23", "USD"),
+		FunctionalCredit:    makeMoney(t, "0.00", "USD"),
+	}
+	if err := ValidateEntryLine(overScaledRate, nil); !errors.Is(err, ErrInvalidExchangeRate) {
+		t.Fatalf("over-scaled exchange rate error = %v, want ErrInvalidExchangeRate", err)
+	}
+
+	// MONEY-026: exchange rate exceeding 28 integer/significant digits must fail.
+	hugeRate := overScaledRate
+	hugeRate.ExchangeRate = decimal.RequireFromString("1e28")
+	hugeRate.FunctionalDebit = makeMoney(t, "1e27", "USD")
+	if err := ValidateEntryLine(hugeRate, nil); !errors.Is(err, ErrInvalidExchangeRate) {
+		t.Fatalf("oversized exchange rate error = %v, want ErrInvalidExchangeRate", err)
+	}
+}
+
+func TestRoundEntryWithRoundingPolicyHonorsExplicitHalfUp(t *testing.T) {
+	halfUp := func(m types.Money) (types.Money, error) {
+		c, ok := types.LookupCurrency(m.Currency())
+		if !ok {
+			return types.Money{}, types.ErrInvalidCurrency
+		}
+		rounded := m.Amount().Round(c.MinorUnit)
+		return types.NewMoney(rounded, m.Currency())
+	}
+	zeroUSD := makeMoney(t, "0.00", "USD")
+	entry := journal.JournalEntry{
+		ID:             types.NewJournalEntryID(),
+		CompanyID:      types.NewCompanyID(),
+		JournalID:      types.NewJournalID(),
+		Classification: journal.EntryClassRegular,
+		EffectiveDate:  time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		Lines: []journal.EntryLine{
+			{
+				ID:                  types.NewJournalEntryLineID(),
+				AccountID:           types.NewAccountID(),
+				TransactionCurrency: "USD",
+				TransactionAmount:   makeMoney(t, "10.005", "USD"),
+				ExchangeRate:        decimal.NewFromInt(1),
+				FunctionalDebit:     makeMoney(t, "10.01", "USD"),
+				FunctionalCredit:    zeroUSD,
+			},
+			{
+				ID:                  types.NewJournalEntryLineID(),
+				AccountID:           types.NewAccountID(),
+				TransactionCurrency: "USD",
+				TransactionAmount:   makeMoney(t, "10.005", "USD"),
+				ExchangeRate:        decimal.NewFromInt(1),
+				FunctionalDebit:     zeroUSD,
+				FunctionalCredit:    makeMoney(t, "10.01", "USD"),
+			},
+		},
+	}
+	if err := RoundEntryWithRoundingPolicy(&entry, types.AccountID{}, halfUp); err != nil {
+		t.Fatalf("RoundEntryWithRoundingPolicy(halfUp) failed: %v", err)
+	}
+	if entry.Lines[0].FunctionalDebit.Amount().StringFixed(2) != "10.01" {
+		t.Fatalf("FunctionalDebit = %s, want 10.01 under HalfUp", entry.Lines[0].FunctionalDebit.ExactString())
+	}
 }
 
 func FuzzReversalNetImpactIsZeroPerAccount(f *testing.F) {
@@ -532,6 +649,9 @@ func TestAdjustingEntriesAndImmutabilityCoverage(t *testing.T) {
 	}
 	if err := EnsureImmutable(journal.EntryReversed); !errors.Is(err, types.ErrCannotModifyPostedMove) {
 		t.Fatalf("expected ErrCannotModifyPostedMove, got %v", err)
+	}
+	if err := EnsureImmutable(journal.EntryCancelled); !errors.Is(err, ErrInvalidEntryState) {
+		t.Fatalf("expected ErrInvalidEntryState for cancelled entry, got %v", err)
 	}
 	if err := EnsureImmutable(journal.EntryDraft); err != nil {
 		t.Fatalf("draft should be mutable, got %v", err)

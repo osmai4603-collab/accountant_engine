@@ -15,6 +15,8 @@ technical_terms: "en"
 
 > **تحديث المرحلة 1 (2026-11-21):** النسخة 1.1.0 تطابق التنفيذ الفعلي: تسع حزم نواة + حزمة جذر، وتضيف `journal` و`ledger` إلى قائمة المكونات، وتحسم مصدر الحقيقة المحاسبي. انظر [خريطة المعمارية](./KERNEL_ARCHITECTURE_MAP.md) و[ADR P1-01](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-01) و[ADR P1-02](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02) و[ADR P1-03](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-03). القائمة "السبع حزم" في النسخة 1.0.0 **متجاوزة (Superseded)**.
 >
+> **ملاحظة نطاق/زمن (2026-11-27):** هذه الوثيقة **لقطة Phase-1 (النسخة 1.1.0)** للمراجعة، لا اعتماد نهائي مستقل. القرارات اللاحقة تُحدِّث تفاصيلها أو تحل محلها: [ADR P7-01](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p7-01) (حدود `pkg/api/v1` و`pkg/spi`)، [ADR P8-01](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p8-01) (النواة ترتّب مفاتيح الأقفال ولا تُقفل)، و[ADR P11-02](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-02)/[P11-03](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-03)/[P11-04](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-04) (الحساب النافذ، دلالة `BalanceReader`، السياسات المؤرخة). عند التعارض يُرجع إلى سجل ADR.
+>
 > **بيان الرؤية والمعمارية:**  
 > تُحدد هذه الوثيقة الهيكل المفاهيمي والحزمي الدقيق لـ **النواة المحاسبية الصرفة (Kernal Accounting Kernel)** في الرؤية المستهدفة لمشروع `accounting_engine`، مع حصر مكوناتها وحزمها الجوهرية وفصلها فصلاً تاماً عن المكونات المدارية، ومحولات التخزين، وطبقات النقل والمصادقة، لتعمل بوصفها **نواة محاسبية موثوقة وعالية الأداء وقابلة للتضمين (Embeddable Kernal Engine)** فقط.
 > قواعد الترحيل المحاسبية الملزمة موثقة في [قواعد العمل المحاسبية](../rules/ACCOUNTING_BUSINESS_RULES.md)؛ وتصف هذه الوثيقة الحد المعماري بين مسؤوليات النواة والمضيف.
@@ -82,11 +84,11 @@ flowchart TB
     end
 
     subgraph Orbitals ["🔵 المكونات المدارية (Orbital Components - Opt-in)"]
-        SUBLEDGERS["internal/subledgers<br/>(AR, AP, Cash, Assets)"]
-        REPORTING["internal/reporting<br/>(Trial Balance, BS, P&L, Cash Flow)"]
-        EVENTS_ING["internal/events<br/>(Event Matching & Idempotency)"]
-        RECON["internal/reconciliation<br/>(Source Comparison & Rec)"]
-        CONSOL["internal/consolidation<br/>(Multi-company Consolidation)"]
+        SUBLEDGERS["internal/orbitals/subledgers<br/>(AR, AP, Cash, Assets)"]
+        REPORTING["internal/orbitals/reporting<br/>(Trial Balance, BS, P&L, Cash Flow)"]
+        EVENTS_ING["internal/orbitals/events<br/>(Event Matching & Idempotency)"]
+        RECON["internal/orbitals/reconciliation<br/>(Source Comparison & Rec)"]
+        CONSOL["internal/orbitals/consolidation<br/>(Multi-company Consolidation)"]
         STANDARDS["modules/*<br/>(IFRS 15, IFRS 16, IFRS 9, IAS 12)"]
     end
 
@@ -139,6 +141,8 @@ flowchart TB
 | 9 | `internal/kernal/apperrors` | تصنيف أخطاء للتوافق العام |
 
 ### 3.1 محرك الترحيل والقيد المزدوج (`internal/kernal/posting`)
+
+> **طول الأنبوب:** خط أنابيب الترحيل مكوّن من **17 مرحلة (0–16)** في اللقطة الحالية؛ وصف «الأنبوب الثماني» في الوثائق الأقدم لقطة متجاوزة (راجع [NEW_PROJECT_STRUCTURE.md](./NEW_PROJECT_STRUCTURE.md)).
 
 * **قلب النواة الحسابي:**
   * التحقق الرياضي الصارم من توازن القيد المزدوج ومطابقة العملة الوظيفية للشركة وعملات الأسطر.
@@ -206,6 +210,7 @@ flowchart TB
 * **تعريف الaggregate المحاسبي:**
   * `JournalEntry` و`EntryLine` يحملان الهوية، الحالة (`draft`/`posted`/`reversed` مع توثيق `cancelled` للمسودات قبل الترحيل في `JRN-007`)، التصنيف، بيانات الفترة والتاريخ، مبالغ المعاملة والوظيفة، الأبعاد، وبيانات النسبة.
   * روابط العكس (`ReversalOfID`, `ReversedByID`, `ReversalReason`) و`Clone` الدفاعي للشرائح والمؤشرات.
+  * **ملاحظة الحالة (`JRN-007`):** يسمح [JRN-007](../specifications/kernel/JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.2.0.md#jrn-007) صراحةً بالانتقال `Draft → Cancelled` قبل الترحيل (بـ `ActorID` وسبب وختم `CancelledAt`/`CancelledBy`/`CancellationReason`) دون أثر مالي؛ ولا يُلغى قيد `Posted`/`Reversed`. وعليه تُحدَّث [ADR P1-02](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02) ليشمل هذا الانتقال إلى جانب `Draft → Posted → Reversed`. هذه لقطة توثيقية؛ لا يُستنتج منها أن الحالة مُعرَّضة في لقطة الكود الحالية.
 * **الحدود:** لا يتحقق `journal` من التوازن، ولا يفرض انتقال الحالة، ولا يحفظ؛ هذه المسؤوليات في `posting` ومنفذ المضيف على التوالي.
 
 ### 3.9 النماذج المرجعية (`internal/kernal/ledger`)
@@ -239,11 +244,11 @@ flowchart LR
 
 | المكون المداري | المسار البرمجي | طبيعة العلاقة بالنواة |
 | :--- | :--- | :--- |
-| **دفاتر الأستاذ المساعدة** | `internal/subledgers` | تستهلك أحداث الترحيل لتحديث أرصدة العملاء (AR)، الموردين (AP)، النقدية، والأصول الثابتة، مع فرض المطابقة مع حساب الرقابة في الأستاذ العام. |
-| **التقارير المالية** | `internal/reporting` | تقرأ من أرصدة الأستاذ العام والقيود المرحلة لتوليد ميزان المراجعة، قائمة الدخل، قائمة المركز المالي، وقائمة التدفقات النقدية. |
-| **استيعاب الأحداث ومنع التكرار** | `internal/events` و `pkg/sdk/event_ingestion.go` | تستقبل الأحداث الاقتصادية من النظام المضيف، تتحقق من عدم التكرار (`Idempotency`)، وتوجهها للنواة للترحيل. |
-| **المطابقة والتسويات** | `internal/reconciliation` | تقارن بين السجلات الداخلية للأستاذ العام ومصادر بيانات خارجية (مثل كشوف الحسابات المصرفية). |
-| **توحيد القوائم المالية** | `internal/consolidation` | تجميع القوائم المالية لمجموعة شركات واستبعاد المعاملات البينية وفروق الترجمة. |
+| **دفاتر الأستاذ المساعدة** | `internal/orbitals/subledgers` | تستهلك أحداث الترحيل لتحديث أرصدة العملاء (AR)، الموردين (AP)، النقدية، والأصول الثابتة (مملوكة للمضيف)، مع فرض المطابقة مع حساب الرقابة في الأستاذ العام. |
+| **التقارير المالية** | `internal/orbitals/reporting` | تقرأ من أرصدة الأستاذ العام المشتقة والقيود المرحلة لتوليد ميزان المراجعة، قائمة الدخل، قائمة المركز المالي، وقائمة التدفقات النقدية. |
+| **استيعاب الأحداث ومنع التكرار** | `internal/orbitals/events` و `pkg/sdk/event_ingestion.go` | تستقبل الأحداث الاقتصادية من النظام المضيف، تتحقق من عدم التكرار (`Idempotency`)، وتوجهها للنواة للترحيل. |
+| **المطابقة والتسويات** | `internal/orbitals/reconciliation` | تقارن بين السجلات الداخلية للأستاذ العام ومصادر بيانات خارجية (مثل كشوف الحسابات المصرفية). |
+| **توحيد القوائم المالية** | `internal/orbitals/consolidation` | تجميع القوائم المالية لمجموعة شركات واستبعاد المعاملات البينية وفروق الترجمة. |
 | **وحدات المعايير الدولية** | `modules/ifrs9`, `ifrs15`, `ifrs16`, `ias12` | إضافات معيارية مستقلة تحقق عقود `pkg/spi/standards` وتولد قيوداً واستحقاقات معيارية ترحلها النواة. |
 
 ---
@@ -322,17 +327,17 @@ flowchart LR
 | `internal/kernal/types` | **Kernal Kernel** | المبالغ، العملات، المعرفات، الحساب العشري | none |
 | `internal/kernal/apperrors` | **Kernal Kernel** | أخطاء مصنفة للتوافق العام | none (معزولة) |
 | `internal/kernal/journal` | **Kernal Kernel** | تعريف القيد وحالته وروابط العكس والنسخ الدفاعي | `types` |
-| `internal/kernal/ledger` | **Kernal Kernel** | DTOs مرجعية لـ `pkg/api/v1/ledger`؛ بلا GL أو أرصدة | `types` |
+| `internal/kernal/ledger` | **Kernal Kernel** | DTOs مرجعية لـ `pkg/api/v1/ledger`؛ بلا GL أو أرصدة | `journal`, `types` |
 | `internal/kernal/masterdata` | **Kernal Kernel** | الحسابات، التقويم، الفترات، الشركات،Reader ports | `types` |
 | `internal/kernal/governance` | **Kernal Kernel** | سلسلة التدقيق والتحقق مقابل نقطة تحقق خارجية | `types` |
 | `internal/kernal/policy` | **Kernal Kernel** | سياسات الترحيل والعملات وأهلية الحسابات والأبعاد | `journal`, `masterdata`, `types` |
 | `internal/kernal/posting` | **Kernal Kernel** | الترحيل، القيد المزدوج، العكس، ترتيب مفاتيح الأقفال، تفويض الحفظ | `journal`, `masterdata`, `policy`, `types` |
 | `internal/kernal/valuation` | **Kernal Kernel** | أسعار الصرف، التحويل، إعادة التقييم | `journal`, `posting`, `types` |
-| `internal/subledgers` | **Orbital** | الدفاتر المساعدة (AR/AP/Cash/Assets) | `posting`, `types`, `masterdata` |
-| `internal/reporting` | **Orbital** | القوائم المالية وميزان المراجعة (مشترك من الحقائق المرحلة) | `types`, `masterdata`, storage ports |
-| `internal/events` | **Orbital** | استيعاب الأحداث ومطابقتها ومنع التكرار | `posting`, `types`, storage ports |
-| `internal/reconciliation` | **Orbital** | مطابقة الأرصدة والسجلات الخارجية | `reporting`, `types` |
-| `internal/consolidation` | **Orbital** | توحيد القوائم المالية للمجموعات | `reporting`, `types`, `valuation` |
+| `internal/orbitals/subledgers` | **Orbital** | الدفاتر المساعدة (AR/AP/Cash/Assets) | `posting`, `types`, `masterdata` |
+| `internal/orbitals/reporting` | **Orbital** | القوائم المالية وميزان المراجعة (مشترك من الحقائق المرحلة) | `types`, `masterdata`, storage ports |
+| `internal/orbitals/events` | **Orbital** | استيعاب الأحداث ومطابقتها ومنع التكرار | `posting`, `types`, storage ports |
+| `internal/orbitals/reconciliation` | **Orbital** | مطابقة الأرصدة والسجلات الخارجية | `reporting`, `types` |
+| `internal/orbitals/consolidation` | **Orbital** | توحيد القوائم المالية للمجموعات | `reporting`, `types`, `valuation` |
 | `modules/*` | **Orbital** | معايير IFRS/IAS المتخصصة | `spi/standards`, `api/v1` |
 
 ---

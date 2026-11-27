@@ -28,4 +28,3 @@ func (b *EngineBuilder) buildModulePorts(publicMasterData publicmasterdata.Store
 
 	return standards.NewModulePorts(entries, balance, md, b.useCases)
 }
-

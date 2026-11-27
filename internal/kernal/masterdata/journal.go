@@ -45,7 +45,8 @@ func (j Journal) ValidateWithPolicy(allowedCurrencies []string, allowedAccounts 
 	seenCurrencies := make(map[string]struct{}, len(allowedCurrencies))
 	for _, currency := range allowedCurrencies {
 		normalized := strings.ToUpper(strings.TrimSpace(currency))
-		if currencyInfo, ok := types.LookupCurrency(normalized); !ok || currencyInfo.Code == types.XXX {
+		currencyInfo, ok := types.LookupCurrency(normalized)
+		if !ok || currencyInfo.IsSpecial() {
 			return ErrJournalCurrency
 		}
 		if _, exists := seenCurrencies[normalized]; exists {
@@ -95,7 +96,7 @@ func (j Journal) AllowsAccount(accountID types.AccountID) bool {
 
 func (j Journal) AllowsCurrencyWithPolicy(currency string, allowedCurrencies []string) bool {
 	currencyInfo, ok := types.LookupCurrency(currency)
-	if !ok || currencyInfo.Code == types.XXX {
+	if !ok || currencyInfo.IsSpecial() {
 		return false
 	}
 	if len(allowedCurrencies) == 0 {
@@ -103,7 +104,7 @@ func (j Journal) AllowsCurrencyWithPolicy(currency string, allowedCurrencies []s
 	}
 	for _, allowed := range allowedCurrencies {
 		allowedInfo, exists := types.LookupCurrency(allowed)
-		if exists && allowedInfo.Code != types.XXX && allowedInfo.Code == currencyInfo.Code {
+		if exists && !allowedInfo.IsSpecial() && allowedInfo.Code == currencyInfo.Code {
 			return true
 		}
 	}

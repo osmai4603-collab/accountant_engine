@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
+	publicgovernance "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
@@ -31,7 +31,7 @@ func TestMemoryPhase10AuditLogPayloadIsDefensivelyCopied(t *testing.T) {
 	company := types.NewCompanyID()
 
 	payload := []byte("original")
-	appended, err := driver.AppendAuditLogAtomic(ctx, kernalgovernance.AuditLog{
+	appended, err := driver.AppendAuditLogAtomic(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-1",
 		Action: "POST", Payload: payload,
 	})
@@ -50,7 +50,7 @@ func TestMemoryPhase10AuditLogPayloadIsDefensivelyCopied(t *testing.T) {
 		if len(snapshot.Logs) != 1 || string(snapshot.Logs[0].Payload) != "original" {
 			t.Fatalf("%s stored logs = %+v, want one log with original payload", phase, snapshot.Logs)
 		}
-		if valid, err := kernalgovernance.NewAuditChain(driver).VerifyAuditIntegrity(ctx, company); !valid || err != nil {
+		if valid, err := publicgovernance.NewAuditChain(driver).VerifyAuditIntegrity(ctx, company); !valid || err != nil {
 			t.Fatalf("%s chain verification = (%v, %v)", phase, valid, err)
 		}
 		snapshot.Logs[0].Payload[0] = 'Z'
@@ -72,7 +72,7 @@ func TestMemoryPhase10ConcurrentAppendBuildsOneChain(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			log, err := driver.AppendAuditLogAtomic(ctx, kernalgovernance.AuditLog{
+			log, err := driver.AppendAuditLogAtomic(ctx, publicgovernance.AuditLog{
 				CompanyID: company, EntityType: "journal_entry",
 				EntityID: fmt.Sprintf("JE-%02d", i), Action: "POST",
 			})
@@ -101,7 +101,7 @@ func TestMemoryPhase10ConcurrentAppendBuildsOneChain(t *testing.T) {
 			t.Fatalf("missing sequence %d", i)
 		}
 	}
-	if valid, err := kernalgovernance.NewAuditChain(driver).VerifyAuditIntegrity(ctx, company); !valid || err != nil {
+	if valid, err := publicgovernance.NewAuditChain(driver).VerifyAuditIntegrity(ctx, company); !valid || err != nil {
 		t.Fatalf("chain after concurrent appends = (%v, %v)", valid, err)
 	}
 	snapshot, err := driver.GetAuditVerificationSnapshot(ctx, company)
@@ -111,7 +111,7 @@ func TestMemoryPhase10ConcurrentAppendBuildsOneChain(t *testing.T) {
 	if len(snapshot.Logs) != appenders || snapshot.SnapshotSequence != appenders {
 		t.Fatalf("snapshot = %d logs / sequence %d, want %d", len(snapshot.Logs), snapshot.SnapshotSequence, appenders)
 	}
-	if snapshot.Logs[0].SequenceNumber != 1 || snapshot.Logs[0].PreviousLogHash != kernalgovernance.GenesisHash {
+	if snapshot.Logs[0].SequenceNumber != 1 || snapshot.Logs[0].PreviousLogHash != publicgovernance.GenesisHash {
 		t.Fatalf("first snapshot log = %+v", snapshot.Logs[0])
 	}
 }
@@ -133,7 +133,7 @@ func TestMemoryPhase10PostingWritesVerifiableAuditEvidence(t *testing.T) {
 		t.Fatalf("posted entry not persisted: %v", err)
 	}
 
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 	if valid, err := chain.VerifyAuditIntegrity(ctx, company); !valid || err != nil {
 		t.Fatalf("posted audit chain = (%v, %v)", valid, err)
 	}
@@ -145,7 +145,7 @@ func TestMemoryPhase10PostingWritesVerifiableAuditEvidence(t *testing.T) {
 		snapshot.Logs[0].Reason != "approved" || snapshot.Logs[0].CorrelationID != "corr-1" {
 		t.Fatalf("posting audit snapshot = %+v", snapshot.Logs)
 	}
-	if err := driver.SetExternalAuditCheckpoint(ctx, company, kernalgovernance.AuditCheckpoint{
+	if err := driver.SetExternalAuditCheckpoint(ctx, company, publicgovernance.AuditCheckpoint{
 		CompanyID: company, SequenceNumber: 1, Version: 1, LogHash: snapshot.Logs[0].CurrentLogHash,
 	}); err != nil {
 		t.Fatal(err)
@@ -183,8 +183,8 @@ func TestMemoryPhase10AuditFailureRollsBackPostingEffect(t *testing.T) {
 				t.Fatalf("audit effects survived rollback: legacy=%d v2=%d",
 					len(driver.auditRecords), len(driver.governanceAuditLogs[company]))
 			}
-			valid, err := kernalgovernance.NewAuditChain(driver).VerifyAuditIntegrityWithCheckpoint(ctx, company)
-			if valid || !errors.Is(err, kernalgovernance.ErrAuditCheckpointMismatch) {
+			valid, err := publicgovernance.NewAuditChain(driver).VerifyAuditIntegrityWithCheckpoint(ctx, company)
+			if valid || !errors.Is(err, publicgovernance.ErrAuditCheckpointMismatch) {
 				t.Fatalf("verification after rollback = (%v, %v), want fail-closed checkpoint mismatch", valid, err)
 			}
 		})

@@ -7,14 +7,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
-	internaltypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	publicgovernance "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance"
 	publictypes "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 )
 
-const genesisHash = "0000000000000000000000000000000000000000000000000000000000000000"
+const genesisHash = publicgovernance.GenesisHash
 
 // AppendAudit records an immutable audit log entry.
 func (d *Driver) AppendAudit(ctx context.Context, record storage.AuditRecord) error {
@@ -50,9 +48,9 @@ func appendAuditLogTx(ctx context.Context, tx pgx.Tx, record storage.AuditRecord
 		payload = []byte("null")
 	}
 
-	log := kernalgovernance.AuditLog{
+	log := publicgovernance.AuditLog{
 		SequenceNumber:  sequenceNumber + 1,
-		CompanyID:       internaltypes.CompanyID(record.CompanyID),
+		CompanyID:       record.CompanyID,
 		EntityType:      record.EntityType,
 		EntityID:        record.EntityID,
 		Action:          record.Action,
@@ -63,7 +61,7 @@ func appendAuditLogTx(ctx context.Context, tx pgx.Tx, record storage.AuditRecord
 		Timestamp:       timestamp,
 		PreviousLogHash: previousHash,
 	}
-	log.CurrentLogHash = kernalgovernance.CalculateHash(log)
+	log.CurrentLogHash = publicgovernance.CalculateHash(log)
 
 	_, err = tx.Exec(ctx, `INSERT INTO financial_audit_logs(
 		company_id, entity_type, entity_id, action, actor_id, reason, correlation_id,
@@ -77,12 +75,12 @@ func appendAuditLogTx(ctx context.Context, tx pgx.Tx, record storage.AuditRecord
 
 func (d *Driver) AppendAuditLogAtomic(ctx context.Context, log publicgovernance.AuditLog) (publicgovernance.AuditLog, error) {
 	if d == nil || d.pool == nil {
-		return kernalgovernance.AuditLog{}, ErrDriverNotInitialized
+		return publicgovernance.AuditLog{}, ErrDriverNotInitialized
 	}
 	if err := ctx.Err(); err != nil {
-		return kernalgovernance.AuditLog{}, err
+		return publicgovernance.AuditLog{}, err
 	}
-	var result kernalgovernance.AuditLog
+	var result publicgovernance.AuditLog
 	err := d.WithCompanyTx(ctx, uuid.UUID(log.CompanyID), func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, log.CompanyID.String()); err != nil {
 			return err
@@ -105,7 +103,7 @@ func (d *Driver) AppendAuditLogAtomic(ctx context.Context, log publicgovernance.
 		} else {
 			log.Timestamp = log.Timestamp.UTC()
 		}
-		log.CurrentLogHash = kernalgovernance.CalculateHash(log)
+		log.CurrentLogHash = publicgovernance.CalculateHash(log)
 
 		_, err = tx.Exec(ctx, `INSERT INTO financial_audit_logs(
 			company_id, entity_type, entity_id, action, actor_id, reason, correlation_id,
@@ -121,7 +119,7 @@ func (d *Driver) AppendAuditLogAtomic(ctx context.Context, log publicgovernance.
 		return nil
 	})
 	if err != nil {
-		return kernalgovernance.AuditLog{}, err
+		return publicgovernance.AuditLog{}, err
 	}
 	return result, nil
 }
@@ -135,7 +133,7 @@ func (d *Driver) GetLastAuditLogForCompany(ctx context.Context, companyID public
 	if d == nil || d.pool == nil {
 		return nil, ErrDriverNotInitialized
 	}
-	var log kernalgovernance.AuditLog
+	var log publicgovernance.AuditLog
 	err := d.WithCompanyTx(ctx, uuid.UUID(companyID), func(tx pgx.Tx) error {
 		row := tx.QueryRow(ctx, `SELECT id, sequence_number, company_id, entity_type, entity_id, action,
 			actor_id, reason, correlation_id, payload_after, timestamp,
@@ -154,7 +152,7 @@ func (d *Driver) GetLastAuditLogForCompany(ctx context.Context, companyID public
 	return &log, nil
 }
 
-func scanAuditLog(row pgx.Row, log *kernalgovernance.AuditLog) error {
+func scanAuditLog(row pgx.Row, log *publicgovernance.AuditLog) error {
 	var id int64
 	var sequence int64
 	var companyID uuid.UUID
@@ -168,7 +166,7 @@ func scanAuditLog(row pgx.Row, log *kernalgovernance.AuditLog) error {
 	}
 	log.ID = id
 	log.SequenceNumber = uint64(sequence)
-	log.CompanyID = internaltypes.CompanyID(companyID)
+	log.CompanyID = publictypes.CompanyID(companyID)
 	log.Payload = append([]byte(nil), payload...)
 	return nil
 }
@@ -178,7 +176,7 @@ func (d *Driver) IterateAuditLogs(ctx context.Context, companyID publictypes.Com
 		return ErrDriverNotInitialized
 	}
 	if fn == nil {
-		return kernalgovernance.ErrInvalidAuditSnapshot
+		return publicgovernance.ErrInvalidAuditSnapshot
 	}
 	return d.WithCompanyTx(ctx, uuid.UUID(companyID), func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `SELECT id, sequence_number, company_id, entity_type, entity_id, action,
@@ -195,7 +193,7 @@ func (d *Driver) IterateAuditLogs(ctx context.Context, companyID publictypes.Com
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			var log kernalgovernance.AuditLog
+			var log publicgovernance.AuditLog
 			if err := scanAuditLog(rows, &log); err != nil {
 				return err
 			}
@@ -209,21 +207,21 @@ func (d *Driver) IterateAuditLogs(ctx context.Context, companyID publictypes.Com
 
 func (d *Driver) GetAuditVerificationSnapshot(ctx context.Context, companyID publictypes.CompanyID) (publicgovernance.AuditVerificationSnapshot, error) {
 	if d == nil || d.pool == nil {
-		return kernalgovernance.AuditVerificationSnapshot{}, ErrDriverNotInitialized
+		return publicgovernance.AuditVerificationSnapshot{}, ErrDriverNotInitialized
 	}
 	if err := ctx.Err(); err != nil {
-		return kernalgovernance.AuditVerificationSnapshot{}, err
+		return publicgovernance.AuditVerificationSnapshot{}, err
 	}
 	tx, err := d.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return kernalgovernance.AuditVerificationSnapshot{}, err
+		return publicgovernance.AuditVerificationSnapshot{}, err
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	if _, err := tx.Exec(ctx, `SELECT set_config('app.current_company_id',$1,true)`, companyID.String()); err != nil {
-		return kernalgovernance.AuditVerificationSnapshot{}, err
+		return publicgovernance.AuditVerificationSnapshot{}, err
 	}
 
-	logs := make([]kernalgovernance.AuditLog, 0)
+	logs := make([]publicgovernance.AuditLog, 0)
 	rows, err := tx.Query(ctx, `SELECT id, sequence_number, company_id, entity_type, entity_id, action,
 		actor_id, reason, correlation_id, payload_after, timestamp,
 		previous_log_hash, current_log_hash
@@ -231,25 +229,25 @@ func (d *Driver) GetAuditVerificationSnapshot(ctx context.Context, companyID pub
 		ORDER BY sequence_number ASC, id ASC`,
 		uuid.UUID(companyID))
 	if err != nil {
-		return kernalgovernance.AuditVerificationSnapshot{}, err
+		return publicgovernance.AuditVerificationSnapshot{}, err
 	}
 	for rows.Next() {
-		var log kernalgovernance.AuditLog
+		var log publicgovernance.AuditLog
 		if err := scanAuditLog(rows, &log); err != nil {
 			rows.Close()
-			return kernalgovernance.AuditVerificationSnapshot{}, err
+			return publicgovernance.AuditVerificationSnapshot{}, err
 		}
 		logs = append(logs, log)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
-		return kernalgovernance.AuditVerificationSnapshot{}, err
+		return publicgovernance.AuditVerificationSnapshot{}, err
 	}
 	rows.Close()
 
-	checkpoint := kernalgovernance.AuditCheckpoint{
+	checkpoint := publicgovernance.AuditCheckpoint{
 		CompanyID: companyID, SequenceNumber: 0, Version: 0,
-		LogHash: kernalgovernance.GenesisHash,
+		LogHash: publicgovernance.GenesisHash,
 	}
 	var sequence int64
 	var version int64
@@ -264,13 +262,13 @@ func (d *Driver) GetAuditVerificationSnapshot(ctx context.Context, companyID pub
 		checkpoint.Version = uint64(version)
 		checkpoint.LogHash = logHash
 	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return kernalgovernance.AuditVerificationSnapshot{}, err
+		return publicgovernance.AuditVerificationSnapshot{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return kernalgovernance.AuditVerificationSnapshot{}, err
+		return publicgovernance.AuditVerificationSnapshot{}, err
 	}
-	return kernalgovernance.AuditVerificationSnapshot{
+	return publicgovernance.AuditVerificationSnapshot{
 		CompanyID: companyID, SnapshotSequence: uint64(len(logs)),
 		Checkpoint: checkpoint, CheckpointPresent: checkpointPresent, Logs: logs,
 	}, nil
@@ -281,7 +279,7 @@ func (d *Driver) SetExternalAuditCheckpoint(ctx context.Context, companyID publi
 		return ErrDriverNotInitialized
 	}
 	checkpoint.CompanyID = companyID
-	if err := kernalgovernance.ValidateCheckpoint(checkpoint); err != nil {
+	if err := publicgovernance.ValidateCheckpoint(checkpoint); err != nil {
 		return err
 	}
 	return d.WithCompanyTx(ctx, uuid.UUID(companyID), func(tx pgx.Tx) error {
@@ -290,7 +288,7 @@ func (d *Driver) SetExternalAuditCheckpoint(ctx context.Context, companyID publi
 			WHERE company_id=$1`, uuid.UUID(companyID)).Scan(&currentSequence, &currentVersion)
 		if err == nil && (checkpoint.Version <= uint64(currentVersion) ||
 			checkpoint.SequenceNumber < uint64(currentSequence)) {
-			return kernalgovernance.ErrInvalidAuditCheckpoint
+			return publicgovernance.ErrInvalidAuditCheckpoint
 		}
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err

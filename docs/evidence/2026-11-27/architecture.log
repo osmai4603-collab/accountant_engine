@@ -1,0 +1,28 @@
+Commit (HEAD): de7e525a78cc0561cc0577334716423e148ed321
+Working tree: MODIFIED (uncommitted); SHA-256 fingerprint below is authoritative
+Tree SHA-256: 88cf8438c82def56a8c617af2f5dddd934510d7807b8651d7e772f5e26bf7426
+Environment: go version go1.26.3 linux/amd64 linux/amd64
+UTC: 2026-11-27T03:49:57+00:00
+$ ./scripts/verify_architecture.sh
+Exit Code: 0
+
+--- stdout ---
+Architecture verification (module: github.com/osmai4603-collab/accounting_engine)
+-------------------------------------------------------------
+  [OK]   R1: internal/* free of net/http, grpc and protobuf
+  [OK]   R2a: pkg/spi/* free of internal/* imports
+  [OK]   R2b: pkg/api/* internal imports limited to internal/kernal/*
+  [OK]   R2c: exported API free of unbridged internal/* type exposure
+  [OK]   R3a: internal/kernal/* free of internal/orbitals/* imports
+  [OK]   R3b: internal/kernal/* free of pkg/* imports
+  [OK]   R3c: internal/kernal/* free of concrete storage/* imports
+  [OK]   R3d: internal/kernal/* free of database/sql and pgx
+  [OK]   R3e: storage/* free of internal/* imports
+  [OK]   R4: no cmd/ or proto/ directories
+  [OK]   R5: go.mod free of grpc, protobuf, aws-sdk and net/http
+  [OK]   R6: package graph resolves without import cycles
+-------------------------------------------------------------
+RESULT: PASS - clean architectural base
+
+--- stderr ---
+

@@ -1,18 +1,20 @@
-# تقرير تحليل العيوب والنواقص والفجوات في مواصفات النواة المحاسبية (`docs/specifications/kernal`)
+# تقرير تحليل العيوب والنواقص والفجوات في مواصفات النواة المحاسبية (`docs/specifications/kernel`)
+
+> **حالة التقرير:** سجل تاريخي (`Historical Record`) بتاريخ 2026-11-27، وليس حالة راهنة. عولجت ملاحظات المواصفات وتبعها إغلاق الفجوات التنفيذية المتبقية في الشيفرة: `EntryCancelled` (`JRN-007`)، وحظر عكس القيد العكسي (`PST-008`)، وتسامح `0.5` وحدة صغرى وتمرير وضع التقريب (`PST-004`/`POL-009`)، وحد الـ12 خانة لسعر الصرف و`XCG`/الرموز الخاصة (`MONEY-025`/`ISO 4217`)، والأبعاد في مفتاح إعادة التقييم (`VAL-009`)، وفحص آباء مراكز التكلفة (`MD-010`)، وسمة `IsMonetary *bool` مع migration (`MD-004`/`VAL-006`)، وإسقاط رصيد عملة المعاملة الأجنبية (`LDG-003` + `TransactionBalanceReader`). راجع [`DOCS_CONFLICT_ANALYSIS.md`](../analysis/DOCS_CONFLICT_ANALYSIS.md) للحالة المرجعية.
 
 **تاريخ التحليل:** 2026-11-27  
-**النطاق المفحوص:** جميع الملفات العشرة في `docs/specifications/kernal/`  
+**النطاق المفحوص:** جميع الملفات العشرة في `docs/specifications/kernel/`  
 **المرجعية المنهجية والمعيارية:**  
 
 1. المصادر الرسمية المُحالة داخل المواصفات نفسها (`RFC 2119`, `RFC 8174`, `IAS 21`, `ISO 4217:2015`, `IASB Conceptual Framework 2018 Ch. 4`, `NIST FIPS 180-4`, `RFC 9562`, `General Decimal Arithmetic 1.70`, `IEEE 754-2019`).  
 2. منهجية صياغة المواصفات المعيارية للمشروع (`docs/references/NORMATIVE_SPECIFICATION_METHODOLOGY.md` — `NSM-001`).  
-3. وثائق النواة المرتبطة في `docs/` (`TARGET_ACCOUNTING_KERNAL.md`, `ACCOUNTING_BUSINESS_RULES.md`, `KERNEL_ARCHITECTURE_MAP.md`, `KERNEL_POSTING_FLOW_SPECIFICATION.md`, `KERNEL_IDEMPOTENCY_CONTRACT.md`, `KERNEL_LOCKING_CONTRACT.md`, `KERNEL_AUDIT_THREAT_MODEL.md`, `KERNEL_AUDIT_REPOSITORY_CONTRACT.md`, `KERNEL_REVERSAL_ATOMICITY_CONTRACT.md`, `KERNEL_POSTING_TRANSACTION_CONTRACT.md`, `KERNEL_VALUATION_RULES_MATRIX.md`, `KERNEL_MONETARY_PRECISION_MATRIX.md`, `KERNEL_REMEDIATION_GAP_REGISTER.md`, ووثائق `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md`, و`internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md`).
+3. وثائق النواة المرتبطة في `docs/` (`TARGET_ACCOUNTING_KERNEL.md`, `ACCOUNTING_BUSINESS_RULES.md`, `KERNEL_ARCHITECTURE_MAP.md`, `KERNEL_POSTING_FLOW_SPECIFICATION.md`, `KERNEL_IDEMPOTENCY_CONTRACT.md`, `KERNEL_LOCKING_CONTRACT.md`, `KERNEL_AUDIT_THREAT_MODEL.md`, `KERNEL_AUDIT_REPOSITORY_CONTRACT.md`, `KERNEL_REVERSAL_ATOMICITY_CONTRACT.md`, `KERNEL_POSTING_TRANSACTION_CONTRACT.md`, `KERNEL_VALUATION_RULES_MATRIX.md`, `KERNEL_MONETARY_PRECISION_MATRIX.md`, `KERNEL_REMEDIATION_GAP_REGISTER.md`, ووثائق `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md`, و`internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md`).
 
 ---
 
 ## الملخص التنفيذي
 
-تغطي مواصفات النواة في `docs/specifications/kernal/` المجالات التسعة للنواة المحاسبية بلغة معيارية متقدمة (`RFC 2119/8174`) وبدرجة عالية من الانضباط المعماري (فصل المضيف عن النواة، الفشل المغلق، حماية `TOCTOU`، ونماذج المطابقة).  
+تغطي مواصفات النواة في `docs/specifications/kernel/` المجالات التسعة للنواة المحاسبية بلغة معيارية متقدمة (`RFC 2119/8174`) وبدرجة عالية من الانضباط المعماري (فصل المضيف عن النواة، الفشل المغلق، حماية `TOCTOU`، ونماذج المطابقة).  
 ومع ذلك، كشف الفحص المقارن مع **المصادر الرسمية** و**منهجية `NSM-001`** و**عقود `docs/` المرتبطة** عن **27 ملاحظة** موزعة على أربعة محاور:
 
 | التصنيف | العدد | أبرز الأمثلة |
@@ -28,7 +30,7 @@
 
 ### 1. عدم تطابق اسم الملف مع رقم الإصدار الداخلي (8 ملفات)
 
-- **المواضع:** جميع ملفات `*_v1.0.0.md` الثمانية في `docs/specifications/kernal/` (`ACCOUNTING_POLICY`, `FX_REVALUATION`, `GOVERNANCE_AND_AUDIT`, `IDENTIFIERS_AND_ERRORS`, `JOURNAL_ENTRY`, `LEDGER_PROJECTION`, `MASTERDATA`, `POSTING_AND_REVERSAL`).
+- **المواضع:** جميع ملفات `*_v1.0.0.md` الثمانية في `docs/specifications/kernel/` (`ACCOUNTING_POLICY`, `FX_REVALUATION`, `GOVERNANCE_AND_AUDIT`, `IDENTIFIERS_AND_ERRORS`, `JOURNAL_ENTRY`, `LEDGER_PROJECTION`, `MASTERDATA`, `POSTING_AND_REVERSAL`).
 - **الخلل:** يحمل اسم كل ملف اللاحقة `_v1.0.0.md`، بينما ينص السطر 3 وسجل الإصدارات في داخل كل منها على أن الإصدار الحالي هو **`1.1.0`**، وتستمر الإحالات المتبادلة بين المواصفات في الإشارة إلى الأسماء المنتهية بـ `_v1.0.0.md`.
 - **المرجع المخالف:** `NSM-001 §9 (1)` و`§16` (ضبط التغيير والإصدارات).
 
@@ -68,7 +70,7 @@
 | **G-IAS21-1** | **غياب سمة "البند النقدي" (`IsMonetary`) في شجرة الحسابات** | `FX_REVALUATION` (`VAL-006`) مقابل `MASTERDATA` (`MD-004`) | `IAS 21.8`, `IAS 21.16`, `IAS 21.23(a)` | تشترط `VAL-006` قصر إعادة التقييم بسعر الإقفال على البنود النقدية من `Asset` و`Liability` ورفض البنود غير النقدية. لكن `MASTERDATA` (`MD-004`) لا تُعرّف أي سمة أو تصنيف في نموذج `Account` يميّز الأصل/الالتزام النقدي عن غير النقدي (مثل المخزون والأصول الثابتة مقابل النقدية والذمم). |
 | **G-IAS21-2** | **غياب قاعدة الاعتراف الأولي وتاريخ المعاملة (`SPOT`/`AVERAGE`)** | `FX_REVALUATION` (`VAL-001`), `JOURNAL_ENTRY` (`JRN-004`), `POSTING_AND_REVERSAL` (`PST-004`) | `IAS 21.21–21.22` | تفرض `VAL-001` نوع السعر `CLOSING` عند إعادة التقييم فقط، بينما لا تشترط `JRN-004` أو `PST-004` في الترحيل اليومي نوع سعر (`SPOT` أو `AVERAGE` المعتمد وفق `IAS 21.22`) ولا تتحقق من `RateDate` مقابل `EffectiveDate`، وتكتفي بشرط `ExchangeRate > 0`. |
 | **G-IAS21-3** | **إساءة تمثيل نطاق `IAS 21.23(c)` في جدول المراجع** | `FX_REVALUATION` (`REF-001` سطر 206 و`VAL-006` سطر 126) | `IAS 21.23(b)-(c)` | يذكر `REF-001` استخدام `IAS 21.23(a)-(c)`، لكن `VAL-006` ترفض جميع البنود غير النقدية دون توضيح أن البنود غير النقدية المقاسة بالقيمة العادلة (`IAS 21.23(c)`) تُترجم بسعر تاريخ قياس القيمة العادلة وأن معالجتها (ومعالجة فروق `OCI` في `IAS 21.30–31`) تقع خارج النواة في المدارات. |
-| **G-IAS21-4** | **تعارض نطاق الفروق المحققة عند التسوية (`IAS 21.28`)** | `FX_REVALUATION` (§1.2 و`VAL-007`) مقابل `ACCOUNTING_BUSINESS_RULES` (`RULE-ACC-013`) و`TARGET_ACCOUNTING_KERNAL` (§3.4) | `IAS 21.28` | تستبعد `FX_REVALUATION` حساب مكاسب/خسائر الصرف المحققة عند تسوية البنود المفتوحة خارج النواة، بينما تنص `TARGET_ACCOUNTING_KERNAL.md` (سطر 179) و`RULE-ACC-013` على أن حزمة `valuation` تختص باحتساب الفروق "المحققة وغير المحققة". |
+| **G-IAS21-4** | **تعارض نطاق الفروق المحققة عند التسوية (`IAS 21.28`)** | `FX_REVALUATION` (§1.2 و`VAL-007`) مقابل `ACCOUNTING_BUSINESS_RULES` (`RULE-ACC-013`) و`TARGET_ACCOUNTING_KERNEL` (§3.4) | `IAS 21.28` | تستبعد `FX_REVALUATION` حساب مكاسب/خسائر الصرف المحققة عند تسوية البنود المفتوحة خارج النواة، بينما تنص `TARGET_ACCOUNTING_KERNEL.md` (سطر 179) و`RULE-ACC-013` على أن حزمة `valuation` تختص باحتساب الفروق "المحققة وغير المحققة". |
 
 ### 2. معيار `ISO 4217:2015` (رموز العملات والوحدات الفرعية)
 
@@ -87,7 +89,7 @@
 
 | # | الفجوة أو الخلل | الموضع في المواصفات | المرجع الرسمي | الأثر التفصيلي |
 |---|---|---|---|---|
-| **G-CF-1** | **تباين تسمية نوع حساب الدخل (`Revenue` مقابل `Income`)** | `MD-004` (سطر 111) مقابل `TARGET_ACCOUNTING_KERNAL` (§3.9 سطر 215) | `Conceptual Framework 2018 Ch. 4` | يستخدم الإطار المفاهيمي 2018 المصطلح `Income` (ليشمل الإيرادات والمكاسب)، وتنص `TARGET_ACCOUNTING_KERNAL.md` على أن `AccountTypeRevenue` اسم مستعار لـ `AccountTypeIncome` (`"income"`). في المقابل تعتمد `MD-004` و`VAL-006` و`LDG-006` الاسم `Revenue` حصراً دون توثيق هذا الترادف أو علاقته بالإطار المفاهيمي. |
+| **G-CF-1** | **تباين تسمية نوع حساب الدخل (`Revenue` مقابل `Income`)** | `MD-004` (سطر 111) مقابل `TARGET_ACCOUNTING_KERNEL` (§3.9 سطر 215) | `Conceptual Framework 2018 Ch. 4` | يستخدم الإطار المفاهيمي 2018 المصطلح `Income` (ليشمل الإيرادات والمكاسب)، وتنص `TARGET_ACCOUNTING_KERNEL.md` على أن `AccountTypeRevenue` اسم مستعار لـ `AccountTypeIncome` (`"income"`). في المقابل تعتمد `MD-004` و`VAL-006` و`LDG-006` الاسم `Revenue` حصراً دون توثيق هذا الترادف أو علاقته بالإطار المفاهيمي. |
 
 ---
 
@@ -124,14 +126,14 @@
 
 ### 5. فجوة في `PST-001` و`PST-002`: المراحل الثماني مقابل خطوات الترحيل الـ 17
 
-- تختصر `PST-001` التدفق في 8 مراحل (1–8)، بينما `KERNEL_POSTING_FLOW_SPECIFICATION.md` و`TARGET_ACCOUNTING_KERNAL.md` تحددان 17 خطوة (`0–16`).
+- تختصر `PST-001` التدفق في 8 مراحل (1–8)، بينما `KERNEL_POSTING_FLOW_SPECIFICATION.md` و`TARGET_ACCOUNTING_KERNEL.md` تحددان 17 خطوة (`0–16`).
 - تنص `PST-002` (سطر 96) على إجهاض أي فشل في **"المراحل 1–7"** قبل استدعاء المنفذ، بينما في `PST-001` تقع **بعض حالات الفشل قبل التفويض في المرحلة 8** (مثل رفض تلميح `revaluation` المزور بـ `ErrIdempotencyScopeRequired` في `PST-009`، وفحص `ValidatePostingPolicy` النهائي الذي يقع في الخطوة 14 في `KERNEL_POSTING_FLOW_SPECIFICATION`). لذا يجب أن تشمل `PST-002` جميع الإخفاقات السابقة للتفويض الفعلي للمنفذ.
 
 ### 6. فجوات وتضارب في `JOURNAL_ENTRY` (`JRN-006`, `JRN-007`) و`FX_REVALUATION` (`VAL-007`)
 
 1. **اسم التصنيف الافتراضي:** تستخدم `JOURNAL_ENTRY` (§3، `JRN-006`) الاسم **`Standard`**، بينما تستخدم `internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md` (`RULE-KERNEL-009`) الاسم **`Regular`**.
 2. **بيانات `Adjusting` لإعادة التقييم:** تنتج `VAL-007` قيداً بتصنيف `Adjusting`، وتشترط `JRN-006` بيانات وصفية إلزامية لقيد `Adjusting` (`ErrAdjustingEntryMetadataRequired`)، لكن `VAL-007` لا تحدد البيانات الوصفية التي يختمها مولد قيد إعادة التقييم لتمرير `JRN-006`.
-3. **حالة `Cancelled`:** تُعرّف `JRN-007` انتقال `Draft -> Cancelled`، بينما لا تُذكر حالة `Cancelled` في ملخص `journal` داخل `TARGET_ACCOUNTING_KERNAL.md` (§3.8 سطر 207)؛ كما لم تحدد `JRN-007` الخطأ المرجع عند محاولة إلغاء مسودة ملغاة مسبقاً (`Cancelled -> Cancelled`) أو الحقول المختومة عند الإلغاء (`CancelledAt`, `CancelledBy`, `CancellationReason`).
+3. **حالة `Cancelled`:** تُعرّف `JRN-007` انتقال `Draft -> Cancelled`، بينما لا تُذكر حالة `Cancelled` في ملخص `journal` داخل `TARGET_ACCOUNTING_KERNEL.md` (§3.8 سطر 207)؛ كما لم تحدد `JRN-007` الخطأ المرجع عند محاولة إلغاء مسودة ملغاة مسبقاً (`Cancelled -> Cancelled`) أو الحقول المختومة عند الإلغاء (`CancelledAt`, `CancelledBy`, `CancellationReason`).
 4. **مصطلح غير معرّف:** تذكر `JRN-006` (سطر 135) جواز استهداف *"الرصيد الافتتاحي المعتمد"* في قيود `Opening` دون تعريف هذا المصطلح في §3 أو في `MASTERDATA`.
 
 ### 7. فجوات في `ACCOUNTING_POLICY` و`MASTERDATA` و`LEDGER_PROJECTION` و`GOVERNANCE`
@@ -141,7 +143,7 @@
 3. **مصفوفة تداخل إقفال الفترة مع إقفال السنة (`MD-013`):** توضح `MD-013` أن `HARD_CLOSED` على أي من الفترة أو السنة يرفض الترحيل دائماً، لكنها لا تحسم صراحةً حالة `الفترة = OPEN` مع `السنة = SOFT_CLOSED` (هل يُطبق منطق `SOFT_CLOSED` أم يُقبل؟).
 4. **مرجع `SequenceNumber` في `LDG-002` وحدود إقفال نهاية السنة في `LDG-006`:**
    - تعتمد `LDG-002` على `SequenceNumber` للترتيب الكلي، وهو حقل غير إلزامي في `JRN-005` وغير محدد هل هو تسلسل اليومية أم تسلسل سجل التدقيق.
-   - تُسند `LDG-006` تصفير حسابات `Revenue` و`Expense` وإقفال نهاية السنة لمجال `ledger` دون حسم ما إذا كانت النواة تولّد قيود `Closing`/`Opening` أم تكتفي بالتحقق منها عند تمريرها إلى `PostEntry` (على عكس `TARGET_ACCOUNTING_KERNAL.md` الذي يحصر مسؤولية النواة في التحقق لا التوليد).
+   - تُسند `LDG-006` تصفير حسابات `Revenue` و`Expense` وإقفال نهاية السنة لمجال `ledger` دون حسم ما إذا كانت النواة تولّد قيود `Closing`/`Opening` أم تكتفي بالتحقق منها عند تمريرها إلى `PostEntry` (على عكس `TARGET_ACCOUNTING_KERNEL.md` الذي يحصر مسؤولية النواة في التحقق لا التوليد).
 5. **الحالة الصفرية لنقطة التحقق (`GOV-006`) وقائمة الأفعال (`GOV-004`):**
    - في `GOV-006` (سطر 144): تشترط `Version > 0` عند `SequenceNumber > 0`، لكنها لا تحدد شرط `Version` عند الحالة الصفرية (`SequenceNumber == 0`؛ هل يُسمح بـ `Version == 0` أم يشترط `Version >= 1`؟).
    - في `GOV-004` (سطر 115): قائمة أفعال التدقيق مذكورة على سبيل المثال ("مثل `post`...") لا على سبيل الحصر المعتمد.
@@ -153,7 +155,7 @@
 ## رابعاً: توصيات المعالجة الموصى بها (مرتبة حسب الأولوية)
 
 1. **إغلاق الفجوات المعيارية العالية أولاً:**
-   - إضافة سمة `IsMonetary` (أو تصنيف نقدي/غير نقدي صريح) إلى نموذج الحساب في `MASTERDATA` (`MD-004`)، وتوضيح حدود `IAS 21.21–22` و`21.23(c)` و`21.28` في `FX_REVALUATION` وحسم التناقض مع `TARGET_ACCOUNTING_KERNAL.md` (`§3.4`) و`RULE-ACC-013`.
+   - إضافة سمة `IsMonetary` (أو تصنيف نقدي/غير نقدي صريح) إلى نموذج الحساب في `MASTERDATA` (`MD-004`)، وتوضيح حدود `IAS 21.21–22` و`21.23(c)` و`21.28` في `FX_REVALUATION` وحسم التناقض مع `TARGET_ACCOUNTING_KERNEL.md` (`§3.4`) و`RULE-ACC-013`.
    - تحديد مواصفة الترميز البنيوي `v2 length-prefixed` بدقة بايتية كاملة (حجم بادئة الطول، ترتيب البايتات، صيغة UUID، صيغة الطابع الزمني) في `GOVERNANCE_AND_AUDIT` و`POSTING_AND_REVERSAL` و`FX_REVALUATION` و`ACCOUNTING_POLICY`.
    - تحديث `ACCOUNTING_BUSINESS_RULES.md` (`RULE-ACC-041/042`) لتتطابق مع دقة الميكروثانية والتأطير `v2` في `GOV-003` و`KERNEL_AUDIT_THREAT_MODEL.md`.
    - إضافة عقد/دالة استرجاع رصيد عملة المعاملة الأجنبية (`TransactionAmount` balance) في `LEDGER_PROJECTION` لدعم `FX_REVALUATION`.

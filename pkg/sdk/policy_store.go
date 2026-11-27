@@ -89,17 +89,65 @@ func currencyPolicyFromVersion(version storage.PolicyVersion) (policy.CurrencyPo
 // exists the store is authoritative and uncovered dates fail closed.
 var errNoVersionedPolicies = errors.New("sdk: no versioned policies configured for company")
 
-// loadVersionedPolicies registers every stored version exactly once for a
-// company. Registering only the version effective today would make historical
-// postings pick a different policy and change their fingerprint.
+// InvalidateCompanyPolicies clears cached policy versions for companyID so the
+// next posting reloads fresh versions from storage.PolicyStore.
+func (s *applicationService) InvalidateCompanyPolicies(companyID types.CompanyID) {
+	lock := s.companyPolicyLock(companyID)
+	lock.Lock()
+	defer lock.Unlock()
+	delete(s.policiesLoaded, companyID)
+	delete(s.policyLoadedAt, companyID)
+	delete(s.policyVersionDigests, companyID)
+	delete(s.syntheticPolicies, companyID)
+	if s.policyEngine != nil {
+		s.policyEngine.ClearCompanyPolicies(companyID)
+	}
+}
+
+// ReloadCompanyPolicies immediately fetches and validates stored policies for
+// companyID, clearing the cached engine state only if loading fails or versions changed.
+func (s *applicationService) ReloadCompanyPolicies(ctx context.Context, companyID types.CompanyID) error {
+	lock := s.companyPolicyLock(companyID)
+	lock.Lock()
+	defer lock.Unlock()
+	return s.loadVersionedPoliciesLocked(ctx, companyID, true)
+}
+
+// PolicyCacheManager allows hosts that mutate PolicyStore out-of-band to flush
+// or reload cached per-company policy versions explicitly.
+type PolicyCacheManager interface {
+	InvalidateCompanyPolicies(companyID types.CompanyID)
+	ReloadCompanyPolicies(ctx context.Context, companyID types.CompanyID) error
+}
+
+// loadVersionedPolicies registers every stored version for a company. When
+// PolicyCacheTTL > 0 and elapsed, versions are re-checked and reloaded only if
+// the stored set changed; when PolicyCacheTTL == 0 versions stay cached until
+// InvalidateCompanyPolicies or ReloadCompanyPolicies is called.
 func (s *applicationService) loadVersionedPolicies(ctx context.Context, companyID types.CompanyID) error {
+	forceRefresh := false
+	if s.config.PolicyCacheTTL > 0 && s.policiesLoaded[companyID] {
+		if loadedAt, ok := s.policyLoadedAt[companyID]; !ok || time.Since(loadedAt) >= s.config.PolicyCacheTTL {
+			forceRefresh = true
+		}
+	}
+	return s.loadVersionedPoliciesLocked(ctx, companyID, forceRefresh)
+}
+
+func (s *applicationService) loadVersionedPoliciesLocked(ctx context.Context, companyID types.CompanyID, forceRefresh bool) error {
 	if s.policyStore == nil {
 		return errors.New("sdk: policy store is not configured")
 	}
 	if s.policiesLoaded == nil {
 		s.policiesLoaded = make(map[types.CompanyID]bool)
 	}
-	if s.policiesLoaded[companyID] {
+	if s.policyLoadedAt == nil {
+		s.policyLoadedAt = make(map[types.CompanyID]time.Time)
+	}
+	if s.policyVersionDigests == nil {
+		s.policyVersionDigests = make(map[types.CompanyID]string)
+	}
+	if s.policiesLoaded[companyID] && !forceRefresh {
 		return nil
 	}
 
@@ -112,48 +160,82 @@ func (s *applicationService) loadVersionedPolicies(ctx context.Context, companyI
 		return fmt.Errorf("list currency policy versions: %w", err)
 	}
 	if len(postingVersions) == 0 && len(currencyVersions) == 0 {
+		delete(s.policiesLoaded, companyID)
+		delete(s.policyLoadedAt, companyID)
+		delete(s.policyVersionDigests, companyID)
+		if forceRefresh {
+			s.policyEngine.ClearCompanyPolicies(companyID)
+		}
 		return fmt.Errorf("company %s: %w", companyID.String(), errNoVersionedPolicies)
 	}
 
-	// The store has just become authoritative. Any legacy fallback registered
-	// earlier for this company must be removed first: otherwise its synthetic
-	// 2000-01-01 window would keep answering dates the store does not cover,
-	// and a first stored version starting on that date would collide with it.
-	if s.syntheticPolicies[companyID] {
-		s.policyEngine.ClearCompanyPolicies(companyID)
-		delete(s.syntheticPolicies, companyID)
+	digest := policyVersionsDigest(postingVersions, currencyVersions)
+	if s.policiesLoaded[companyID] && digest == s.policyVersionDigests[companyID] {
+		s.policyLoadedAt[companyID] = time.Now().UTC()
+		return nil
 	}
 
-	// Registration is all-or-nothing from the engine's point of view. A
-	// conversion or registration failure must not leave earlier versions
-	// behind: with policiesLoaded still false, the next call would try to
-	// register them again and fail forever on duplicate effective dates.
-	rollback := func(err error) error {
-		s.policyEngine.ClearCompanyPolicies(companyID)
-		return err
-	}
-
+	convertedPosting := make([]policy.PostingPolicy, 0, len(postingVersions))
 	for _, version := range postingVersions {
 		converted, err := postingPolicyFromVersion(version)
 		if err != nil {
-			return rollback(err)
+			return err
 		}
-		if err := s.policyEngine.SetPolicy(converted); err != nil {
-			return rollback(fmt.Errorf("register stored posting policy version %d: %w", version.Version, err))
-		}
+		convertedPosting = append(convertedPosting, converted)
 	}
+	convertedCurrency := make([]policy.CurrencyPolicy, 0, len(currencyVersions))
 	for _, version := range currencyVersions {
 		converted, err := currencyPolicyFromVersion(version)
 		if err != nil {
-			return rollback(err)
+			return err
 		}
+		convertedCurrency = append(convertedCurrency, converted)
+	}
+
+	// Clear any prior synthetic or stale policy versions before applying the
+	// newly fetched snapshot so overlapping or removed windows cannot persist.
+	s.policyEngine.ClearCompanyPolicies(companyID)
+	delete(s.syntheticPolicies, companyID)
+
+	// Registration is all-or-nothing from the engine's point of view. A
+	// conversion or registration failure must not leave earlier versions
+	// behind: with policiesLoaded still false, the next call retries cleanly.
+	rollback := func(err error) error {
+		s.policyEngine.ClearCompanyPolicies(companyID)
+		delete(s.policiesLoaded, companyID)
+		delete(s.policyLoadedAt, companyID)
+		delete(s.policyVersionDigests, companyID)
+		return err
+	}
+
+	for i, converted := range convertedPosting {
+		if err := s.policyEngine.SetPolicy(converted); err != nil {
+			return rollback(fmt.Errorf("register stored posting policy version %d: %w", postingVersions[i].Version, err))
+		}
+	}
+	for i, converted := range convertedCurrency {
 		if err := s.policyEngine.SetCurrencyPolicy(converted); err != nil {
-			return rollback(fmt.Errorf("register stored currency policy version %d: %w", version.Version, err))
+			return rollback(fmt.Errorf("register stored currency policy version %d: %w", currencyVersions[i].Version, err))
 		}
 	}
 
 	s.policiesLoaded[companyID] = true
+	s.policyLoadedAt[companyID] = time.Now().UTC()
+	s.policyVersionDigests[companyID] = digest
 	return nil
+}
+
+func policyVersionsDigest(postingVersions, currencyVersions []storage.PolicyVersion) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "p=%d:", len(postingVersions))
+	for _, v := range postingVersions {
+		fmt.Fprintf(&b, "%s/%d/%d;", v.PolicyID.String(), v.Version, v.EffectiveFrom.UTC().UnixNano())
+	}
+	fmt.Fprintf(&b, "|c=%d:", len(currencyVersions))
+	for _, v := range currencyVersions {
+		fmt.Fprintf(&b, "%s/%d/%d;", v.PolicyID.String(), v.Version, v.EffectiveFrom.UTC().UnixNano())
+	}
+	return b.String()
 }
 
 // ensureVersionedPoliciesIsEffective fails closed when the authoritative

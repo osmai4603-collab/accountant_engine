@@ -1,0 +1,22 @@
+Commit (HEAD): de7e525a78cc0561cc0577334716423e148ed321
+Working tree: MODIFIED (uncommitted); SHA-256 fingerprint below is authoritative
+Tree SHA-256: 88cf8438c82def56a8c617af2f5dddd934510d7807b8651d7e772f5e26bf7426
+Environment: go version go1.26.3 linux/amd64 linux/amd64
+UTC: 2026-11-27T03:49:57+00:00
+$ go test ./internal/kernal/... -shuffle=on -count=10
+Exit Code: 0
+
+--- stdout ---
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal	1.756s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/apperrors	0.005s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/governance	0.176s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/journal	0.016s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/ledger	0.016s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata	0.054s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/policy	0.102s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/posting	0.313s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/types	0.292s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation	0.037s
+
+--- stderr ---
+

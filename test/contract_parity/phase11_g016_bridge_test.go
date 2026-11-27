@@ -61,7 +61,7 @@ func TestPhase11_PublicLedgerBridgePreservesReferenceFieldContract(t *testing.T)
 		reflect.TypeOf(types.Account{}), reflect.TypeOf(publicledger.Account{}), nil,
 		map[string]bool{
 			"IsControlAccount": true, "IsContraAccount": true, "RequiresCostCenter": true,
-			"IsCashEquivalent": true, "IsNonCashAdjustment": true, "CashFlowActivity": true,
+			"IsMonetary": true, "IsCashEquivalent": true, "IsNonCashAdjustment": true, "CashFlowActivity": true,
 			"IFRSCategory": true, "DisplayOrder": true, "EffectiveFrom": true,
 			"EffectiveTo": true, "CreatedAt": true, "UpdatedAt": true,
 		},

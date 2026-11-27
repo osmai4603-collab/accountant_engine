@@ -50,7 +50,7 @@ func TestPostgresWORMImmutability(t *testing.T) {
 		ID: periodID, CompanyID: companyID, FiscalYearID: fyID,
 		Number: 1, Name: "P1-2026", StartDate: start,
 		EndDate: time.Date(2026, 1, 31, 23, 59, 59, 0, time.UTC),
-		State: masterdata.PeriodOpen, Type: masterdata.FiscalPeriodTypeNormal,
+		State:   masterdata.PeriodOpen, Type: masterdata.FiscalPeriodTypeNormal,
 	}); err != nil {
 		t.Fatalf("create fiscal period: %v", err)
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 	"github.com/shopspring/decimal"
@@ -20,15 +21,16 @@ type postgresUnitOfWork struct {
 }
 
 var (
-	_ storage.UnitOfWork        = (*postgresUnitOfWork)(nil)
-	_ storage.DraftStore        = (*postgresUnitOfWork)(nil)
-	_ storage.EntryReader       = (*postgresUnitOfWork)(nil)
-	_ storage.PostingWriter     = (*postgresUnitOfWork)(nil)
-	_ storage.SequenceAllocator = (*postgresUnitOfWork)(nil)
-	_ storage.AuditWriter       = (*postgresUnitOfWork)(nil)
-	_ storage.IdempotencyStore  = (*postgresUnitOfWork)(nil)
-	_ storage.IdempotencyLookup = (*postgresUnitOfWork)(nil)
-	_ storage.BalanceReader     = (*postgresUnitOfWork)(nil)
+	_ storage.UnitOfWork               = (*postgresUnitOfWork)(nil)
+	_ storage.DraftStore               = (*postgresUnitOfWork)(nil)
+	_ storage.EntryReader              = (*postgresUnitOfWork)(nil)
+	_ storage.PostingWriter            = (*postgresUnitOfWork)(nil)
+	_ storage.SequenceAllocator        = (*postgresUnitOfWork)(nil)
+	_ storage.AuditWriter              = (*postgresUnitOfWork)(nil)
+	_ storage.IdempotencyStore         = (*postgresUnitOfWork)(nil)
+	_ storage.IdempotencyLookup        = (*postgresUnitOfWork)(nil)
+	_ storage.BalanceReader            = (*postgresUnitOfWork)(nil)
+	_ storage.TransactionBalanceReader = (*postgresUnitOfWork)(nil)
 )
 
 func (u *postgresUnitOfWork) Drafts() storage.DraftStore            { return u }
@@ -296,6 +298,45 @@ func (u *postgresUnitOfWork) GetAccountBalance(ctx context.Context, companyID ty
 		  AND l.currency_id = $3`,
 		uuid.UUID(companyID), uuid.UUID(accountID), currency, asOfArg).Scan(&balance)
 	return balance, translateTransactionError(err)
+}
+
+func (u *postgresUnitOfWork) GetTransactionBalances(ctx context.Context, filter ledger.ForeignCurrencyBalanceFilter) ([]ledger.ForeignCurrencyBalance, error) {
+	if filter.CompanyID == (types.CompanyID{}) {
+		return nil, errors.New("postgres: company_id is required")
+	}
+	var asOfArg any
+	if !filter.AsOf.IsZero() {
+		asOfArg = filter.AsOf.UTC()
+	}
+	rows, err := u.tx.Query(ctx, `SELECT entry FROM account_moves
+		WHERE company_id = $1 AND status IN ('posted', 'reversed')
+		  AND ($2::timestamptz IS NULL OR COALESCE(posting_date::timestamptz, entry_date) <= $2)`,
+		uuid.UUID(filter.CompanyID), asOfArg)
+	if err != nil {
+		return nil, translateTransactionError(err)
+	}
+	defer rows.Close()
+
+	var entries []journal.JournalEntry
+	for rows.Next() {
+		var data []byte
+		if scanErr := rows.Scan(&data); scanErr != nil {
+			return nil, translateTransactionError(scanErr)
+		}
+		entry, unmarshalErr := unmarshalEntryFromStorage(data)
+		if unmarshalErr != nil {
+			return nil, unmarshalErr
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, translateTransactionError(err)
+	}
+	balances, err := ledger.RebuildForeignCurrencyBalances(entries, filter)
+	if err != nil {
+		return nil, err
+	}
+	return ledger.SortedForeignCurrencyBalances(balances), nil
 }
 
 func (u *postgresUnitOfWork) AppendAudit(ctx context.Context, record storage.AuditRecord) error {

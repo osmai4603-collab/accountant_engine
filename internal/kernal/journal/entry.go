@@ -3,6 +3,7 @@ package journal
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
@@ -12,15 +13,16 @@ import (
 type EntryStatus string
 
 const (
-	EntryDraft    EntryStatus = "draft"
-	EntryPosted   EntryStatus = "posted"
-	EntryReversed EntryStatus = "reversed"
+	EntryDraft     EntryStatus = "draft"
+	EntryPosted    EntryStatus = "posted"
+	EntryReversed  EntryStatus = "reversed"
+	EntryCancelled EntryStatus = "cancelled"
 )
 
 // IsValid reports whether the status is one of the kernel-defined lifecycle states.
 func (s EntryStatus) IsValid() bool {
 	switch s {
-	case EntryDraft, EntryPosted, EntryReversed:
+	case EntryDraft, EntryPosted, EntryReversed, EntryCancelled:
 		return true
 	default:
 		return false
@@ -28,25 +30,25 @@ func (s EntryStatus) IsValid() bool {
 }
 
 // IsMutable reports whether an entry in this state may be edited by domain logic.
-// Posted and reversed entries are immutable accounting facts.
+// Posted, reversed, and cancelled entries are immutable facts/terminal states.
 func (s EntryStatus) IsMutable() bool {
 	return s == EntryDraft
 }
 
 // IsTerminal reports whether no further lifecycle transitions are allowed.
 func (s EntryStatus) IsTerminal() bool {
-	return s == EntryReversed
+	return s == EntryReversed || s == EntryCancelled
 }
 
 // CanTransitionTo reports whether a lifecycle transition is allowed.
-// The kernel lifecycle is: draft -> posted -> reversed.
+// The kernel lifecycle is: draft -> posted -> reversed, or draft -> cancelled.
 func (s EntryStatus) CanTransitionTo(target EntryStatus) bool {
 	switch s {
 	case EntryDraft:
-		return target == EntryPosted
+		return target == EntryPosted || target == EntryCancelled
 	case EntryPosted:
 		return target == EntryReversed
-	case EntryReversed:
+	case EntryReversed, EntryCancelled:
 		return false
 	default:
 		return false
@@ -58,22 +60,24 @@ var (
 	ErrInvalidEntryStatus = errors.New("invalid journal entry status")
 	// ErrInvalidStatusTransition indicates a prohibited lifecycle transition.
 	ErrInvalidStatusTransition = errors.New("invalid journal entry status transition")
-	// ErrImmutableEntry indicates an attempt to mutate a posted or reversed entry.
+	// ErrImmutableEntry indicates an attempt to mutate a posted, reversed, or cancelled entry.
 	ErrImmutableEntry = errors.New("journal entry is immutable")
 	// ErrInvalidReversalLinkage indicates inconsistent reversal/original linkage.
 	ErrInvalidReversalLinkage = errors.New("invalid reversal linkage")
 	// ErrInvalidLineMutation indicates an invalid line addition or removal on an entry aggregate.
 	ErrInvalidLineMutation = errors.New("invalid journal entry line mutation")
+	// ErrInvalidCancellation indicates missing actor, reason, or timestamp during draft cancellation.
+	ErrInvalidCancellation = errors.New("invalid journal entry cancellation")
 )
 
 // AllowedTransitions returns the lifecycle states reachable from s in one step.
 func AllowedTransitions(from EntryStatus) []EntryStatus {
 	switch from {
 	case EntryDraft:
-		return []EntryStatus{EntryPosted}
+		return []EntryStatus{EntryPosted, EntryCancelled}
 	case EntryPosted:
 		return []EntryStatus{EntryReversed}
-	case EntryReversed, "":
+	case EntryReversed, EntryCancelled, "":
 		return nil
 	default:
 		return nil
@@ -120,13 +124,16 @@ const (
 )
 
 type EntryLine struct {
-	ID                  types.JournalEntryLineID
-	AccountID           types.AccountID
-	PartnerID           *types.PartnerID
-	CostCenterID        *types.CostCenterID
-	ProjectID           *types.ProjectID
-	SegmentID           *types.SegmentID
-	BusinessUnitID      *types.BusinessUnitID
+	ID             types.JournalEntryLineID
+	AccountID      types.AccountID
+	PartnerID      *types.PartnerID
+	CostCenterID   *types.CostCenterID
+	ProjectID      *types.ProjectID
+	SegmentID      *types.SegmentID
+	BusinessUnitID *types.BusinessUnitID
+	// MatchingNumber and ReconciledAmount participate in post-posting immutability
+	// checks (JRN-008 / ADR P1-02). Open-item allocations performed after posting
+	// must live in subledger/reconciliation records rather than mutating posted lines.
 	MatchingNumber      string
 	ReconciledAmount    decimal.Decimal
 	TransactionAmount   types.Money
@@ -159,16 +166,19 @@ type JournalEntry struct {
 	// PolicyFingerprint is the deterministic digest of the policy versions
 	// resolved at posting time (ADR P5-01). It is audit attribution, not an
 	// authorization decision, and is required to stay stable after posting.
-	PolicyFingerprint string
-	Lines             []EntryLine
-	CreatedBy         string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	PostedBy          string
-	PostedAt          *time.Time
-	ReversalOfID      *types.JournalEntryID
-	ReversedByID      *types.JournalEntryID
-	ReversalReason    string
+	PolicyFingerprint  string
+	Lines              []EntryLine
+	CreatedBy          string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	PostedBy           string
+	PostedAt           *time.Time
+	CancelledBy        string
+	CancelledAt        *time.Time
+	CancellationReason string
+	ReversalOfID       *types.JournalEntryID
+	ReversedByID       *types.JournalEntryID
+	ReversalReason     string
 }
 
 // Clone returns an independent copy of the entry, including pointer-valued metadata.
@@ -184,6 +194,7 @@ func (entry JournalEntry) Clone() JournalEntry {
 		clone.Lines[i].BusinessUnitID = clonePointer(line.BusinessUnitID)
 	}
 	clone.PostedAt = clonePointer(entry.PostedAt)
+	clone.CancelledAt = clonePointer(entry.CancelledAt)
 	clone.ReversalOfID = clonePointer(entry.ReversalOfID)
 	clone.ReversedByID = clonePointer(entry.ReversedByID)
 	return clone
@@ -307,6 +318,33 @@ func (entry *JournalEntry) MarkReversed(reversedByID types.JournalEntryID) error
 	return nil
 }
 
+// Cancel transitions a draft entry to cancelled with mandatory audit attribution
+// (JRN-007). Cancelled entries produce no ledger effect and cannot be posted or cancelled again;
+// posted and reversed entries fail with both ErrCannotModifyPostedMove and ErrInvalidStatusTransition.
+func (entry *JournalEntry) Cancel(actorID, reason string, cancelledAt time.Time) error {
+	if entry == nil {
+		return fmt.Errorf("%w: journal entry is nil", ErrInvalidEntryStatus)
+	}
+	if entry.Status == EntryPosted || entry.Status == EntryReversed {
+		return fmt.Errorf("%w: %w: %s -> %s", types.ErrCannotModifyPostedMove, ErrInvalidStatusTransition, entry.Status, EntryCancelled)
+	}
+	if err := ValidateTransition(entry.Status, EntryCancelled); err != nil {
+		return err
+	}
+	actor := strings.TrimSpace(actorID)
+	trimmedReason := strings.TrimSpace(reason)
+	if actor == "" || trimmedReason == "" || cancelledAt.IsZero() {
+		return fmt.Errorf("%w: actor id, cancellation reason, and timestamp are required", ErrInvalidCancellation)
+	}
+	ts := cancelledAt.UTC()
+	entry.Status = EntryCancelled
+	entry.CancelledBy = actor
+	entry.CancelledAt = &ts
+	entry.CancellationReason = trimmedReason
+	entry.UpdatedAt = ts
+	return nil
+}
+
 func cloneLine(line EntryLine) EntryLine {
 	cloned := line
 	cloned.PartnerID = clonePointer(line.PartnerID)
@@ -355,8 +393,11 @@ func entriesEqual(a, b JournalEntry) bool {
 		!a.CreatedAt.Equal(b.CreatedAt) ||
 		!a.UpdatedAt.Equal(b.UpdatedAt) ||
 		a.PostedBy != b.PostedBy ||
+		a.CancelledBy != b.CancelledBy ||
+		a.CancellationReason != b.CancellationReason ||
 		a.ReversalReason != b.ReversalReason ||
 		!timePtrEqual(a.PostedAt, b.PostedAt) ||
+		!timePtrEqual(a.CancelledAt, b.CancelledAt) ||
 		!journalEntryIDPtrEqual(a.ReversalOfID, b.ReversalOfID) ||
 		!journalEntryIDPtrEqual(a.ReversedByID, b.ReversedByID) {
 		return false
@@ -377,11 +418,11 @@ func entryLinesEqual(a, b EntryLine) bool {
 		a.AccountID != b.AccountID ||
 		a.MatchingNumber != b.MatchingNumber ||
 		!a.ReconciledAmount.Equal(b.ReconciledAmount) ||
-		!a.TransactionAmount.Equal(b.TransactionAmount) ||
+		!moneyFieldEqual(a.TransactionAmount, b.TransactionAmount) ||
 		a.TransactionCurrency != b.TransactionCurrency ||
 		!a.ExchangeRate.Equal(b.ExchangeRate) ||
-		!a.FunctionalDebit.Equal(b.FunctionalDebit) ||
-		!a.FunctionalCredit.Equal(b.FunctionalCredit) ||
+		!moneyFieldEqual(a.FunctionalDebit, b.FunctionalDebit) ||
+		!moneyFieldEqual(a.FunctionalCredit, b.FunctionalCredit) ||
 		!partnerIDPtrEqual(a.PartnerID, b.PartnerID) ||
 		!costCenterIDPtrEqual(a.CostCenterID, b.CostCenterID) ||
 		!projectIDPtrEqual(a.ProjectID, b.ProjectID) ||
@@ -397,6 +438,13 @@ func timePtrEqual(a, b *time.Time) bool {
 		return a == b
 	}
 	return a.Equal(*b)
+}
+
+func moneyFieldEqual(a, b types.Money) bool {
+	if a.Currency() == "" && b.Currency() == "" {
+		return a.Amount().IsZero() && b.Amount().IsZero()
+	}
+	return a.Equal(b)
 }
 
 func journalEntryIDPtrEqual(a, b *types.JournalEntryID) bool {
@@ -460,8 +508,11 @@ func ValidateReversalLinkage(original, reversal JournalEntry) error {
 	if !original.Status.IsValid() || !reversal.Status.IsValid() {
 		return fmt.Errorf("%w: invalid status", ErrInvalidReversalLinkage)
 	}
-	if original.Status == EntryDraft {
+	if original.Status != EntryPosted && original.Status != EntryReversed {
 		return fmt.Errorf("%w: original must be posted before reversal", ErrInvalidReversalLinkage)
+	}
+	if reversal.Status == EntryCancelled {
+		return fmt.Errorf("%w: cancelled entry cannot be used as reversal", ErrInvalidReversalLinkage)
 	}
 	if reversal.ReversalOfID == nil || *reversal.ReversalOfID != original.ID {
 		return fmt.Errorf("%w: reversal must reference original entry", ErrInvalidReversalLinkage)

@@ -1,6 +1,8 @@
 # سجل القرارات المعمارية للنواة (`P1`–`P11`)
 
 > هذه الوثيقة تجمع وتوحّد سجلات القرارات المعمارية (`ADR P1-01` حتى `ADR P11-04`) التي كانت موزعة في `docs/ard/`، لتكون المرجع الموحّد للقرارات المعمارية الملزمة والبدائل المرفوضة والتبعات والأدلة التنفيذية لمحرك المحاسبة.
+>
+> **ملاحظة الترقيم (2026-11-27):** لا توجد وثائق `ADR P4` أو `ADR P6` مستقلة؛ محتواها مدمج في `P1` (حزم النواة/دورة حياة القيد والفترات) و`P2` (عقد الدقة المالية)، مع إحالات تنفيذية إلى `P5`/`P11` بحسب الموضوع. لا يُستنتج من غيابهما وجود قرار أُهمل.
 
 ## فهرس القرارات
 
@@ -30,7 +32,7 @@
 - **الحالة:** مقبول (Accepted) — يُطبَّق بالوثائق وبفحوص النقاء المعماري القائمة.
 - **التاريخ (UTC):** 2026-11-21T21:04:06Z
 - **المالك:** مالك معمارية النواة
-- **المرجع:** [خطة المعالجة، المرحلة 1](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [خط الأساس المرحلة 0](../plans/KERNEL_REMEDIATION_BASELINE.md)، الفجوة `G-003` في [سجل الفجوات](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)، [ADR P7-01](#adr-p7-01)
+- **المرجع:** ~~خطة المعالجة، المرحلة 1~~ *(حُذف مجلد `plans/`)*، ~~خط الأساس المرحلة 0~~ *(حُذف)*، الفجوة `G-003` في ~~سجل الفجوات~~ *(حُذف)*، [ADR P7-01](#adr-p7-01)
 - **يُحل محل:** القائمة المكوّنة من سبع حزم في [TARGET_ACCOUNTING_KERNEL.md](./TARGET_ACCOUNTING_KERNEL.md) (النسخة 1.0.0).
 
 ### السياق
@@ -74,13 +76,13 @@
 - **الحالة:** مقبول (Accepted) — قرار معماري ملزم؛ لا يغيّر قاعدة محاسبية قائمة.
 - **التاريخ (UTC):** 2026-11-21T21:04:06Z
 - **المالك:** مالك معمارية النواة + مالك عقود التخزين
-- **المرجع:** [الخطة](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، الفجوة `G-004` في [سجل الفجوات](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
+- **المرجع:** ~~الخطة~~ *(حُذف مجلد `plans/`)*، الفجوة `G-004` في ~~سجل الفجوات~~ *(حُذف)*، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
 
 ### القرار
 
 1. **المصدر Canonical:** **القيود المرحلة (`journal.JournalEntry` بحالتي `posted`/`reversed` مع أسطرها `EntryLine`) هي مصدر الحقيقة المحاسبي الوحيد ضمن هذه الحدود.** تُخزَّن كزوج `account_moves` + `account_move_lines` في PostgreSQL أو كقيمة `JournalEntry` في الذاكرة. الأرصدة المشتقة (`account_balances`) وسجل التدقيق وسجل idempotency ليست مصادر حقيقة للأثر المالي.
-2. **الانتقالات المسموحة:** `Draft → Posted → Reversed` (عبر قيد عكسي مرتبط فقط). لا تحديث ولا حذف للقيد المرحّل (`RULE-KERNEL-011`, `RULE-KERNEL-012`).
-3. **إعادة بناء GL:** قراءة القيود المرحلة (`posted`/`reversed`) لكل نطاق شركة، وتطبيق ترتيب كلي حتمي `(EffectiveDate UTC, SequenceNumber, JournalEntryID.String())` للقيود و`EntryLine.ID.String()` للأسطر، ثم تجميع `FunctionalDebit` و`FunctionalCredit` لكل `AccountID` ولكل عملة وظيفية.
+2. **الانتقالات المسموحة:** `Draft → Posted → Reversed` (عبر قيد عكسي مرتبط فقط)، ويُضاف `Draft → Cancelled` للمسودات قبل الترحيل وفق [JRN-007](../specifications/kernel/JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.2.0.md#jrn-007) (بـ `ActorID` وسبب وختم `CancelledAt`/`CancelledBy`/`CancellationReason` عبر `Cancel()`، دون أثر مالي في الأستاذ العام، ويُرفض إلغاء قيد مرحّل أو معكوس أو ملغى مسبقاً، كما تتضمن قيود `account_moves` في PostgreSQL الحالة `'cancelled'`). لا تحديث ولا حذف للقيد المرحّل (`RULE-KERNEL-011`, `RULE-KERNEL-012`).
+3. **إعادة بناء GL والرصيد بالعملة الأجنبية (`LDG-003`):** قراءة القيود المرحلة (`posted`/`reversed`) مع استبعاد `draft` و`cancelled` لكل نطاق شركة، وتطبيق ترتيب كلي حتمي `(EffectiveDate UTC, SequenceNumber, JournalEntryID.String())` للقيود و`EntryLine.ID.String()` للأسطر، ثم تجميع `FunctionalDebit` و`FunctionalCredit` لكل `AccountID` ولكل عملة وظيفية عبر `RebuildAccountBalances`؛ ولأغراض إعادة التقييم (`IAS 21.23(a)`) يوفر `RebuildForeignCurrencyBalances` (والميناء الاختياري `storage.TransactionBalanceReader`) صافي رصيد عملة المعاملة الموقّع إلى جانب الرصيد الوظيفي دون تغيير دلالات `BalanceReader` القائمة (`ADR P11-03`).
 4. **نطاق البيانات:** مفتاح النطاق الملزم هو `CompanyID` (`masterdata.ValidateCompanyScope`). `JournalID` يقيّد اليومية والتسلسل داخل الشركة. لا يوجد `BookID` أو `LedgerID` في النواة.
 5. **ملحق المرحلة 4 (2026-11-22):** إضافة `ledger.PostedMovement` و`ledger.ProjectPostedMovements` و`ledger.RebuildAccountBalances` كإسقاط قراءة حتمي وإعادة بناء للأرصدة دون تخزين رصيد مادي داخل `internal/kernal`.
 6. **ملحق المرحلة 6 (2026-11-22):** حماية `PostEntry` عبر قراءة واحدة نافذة زمنياً (`ResolvePostableAccountAsOf`)، نسخة مجمدة دفاعياً قبل أي قراءة، عكس لا يكتب على الأصل ويحسب فترة العكس من تاريخه، وضبط الوقت عبر `systemClock{}.Now()` أو `Clock` المحقون.
@@ -107,7 +109,7 @@
 2. **دور `ledger`:** حزمة DTO مرجعية للتوافق مع `pkg/api/v1/ledger` فقط. لا تُستخدم للتحقق من الأهلية ولا كبديل عن `masterdata`.
 3. **قواعد التحويل ومنع الانحراف:**
    - الحقول المطابقة (`ID`, `CompanyID`, `Code`, `Name`, `Type`, `NormalBalance`, `Currency`, `ParentID`, `IsReconcilable`, `IsActive`, `SubClassification`) تُنقل بالقيمة بعد التحقق من التعدادات.
-   - حقول `masterdata.Account` الـ12 الإضافية (`EffectiveFrom/To`, `IsControlAccount`, `IsContraAccount`, `RequiresCostCenter`, `IsCashEquivalent`, `CashFlowActivity`, `IFRSCategory`, `DisplayOrder` وغيرها) لا تُسقَط بصمت في سياق المجال.
+   - حقول `masterdata.Account` الـ13 الإضافية (`EffectiveFrom/To`, `IsControlAccount`, `IsContraAccount`, `RequiresCostCenter`, `IsMonetary`, `IsCashEquivalent`, `IsNonCashAdjustment`, `CashFlowActivity`, `IFRSCategory`, `DisplayOrder`, `CreatedAt`, `UpdatedAt`) لا تُسقَط بصمت في سياق المجال وتُوثّق صراحةً في اختبارَي التطابق الانعكاسي (`G-016`).
    - `AccountTypeRevenue` يبقى اسماً مستعاراً لـ `AccountTypeIncome` (`"income"`).
    - `ledger.FiscalPeriod.Contains` لا تُستخدم لاكتشاف فترة الترحيل.
 4. **ملحق المرحلة 3 (2026-11-22):** أُضيف `TestReferenceModelsDoNotDriftSilently` في `internal/kernal/masterdata/masterdata_integrity_test.go` للتحقق الانعكاسي الآلي من عدم انحراف حقول `ledger` عن `masterdata`.
@@ -125,9 +127,10 @@
 
 ### القرار
 
-1. **ثبات القواعد:** تُبقى `RULE-KERNEL-001` حتى `RULE-KERNEL-008` كما هي دون تغيير مقياس أو سقف (`FinancialScale = 4`، `InternalScale = 12`، حدود `28`).
+1. **ثبات القواعد:** تُبقى `RULE-KERNEL-001` حتى `RULE-KERNEL-008` كما هي دون تغيير مقياس أو سقف (`FinancialScale = 4`، `InternalScale = 12`، حدود `28`، وسقف مقياس سعر الصرف `12` خانة عشرية وفق `MONEY-025`/`MONEY-026` في `ValidateExchangeRatePrecision`).
 2. **التفسيرات الملزمة:**
-   - **وضع التقريب:** `Banker's Rounding / Half-to-Even` هو الوضع المحاسبي الوحيد المدعوم (`decimal.Truncate` للتحقق من التمثيل فقط).
+   - **وضع التقريب (`MONEY-017` / `MONEY-019` / `POL-009`):** `Banker's Rounding / Half-to-Even` هو الوضع **الافتراضي** للعمليات والتحويل والترحيل (`MONEY-019`)؛ بينما تستخدم القسمة الوسيطة (`Money.Divide` وانعكاس سعر الصرف عند `InternalScale = 12`) تقريب **`Half Away From Zero`** (`decimal.DivRound`) وفق `MONEY-017`. تدعم سياسة العملة (`CurrencyPolicy.RoundingMethod`) الوضع الصريح (`Half-to-Even` أو `Half-Up` وفق `MONEY-020`/`POL-009`)، وتمرر `RoundEntryWithRoundingPolicy` دالة التقريب `round` نفسها إلى `ValidateEntryDoubleEntry` لضمان التطابق، كما يفرض مسار الترحيل تسامح `<= 0.5` وحدة صغرى وتطابق الإشارة وفق `PST-004` (`decimal.Truncate` للتحقق من التمثيل فقط).
+   - **لقطة ISO 4217 والاستثناءات (`MONEY-014`):** تشمل عملات مثل `XCG` (`MinorUnit = 2`) وترفض الرموز الخاصة وغير القابلة للإنفاق (`XXX`, `XTS`, `XAU`, `XAG`, `XPT`, `XPD`, `XDR`) في `Money` و`MasterData`.
    - **الكسور الداخلية:** مسموحة حتى `InternalScale` أثناء القسمة/التجميع ولا تُحفظ قبل `Rounded()` أو `RoundForPostingChecked()`.
    - **الوحدة الصغرى:** `MinorUnitsExact()` يفشل مغلقاً بـ `ErrSubMinorUnitAmount`؛ `MinorUnits()` يقرّب ويُسجّل الفروق عبر `RoundingDifference()`.
    - **المقارنة والعمليات:** مقارنة عملتين مختلفتين تُعيد `false`؛ الجمع والطرح يُعيدان `ErrCurrencyMismatch`. سعر العملة لنفسها `1` مع بقاء التحقق من الرمز والتاريخ والنوع.
@@ -153,7 +156,7 @@
 4. **منفذ النسخة النافذة:** إضافة `EffectiveAccountReader.GetAccountAsOf(ctx, companyID, accountID, asOf)` كمنفذ اختياري؛ عند غيابه يُستخدم `GetAccount` مع فحص `IsCurrent`.
 5. **نافذة النفاذ (`RULE-KERNEL-017`):** رفض النوافذ المعكوسة (`EffectiveTo < EffectiveFrom`) بـ `ErrInvalidEffectiveRange`. الحدّان مغلقان و`EffectiveTo == nil` يعني نافذاً.
 6. **هوية اليومية:** `ValidateJournalScope` يفحص نطاق الشركة لليومية.
-7. **منع انحراف النماذج المرجعية (`G-016`):** اختبار انعكاسي آلي يربط `masterdata` و`ledger` وفق [ADR P1-03](#adr-p1-03).
+7. **منع انحراف النماذج المرجعية (`G-016` — مغلقة جزئياً/أُضيف اختبار انعكاسي):** أُضيف اختبار انعكاسي آلي يربط `masterdata` و`ledger` وفق [ADR P1-03](#adr-p1-03) (`TestReferenceModelsDoNotDriftSilently`)؛ يبقى تتبع الحالات المتبقية في سجل الفجوات.
 
 ---
 
@@ -305,7 +308,7 @@
 
 ## ADR P11-04 — مخزن السياسات المؤرخ واختيار النسخة النافذة
 
-- **الحالة:** معتمد في المرحلة 11 — يغلق جانب المضيف من `G-020` ويصحّح ابتلاع أخطاء التسجيل في `G-021`.
+- **الحالة:** معتمد في المرحلة 11 — يغلق جانب المضيف من `G-020` ويُغلق `G-021`؛ أخطاء التسجيل في السياسات/التدقيق لم تعد مُبتلعة.
 
 ### القرار
 
@@ -314,3 +317,5 @@
 3. عند وجود صفر نسخة للشركة يُسمح بمسار التوافق القدامي مع إرجاع أخطاء التسجيل دون ابتلاعها، وبمجرد إلحاق أول نسخة تُمسح السياسات الاصطناعية (`ClearCompanyPolicies`) ويصبح المتجر هو المصدر الوحيد.
 4. منع تداخل النوافذ في المحولين وفهرس فريد على `(company_id, policy_kind, effective_from)` في PostgreSQL، مع قفل تحميل لكل شركة لمنع data race ومسح التسجيل الجزئي عند الفشل.
 5. صيغة `policy.Fingerprint` لا تتغير ولا يدخلها رقم الإصدار، وتُترجم أخطاء التضارب والغياب في SDK إلى `ErrConflict` و`ErrNotFound`.
+
+> **إغلاق `G-021`:** أخطاء `SetPolicy`/`AppendAudit` تُعاد وتُسجَّل صراحةً ولا تُبتلع؛ إلحاق التدقيق يتم ذرياً داخل محول التخزين. لا يُبقى هذا البند «مغلقاً جزئياً».

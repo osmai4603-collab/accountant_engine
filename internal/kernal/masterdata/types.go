@@ -92,6 +92,7 @@ type Account struct {
 	IsContraAccount     bool
 	IsActive            bool
 	RequiresCostCenter  bool
+	IsMonetary          *bool
 	IsCashEquivalent    bool
 	IsNonCashAdjustment bool
 	CashFlowActivity    string

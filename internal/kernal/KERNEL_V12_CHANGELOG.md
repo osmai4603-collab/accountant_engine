@@ -1,6 +1,6 @@
 # سجل تغييرات النواة المحاسبية — Kernel v12 Changelog
 
-> **Superseded (متجاوز):** هذا السجل تاريخي للإصدار v12 فقط؛ لا يُستخدم لتحديد الحالة المعمارية الحالية أو مخرجات المرحلة 1. المرجع الحالي: [سجل فجوات المعالجة](../../docs/plans/KERNEL_REMEDIATION_GAP_REGISTER.md) و[تقرير المرحلة 1](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
+> **Superseded (متجاوز):** هذا السجل تاريخي للإصدار v12 فقط؛ لا يُستخدم لتحديد الحالة المعمارية الحالية أو مخرجات المرحلة 1. المرجع الحالي: [تحليل التضاربات](../../docs/analysis/DOCS_CONFLICT_ANALYSIS.md)، [مقارنة kernal بـ docs](../../docs/analysis/KERNAL_VS_DOCS_COMPARISON.md) و[تقرير التحقق](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
 
 - **رمز الوثيقة:** `AE-LOG-KERNEL-V12-CHANGELOG`
 - **خط الأساس:** Kernel v11 (`accountant_engine11.zip` / Commit `48ad0be1d4964da7c9b2eaa065ba1248a52b16fd`)

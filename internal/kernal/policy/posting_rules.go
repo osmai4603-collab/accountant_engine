@@ -119,12 +119,12 @@ func (p CurrencyPolicy) Validate() error {
 		!normalizedPolicyTime(*p.EffectiveTo).After(p.EffectiveDate.UTC()) {
 		return ErrInvalidPolicy
 	}
-	if currency, ok := apiTypes.LookupCurrency(functionalCurrency); !ok || currency.Code == apiTypes.XXX {
+	if currency, ok := apiTypes.LookupCurrency(functionalCurrency); !ok || currency.IsSpecial() {
 		return ErrInvalidPolicy
 	}
 	if presentationCurrency := strings.ToUpper(strings.TrimSpace(p.PresentationCurrency)); presentationCurrency != "" {
 		currency, ok := apiTypes.LookupCurrency(presentationCurrency)
-		if !ok || currency.Code == apiTypes.XXX {
+		if !ok || currency.IsSpecial() {
 			return ErrInvalidPolicy
 		}
 	}
@@ -137,7 +137,7 @@ func (p CurrencyPolicy) Validate() error {
 	seenCurrencies := make(map[apiTypes.CurrencyCode]struct{}, len(p.AllowedCurrencies))
 	for _, code := range p.AllowedCurrencies {
 		currency, ok := apiTypes.LookupCurrency(code)
-		if !ok || currency.Code == apiTypes.XXX {
+		if !ok || currency.IsSpecial() {
 			return ErrInvalidPolicy
 		}
 		if _, exists := seenCurrencies[currency.Code]; exists {
@@ -150,7 +150,7 @@ func (p CurrencyPolicy) Validate() error {
 
 func (p CurrencyPolicy) Round(amount apiTypes.Money) (apiTypes.Money, error) {
 	currency, ok := apiTypes.LookupCurrency(amount.Currency())
-	if !ok || currency.Code == apiTypes.XXX {
+	if !ok || currency.IsSpecial() {
 		return apiTypes.Money{}, apiTypes.ErrInvalidCurrency
 	}
 	rounded := amount.Amount().RoundBank(currency.MinorUnit)
@@ -162,7 +162,7 @@ func (p CurrencyPolicy) Round(amount apiTypes.Money) (apiTypes.Money, error) {
 
 func (p CurrencyPolicy) AllowsCurrency(currency string) bool {
 	currencyInfo, ok := apiTypes.LookupCurrency(currency)
-	if !ok || currencyInfo.Code == apiTypes.XXX {
+	if !ok || currencyInfo.IsSpecial() {
 		return false
 	}
 	currency = strings.ToUpper(strings.TrimSpace(currency))

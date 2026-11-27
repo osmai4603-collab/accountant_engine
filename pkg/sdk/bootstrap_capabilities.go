@@ -137,4 +137,3 @@ func (b *EngineBuilder) validatePostingPolicyAvailability() error {
 	}
 	return fmt.Errorf("bootstrap: capability %q required but posting policy controls are missing", BootstrapPostingPolicy)
 }
-

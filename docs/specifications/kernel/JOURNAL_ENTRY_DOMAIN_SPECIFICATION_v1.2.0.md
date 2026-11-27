@@ -98,19 +98,23 @@
 
 - يُرفض السطر ذو `TransactionAmount` السالب، أو المدين والدائن الصفريين، أو المدين والدائن المعبأين معاً صراحةً.
 
+> **توضيح الحدود:** قاعدة الإيجابية هذه خاصة بحقل `EntryLine.TransactionAmount` داخل قيد اليومية. أمّا الصافي الموقّع الذي يعيده `LDG-003` لأغراض إعادة تقييم العملات الأجنبية فهو حقل رصيد في نموذج قراءة (`BalanceReader` DTO) وليس `EntryLine`؛ ويُحوَّل إلى مبلغ موجب مع وسم اتجاه صريح قبل توليد أي سطر قيد، فلا تعارض بين هذه القاعدة و`LDG-003`.
+
 ### JRN-004 — اتساق عملة السطر وسعر الصرف (Line currency and exchange-rate consistency)
 
 في كل `EntryLine`:
 
 1. **يجب (MUST)** أن تساوي عملة `TransactionAmount` قيمة `TransactionCurrency`، و**يجب (MUST)** أن تساوي عملة `FunctionalDebit` و`FunctionalCredit` قيمة `FunctionalCurrency` للشركة.
 2. **يجب (MUST)** أن يكون `ExchangeRate` موجباً تماماً (`> 0`).
-3. عندما تتطابق `TransactionCurrency` مع `FunctionalCurrency` للشركة، **يجب (MUST)** أن يساوي `ExchangeRate` القيمة `1` بالضبط، و**يجب (MUST)** أن يساوي `TransactionAmount` قيمة المبلغ الوظيفي للسطر (`RULE-ACC-012`).
+3. عندما تتطابق `TransactionCurrency` مع `FunctionalCurrency` للشركة، **يجب (MUST)** أن يساوي `ExchangeRate` القيمة `1` بالضبط، و**يجب (MUST)** أن يساوي `TransactionAmount` قيمة المبلغ الوظيفي للسطر (`RULE-ACC-012`) **مساواةً صارمةً عند دقة الترحيل**؛ ولا يُطبَّق هنا تسامح `0.5` الوحدة الصغرى.
+4. **قاعدة الأولوية (Precedence):** تساوي `0.5` وحدة صغرى المذكور في `PST-004` تسري **فقط** على المبلغ الوظيفي المقدم من المستدعي في مسار العملة المتعددة، مع بقاء القيمة المُعاد حسابها في أنبوب الترحيل (`PST-004`، بمرجعية `MONEY-028`) هي القيمة المُلزمة. وأي تجاوز للتسامح أو انعكاس للإشارة أو عدم مساواة بعد التطبيع يُرفض صراحةً بخطأ `ErrInvalidAmount` (أو `ErrUnbalancedEntry` عند عدم توازن القيد ككل)، دون استبدال القيمة المقدمة بالصمت.
 
 **معايير القبول**
 
 - يفشل عدم التطابق بين `TransactionAmount.Currency()` و`TransactionCurrency` بخطأ `ErrTransactionCurrencyMismatch`.
 - يفشل عدم التطابق بين عملة `FunctionalDebit`/`FunctionalCredit` و`Company.FunctionalCurrency` بخطأ `ErrFunctionalCurrencyMismatch`.
-- يُرفض السطر ذو العملة المحلية بسعر صرف مختلف عن `1` أو بمبلغ وظيفي مختلف عن مبلغ المعاملة.
+- يُرفض السطر ذو العملة المحلية بسعر صرف مختلف عن `1` أو بمبلغ وظيفي مختلف عن مبلغ المعاملة ولو بفارق دون الوحدة الصغرى (مساواة صارمة).
+- يُرفض المبلغ الوظيفي المقدم من المستدعي في مسار العملة المتعددة إذا زاد الفرق عن `0.5` وحدة صغرى أو عكس الإشارة بخطأ `ErrInvalidAmount`.
 
 ### JRN-005 — البيانات الوصفية الإلزامية للقيد والسطر
 
@@ -140,6 +144,8 @@
 | `Adjusting` | فترة اعتيادية أو فترة 13 أو فترة 14 | نوع تسوية صريح (`accrual`, `deferral`, `provision_estimate`, `reclassification`, `audit_adjustment`) وسبب تسوية؛ الفترة 13 تقبل التسويات الاعتيادية أو `closing` فقط؛ الفترة 14 تقبل `audit_adjustment` فقط |
 | `Reversing` | تُحل من `reversalDate` (اعتيادية أو تسوية وفق تاريخ العكس) | `ReversalOfID` غير صفري و`ReversalReason` غير فارغ بعد الاقتطاع |
 
+> **ملاحظة إعادة التقييم:** قيود `Adjusting` المولّدة لإعادة تقييم العملات الأجنبية (`VAL-007` في `FX_REVALUATION_DOMAIN_SPECIFICATION_v1.2.0.md`) تستهدف فترة اعتيادية أو الفترة `13` فقط، ولا تُوجَّه إلى الفترة `14`؛ وتظل الفترة `14` مقصورة على `audit_adjustment` وفق الجدول أعلاه.
+
 **يجوز (MAY)** تطبيع الأسماء المستعارة القديمة لتسويات التدقيق فقط بعد الاستنساخ الدفاعي.
 
 **معايير القبول**
@@ -157,6 +163,8 @@
 - `Draft -> Cancelled` (الإلغاء قبل الترحيل، ويشترط `ActorID` وسبب إلغاء غير فارغين مع ختم `CancelledAt`/`CancelledBy`/`CancellationReason` ولا يولّد أثراً مالياً في الأستاذ العام؛ يُرفض إلغاء قيد ملغى مسبقاً بخطأ `ErrInvalidEntryState`)
 
 **يجب (MUST)** أن يفشل ترحيل قيد في حالة `Posted` أو `Reversed` أو `Cancelled` بخطأ `ErrInvalidEntryState`. و**يجب (MUST)** أن تفشل محاولة إلغاء قيد في حالة `Posted` أو `Reversed` بخطأ `ErrCannotModifyPostedMove` أو `ErrInvalidEntryState`. و**يجب (MUST)** رفض قيد `Draft` يحمل معرّف `ReversedByID` موجوداً مسبقاً بخطأ `ErrInvalidReversal`.
+
+> **حالة التنفيذ (مُحدَّث 2026-11-27):** تم إغلاق فجوة التنفيذ السابقة بإضافة حالة `EntryCancelled` ودالة `Cancel()` وحقول `CancelledBy`/`CancelledAt`/`CancellationReason` إلى `internal/kernal/journal` وتصديرها عبر `pkg/api/v1/journal` ولقطة `docs/api/v1.snapshot` وتحديث قيد `chk_move_status` في PostgreSQL. تبقى الحالة مسودةً ملغاةً بلا أثر في الأستاذ العام وفق `LDG-001`.
 
 **معايير القبول**
 

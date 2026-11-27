@@ -441,7 +441,7 @@ func TestReferenceModelsDoNotDriftSilently(t *testing.T) {
 		reflect.TypeOf(Account{}), reflect.TypeOf(ledger.Account{}), nil,
 		map[string]bool{
 			"IsControlAccount": true, "IsContraAccount": true, "RequiresCostCenter": true,
-			"IsCashEquivalent": true, "IsNonCashAdjustment": true, "CashFlowActivity": true,
+			"IsMonetary": true, "IsCashEquivalent": true, "IsNonCashAdjustment": true, "CashFlowActivity": true,
 			"IFRSCategory": true, "DisplayOrder": true, "EffectiveFrom": true,
 			"EffectiveTo": true, "CreatedAt": true, "UpdatedAt": true,
 		},
@@ -510,5 +510,64 @@ func TestMasterDataAdversarialInputsFailClosed(t *testing.T) {
 	postingDate := time.Date(2026, time.March, 15, 0, 0, 0, 0, time.UTC)
 	if err := ValidateCanPostToAccountAsOf(ctx, reader, companyID, accountID, postingDate); !errors.Is(err, types.ErrAccountNotFound) {
 		t.Fatalf("foreign-company account must not be reachable: %v", err)
+	}
+}
+
+func TestAccountIsMonetaryAndAnalyticalDimensionHelpers(t *testing.T) {
+	yes, no := true, false
+	cash := Account{ID: types.NewAccountID(), CompanyID: types.NewCompanyID(), Code: "1010", Name: "FX Cash", Type: AccountTypeAsset, IsMonetary: &yes}
+	if err := cash.Validate(); err != nil {
+		t.Fatalf("monetary asset Validate = %v", err)
+	}
+	if isMon, explicit := cash.MonetaryClassification(); !isMon || !explicit {
+		t.Fatalf("cash MonetaryClassification = (%v, %v), want (true, true)", isMon, explicit)
+	}
+	inventory := Account{ID: types.NewAccountID(), CompanyID: types.NewCompanyID(), Code: "1200", Name: "Inventory", Type: AccountTypeAsset, IsMonetary: &no}
+	if isMon, explicit := inventory.MonetaryClassification(); isMon || !explicit {
+		t.Fatalf("inventory MonetaryClassification = (%v, %v), want (false, true)", isMon, explicit)
+	}
+	unspecifiedAsset := Account{ID: types.NewAccountID(), CompanyID: types.NewCompanyID(), Code: "1300", Name: "Prepaid", Type: AccountTypeAsset}
+	if isMon, explicit := unspecifiedAsset.MonetaryClassification(); isMon || explicit {
+		t.Fatalf("unspecified asset MonetaryClassification = (%v, %v), want (false, false)", isMon, explicit)
+	}
+	for _, nonBS := range []AccountType{AccountTypeEquity, AccountTypeIncome, AccountTypeExpense} {
+		invalid := Account{ID: types.NewAccountID(), CompanyID: types.NewCompanyID(), Code: "9000", Name: "Invalid", Type: nonBS, IsMonetary: &yes}
+		if err := invalid.Validate(); !errors.Is(err, ErrInvalidAccountType) {
+			t.Fatalf("%s with IsMonetary=true error = %v, want ErrInvalidAccountType", nonBS, err)
+		}
+		if isMon, explicit := (Account{Type: nonBS}).MonetaryClassification(); isMon || !explicit {
+			t.Fatalf("%s MonetaryClassification = (%v, %v), want (false, true)", nonBS, isMon, explicit)
+		}
+	}
+
+	companyID := types.NewCompanyID()
+	projID := types.NewProjectID()
+	segID := types.NewSegmentID()
+	buID := types.NewBusinessUnitID()
+
+	projDim := NewProjectDimensionValue(projID, companyID, "PRJ-1", "Project One", true)
+	segDim := NewSegmentDimensionValue(segID, companyID, "SEG-1", "Segment One", true)
+	buDim := NewBusinessUnitDimensionValue(buID, companyID, "BU-1", "Business Unit One", true)
+
+	if projDim.DimensionID() != projID.String() || segDim.DimensionID() != segID.String() || buDim.DimensionID() != buID.String() {
+		t.Fatal("DimensionID mismatch on analytical dimension constructors")
+	}
+	if got, ok := projDim.AsProjectID(); !ok || got != projID {
+		t.Fatalf("AsProjectID = (%v, %v)", got, ok)
+	}
+	if _, ok := segDim.AsProjectID(); ok {
+		t.Fatal("segment dim must not convert AsProjectID")
+	}
+	if got, ok := segDim.AsSegmentID(); !ok || got != segID {
+		t.Fatalf("AsSegmentID = (%v, %v)", got, ok)
+	}
+	if _, ok := projDim.AsSegmentID(); ok {
+		t.Fatal("project dim must not convert AsSegmentID")
+	}
+	if got, ok := buDim.AsBusinessUnitID(); !ok || got != buID {
+		t.Fatalf("AsBusinessUnitID = (%v, %v)", got, ok)
+	}
+	if _, ok := segDim.AsBusinessUnitID(); ok {
+		t.Fatal("segment dim must not convert AsBusinessUnitID")
 	}
 }

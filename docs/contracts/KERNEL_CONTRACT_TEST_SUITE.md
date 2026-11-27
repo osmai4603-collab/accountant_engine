@@ -4,7 +4,7 @@
 - **المرحلة:** 7–11 — المعاملات والذرية ومنع التكرار، التزامن والعزل متعدد الشركات، ثم تكافؤ المحولات والعقود
 - **التاريخ:** 2026-11-22
 - **خط الأساس المرجعي:** الالتزام `94054d9c9a5f8d8419c9871b2d61b17b44d5b556`
-- **الخطة:** [`KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المهام 12–15 (المرحلة 7)، 1–15 (المرحلة 8)، و1–17 (المرحلة 11)
+- **الخطة:** ~~`KERNEL_REMEDIATION_EXECUTION_PLAN.md`~~ *(حُذف مجلد `plans/`)*، المهام 12–15 (المرحلة 7)، 1–15 (المرحلة 8)، و1–17 (المرحلة 11)
 - **الموقع:** `test/contract_parity/phase7_transaction_contract_test.go`، `test/contract_parity/phase8_concurrency_isolation_test.go`، و`test/contract_parity/phase11_*.go`
 - **الوثائق المرتبطة:** [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، [عقد ذرية العكس](./KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [عقد القفل](./KERNEL_LOCKING_CONTRACT.md)، [نموذج التزامن](./KERNEL_CONCURRENCY_MODEL.md)، [تقرير العزل](../reports/multi_company_isolation_report.md)، [تقرير حقن الأعطال](../reports/fault_injection_report.md)
 
@@ -13,6 +13,8 @@
 ## 1. المبدأ
 
 المجموعة محايدة عن نوع قاعدة البيانات: تُكتب مرة ضد `storage.Ports`، وتُشغَّل على Memory وPostgreSQL من خلال `ForEachStorageAdapter`. لا تعرف الاختبارات SQL ولا أسماء جداول ولا محرك تخزين. أي Adapter جديد يمر بالمنافذ نفسها يمر بنفس المجموعة دون تعديل الاختبار.
+
+> **الربط مع الفهارس الأخرى:** سيناريوهات `TestPhase*` أدناه مقترنة بمتطلبات الجودة وقواعد النواة وأسماء اختباراتها في [فهرس التتبع الموحّد](../quality/TEST_TRACEABILITY_INDEX.md). هذا الملف يملك وصف السيناريوهات وتشغيلها فقط.
 
 ## 2. متطلبات Harness
 
@@ -62,7 +64,7 @@
 | `TestPhase8_SameAccountConcurrentPosting` | `SameAccountConcurrentPosting` | قيدان بمفتاحين مختلفين يلمسان الحساب نفسه؛ كلاهما يُرحَّل والأثر 200، فلا يُخلط serialization مع منع التكرار |
 | `TestPhase8_CrossAccountReverseOrderNoDeadlock` | `CrossAccountReverseOrderNoDeadlock` | أسطر معكوسة ومراقب مستقل لكل طلب؛ لا Deadlock قبل انتهاء السياق المحدد |
 | `TestPhase8_ConcurrentReplayAtScale` | `ConcurrentReplayAtScale` | 16 منافساً بالمفتاح نفسه؛ `EntryID` واحد وأثر 100 واحد |
-| `TestPhase8_ConcurrentReversalSingleWinner` | `ConcurrentReversalSingleWinner` | 12 منافساً يعكسون الأصل نفسه؛ عكس واحد، الأصل مرتبط مرة واحدة، والباقي replay ناجح |
+| `TestPhase8_ConcurrentReversalSingleWinner` | `ConcurrentReversalSingleWinner` | 12 منافساً يعكسون الأصل نفسه **بمفتاح idempotency واحد وبصمة واحدة**؛ عكس واحد، الأصل مرتبط مرة واحدة، والباقي replay ناجح بلا رابط ثانٍ. أما لو اختلفت المفاتيح فالنتيجة `ErrEntryAlreadyReversed` للخاسرين، لا replay (انظر `KERNEL_CONCURRENCY_MODEL §5`) |
 | `TestPhase8_InterleavedCompanyIsolation` | `InterleavedCompanyIsolation` | شركتان متداخلتان بمعرّفات متشابهة؛ سجلات idempotency وأرصدة وأقفال كل شركة داخل نطاقها |
 | `TestPhase8_CompanyScopeOnEveryPort` | `CompanyScopeOnEveryPort` | `EntryReader` و`IdempotencyLookup` و`BalanceReader` و`MasterDataReader` لا تعيد بيانات الشركة الأخرى؛ لا fallback عالمي |
 | `TestPhase8_FrozenSnapshotRemainsStableUnderConcurrentStateChange` | `FrozenSnapshotRemainsStable` | إضافة فترة مالية بعد بدء الطلب لا تُغيّر `FiscalPeriodID` أو `PostingDate` أو `PostedAt` المختومة |

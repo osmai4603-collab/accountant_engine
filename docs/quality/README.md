@@ -10,10 +10,12 @@
 4. [Scope Profile Template](SCOPE_PROFILE_TEMPLATE.md) — fillable scope and target-environment record for each assessment.
 5. [Compliance Test Suite Index](COMPLIANCE_TEST_SUITE_INDEX.md) — requirement/test traceability and run register.
 6. [Documentation Architecture Specification](DOCUMENTATION_ARCHITECTURE_SPECIFICATION.md) — ownership, dependencies, versioning and validation rules.
+7. [Quality Gates Crosswalk](QUALITY_GATES_CROSSWALK.md) — mapping between official G01–G11, historical operational G1–G15 and acceptance G1–G6.
+8. [Kernel Scope Profile](SCOPE_PROFILE_KERNEL_v1.md) — filled assessment scope instance; still Pending independent review and approval.
 
 ## Source and disposition
 
-Generated from `ACCOUNTING_KERNEL_QUALITY_STANDARD_v2.0.0.md` (23 November 2026). The source is retained separately and unchanged. The standard sections were distributed by responsibility; the Scope Profile is a fillable template and the Test Suite Index is an index, not proof that tests exist or have passed.
+Generated from `ACCOUNTING_KERNEL_QUALITY_STANDARD_v2.0.0.md` (23 November 2026). The original source file is **not included** in this distribution; this distributed build is the reviewable reference. The standard sections were distributed by responsibility; the Scope Profile is a fillable template and the Test Suite Index is an index, not proof that tests exist or have passed.
 
 ## Release checks
 
@@ -36,6 +38,8 @@ Generated from `ACCOUNTING_KERNEL_QUALITY_STANDARD_v2.0.0.md` (23 November 2026)
 ## سجل قرار الإصدار 2.0.0
 
 تم الحفاظ على المحاور الاثني عشر وأوزانها الأصلية (100%)، مع إدراج المتطلبات الجديدة داخل المحاور المناسبة منعاً لازدواج الاحتساب. تم تحويل خطة التغييرات CHG-001 إلى CHG-013 إلى نص معياري في مواضعها، مع استكمال مصفوفة التتبع وشروط البوابات.
+
+**ملاحظة namespace (قرار تحريري):** معرّفات `ACC-xxx` في هذا المعيار مستقلة عن `RULE-ACC-xxx` في `docs/rules`؛ `ACC-013` هنا = التوازن بالعملة الوظيفية ولا يعني `RULE-ACC-013` (IAS 21). نظاما معرّفات منفصلان؛ لا إعادة ترقيم في أيٍّ منهما.
 
 **حالة الاعتماد:** هذه النسخة مكتملة الدمج تحريرياً، لكنها لا تصبح معياراً مؤسسياً نافذاً إلا بعد المراجعة المحاسبية والمعمارية والمنهجية المستقلة، وموافقة Standard Owner وApproval Authority وفق RACI. ولا تمثل هذه الوثيقة تقييماً أو شهادة اجتياز لمشروع Accountant Engine.
 

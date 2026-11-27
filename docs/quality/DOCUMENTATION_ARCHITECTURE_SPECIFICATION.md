@@ -24,8 +24,10 @@ docs/quality/
 ├── README.md
 ├── ACCOUNTING_KERNEL_QUALITY_STANDARD.md
 ├── QUALITY_GATES_SPECIFICATION.md
+├── QUALITY_GATES_CROSSWALK.md
 ├── EVIDENCE_AND_SCORING_GUIDE.md
 ├── SCOPE_PROFILE_TEMPLATE.md
+├── SCOPE_PROFILE_KERNEL_v1.md
 ├── COMPLIANCE_TEST_SUITE_INDEX.md
 └── DOCUMENTATION_ARCHITECTURE_SPECIFICATION.md
 ```
@@ -40,6 +42,11 @@ docs/quality/
 | SCOPE_PROFILE_TEMPLATE.md | نموذج تسجيل نطاق تقييم معين | ما الذي يدخل في تقييم محدد | تعريف التصنيفات المعيارية |
 | COMPLIANCE_TEST_SUITE_INDEX.md | فهرسة الاختبارات والربط والتشغيل | كيف نتحقق عملياً | معيار القبول المحاسبي أو تفسيره |
 | DOCUMENTATION_ARCHITECTURE_SPECIFICATION.md | تنظيم الحزمة وإدارة التبعيات والإصدارات | كيف تُدار الوثائق | مضمون أي متطلب محاسبي |
+| QUALITY_GATES_CROSSWALK.md | ربط أنظمة ترقيم البوابات فقط | مرادفات الترقيم بين G01–G11 وG1–G15 وG1–G6 | شروط Pass أو تعريف المتطلبات |
+| SCOPE_PROFILE_KERNEL_v1.md | تسجيل نطاق تقييم النواة لهذه المراجعة | القدرات المعلنة وبيئة الهدف لهذا التقييم | تعريف التصنيفات المعيارية أو منح الموافقة |
+
+> [!NOTE]
+> ملف `docs/README.md` **فهرس تنقّل (navigational index)** وليس مصدر حقيقة واحدة لكل فئة. ملكية المحتوى ومصدر الحقيقة لكل نوع معلومة هما كما هو مبين في الجدول أعلاه وفي `docs/quality/README.md`؛ عند التعارض يُرجَّع إلى الوثيقة المالكة لا إلى الفهرس.
 
 ## 4. توزيع أقسام المصدر 2.0.0
 
@@ -102,7 +109,7 @@ version consistency and validation across all documents.
 
 يجب أن تتحقق CI أو أداة تحقق محلية من الآتي:
 
-- وجود الملفات الستة وREADME.
+- وجود الملفات الثمانية وREADME.
 - عدم وجود روابط Markdown نسبية مكسورة.
 - وجود ACC-001 إلى ACC-013 وG01 إلى G11 دون فقد أو إعادة استخدام.
 - تطابق إصدار الحزمة في رؤوس الوثائق.
@@ -114,7 +121,7 @@ version consistency and validation across all documents.
 ## 10. مراحل تنفيذ التقسيم
 
 1. تثبيت المصدر: حفظ نسخة 2.0.0 المرجعية دون تعديل.
-2. إنشاء الهيكل: إنشاء الملفات الستة وREADME.
+2. إنشاء الهيكل: إنشاء الملفات الثمانية وREADME.
 3. النقل: نقل الأقسام إلى وجهاتها وفق جدول التوزيع.
 4. الإحالات: إضافة روابط نسبية وبيان المرجع الحاكم لكل ملف.
 5. فحص الاكتمال: مقارنة معرفات الثوابت والبوابات والمتطلبات وقوائم التحقق بالمصدر.

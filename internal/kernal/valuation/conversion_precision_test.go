@@ -129,3 +129,38 @@ func FuzzFXConversionNeverPanics(f *testing.F) {
 		}
 	})
 }
+
+func TestExchangeRateValidationEnforcesMoney025Money026AndSpecialCurrencies(t *testing.T) {
+	date := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
+
+	valid12 := ExchangeRate{
+		FromCurrency:  "EUR",
+		ToCurrency:    "XCG",
+		Rate:          decimal.RequireFromString("1.123456789012"),
+		EffectiveDate: date,
+		Type:          SpotRate,
+	}
+	if err := valid12.Validate(); err != nil {
+		t.Fatalf("valid 12-scale rate with XCG rejected: %v", err)
+	}
+
+	overScale := valid12
+	overScale.Rate = decimal.RequireFromString("1.1234567890123")
+	if err := overScale.Validate(); !errors.Is(err, ErrInvalidRate) {
+		t.Fatalf("13-scale rate error = %v, want ErrInvalidRate", err)
+	}
+
+	overDigits := valid12
+	overDigits.Rate = decimal.RequireFromString("10000000000000000000000000000")
+	if err := overDigits.Validate(); !errors.Is(err, ErrInvalidRate) {
+		t.Fatalf("29-digit rate error = %v, want ErrInvalidRate", err)
+	}
+
+	for _, special := range []string{"XXX", "XTS", "XAU", "XAG", "XPT", "XPD", "XDR"} {
+		badCurr := valid12
+		badCurr.FromCurrency = special
+		if err := badCurr.Validate(); !errors.Is(err, ErrInvalidCurrency) {
+			t.Fatalf("special FromCurrency %s error = %v, want ErrInvalidCurrency", special, err)
+		}
+	}
+}

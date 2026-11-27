@@ -52,4 +52,3 @@ func (d *Driver) acquirePostingAdvisoryLock(ctx context.Context, companyID, jour
 	}
 	return nil
 }
-

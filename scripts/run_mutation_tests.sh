@@ -162,6 +162,36 @@ run_mutant \
   "./internal/kernal/masterdata" \
   "TestMasterDataEdgeCases"
 
+# MUT-09: PST-008 / RULE-ACC-026 Forbid reversing a reversing entry in posting/reversal.go
+run_mutant \
+  "MUT-09" \
+  "PST-008" \
+  "internal/kernal/posting/reversal.go" \
+  "Allow BuildReversalEntryAt to reverse a reversing entry" \
+  "sed -i 's/if original.Classification == journal.EntryClassReversing || original.ReversalOfID != nil {/if false \&\& (original.Classification == journal.EntryClassReversing || original.ReversalOfID != nil) {/' internal/kernal/posting/reversal.go" \
+  "./internal/kernal/posting" \
+  "TestReversalLifecycle"
+
+# MUT-10: MONEY-025 Enforce 12-scale ceiling on exchange rates in types/money.go
+run_mutant \
+  "MUT-10" \
+  "MONEY-025" \
+  "internal/kernal/types/money.go" \
+  "Bypass InternalScale 12 check on exchange rates" \
+  "sed -i 's/if !scaled.Equal(scaled.Truncate(0)) {/if false \&\& !scaled.Equal(scaled.Truncate(0)) {/' internal/kernal/types/money.go" \
+  "./internal/kernal/valuation" \
+  "TestExchangeRateValidationEnforcesMoney025Money026AndSpecialCurrencies"
+
+# MUT-11: MD-010 Inactive ancestor cost center check in posting/pipeline.go
+run_mutant \
+  "MUT-11" \
+  "MD-010" \
+  "internal/kernal/posting/pipeline.go" \
+  "Bypass active flag check on ancestor cost center nodes" \
+  "python3 -c 'path = \"internal/kernal/posting/pipeline.go\"; c = open(path).read(); target = \"\\t\\t\\tif !costCenter.Active {\\n\\t\\t\\t\\treturn ErrInactiveFinancialDimension\\n\\t\\t\\t}\"; assert target in c; open(path, \"w\").write(c.replace(target, \"\\t\\t\\tif false && !costCenter.Active {\\n\\t\\t\\t\\treturn ErrInactiveFinancialDimension\\n\\t\\t\\t}\", 1))'" \
+  "./internal/kernal/posting" \
+  "TestPostingRejectsInactiveAncestorCostCenter"
+
 echo "" | tee -a "$logfile"
 echo "=== Mutation Testing Summary ===" | tee -a "$logfile"
 echo "Mutants Tested:   ${mutants_tested}" | tee -a "$logfile"
@@ -170,7 +200,7 @@ echo "Mutants Survived: ${mutants_survived}" | tee -a "$logfile"
 score=$(awk -v k="$mutants_killed" -v t="$mutants_tested" 'BEGIN { printf "%.1f", (k / t) * 100 }')
 echo "Mutation Score:   ${score}%" | tee -a "$logfile"
 
-if [[ $mutants_survived -eq 0 && $mutants_tested -eq 8 ]]; then
+if [[ $mutants_survived -eq 0 && $mutants_tested -eq 11 ]]; then
   echo "RESULT: PASS (100% kill rate achieved on critical business rules)" | tee -a "$logfile"
   exit 0
 else

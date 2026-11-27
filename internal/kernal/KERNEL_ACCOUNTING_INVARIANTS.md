@@ -1,5 +1,7 @@
 # Kernel Accounting Invariants
 
+> **Status:** normative only for the `RULE-KERNEL-001`–`RULE-KERNEL-027` catalog below. The phase-by-phase "clarifications" are non-normative notes; the owning contracts in `docs/contracts/` and the ADRs in `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md` are the source of truth when a note and a contract disagree. This document is not a release approval; see `docs/reports/KERNEL_RELEASE_SIGNOFF.md`.
+
 This document defines the 27 accounting invariants enforced inside `internal/kernal`.
 Authentication, RBAC, maker-checker approval, and external workflow approval are
 outside this kernel. `ActorID`, `CreatedBy`, and `PostedBy` are audit attribution
@@ -30,11 +32,23 @@ only.
 
 The notes below explain the existing behavior of `RULE-KERNEL-001` through
 `RULE-KERNEL-008`. They do not create a 28th invariant and do not change any
-monetary rule; see ADR P2-01 and `docs/KERNEL_MONETARY_PRECISION_MATRIX.md`.
+monetary rule; see ADR P2-01 and `docs/contracts/KERNEL_MONETARY_PRECISION_MATRIX.md`.
 
-- Banker's rounding (half to even) is the only monetary rounding mode.
+- `Banker's rounding` (`Half-to-Even`, `MONEY-019`) is the default monetary
+  rounding mode for posting and conversion; intermediate division (`Money.Divide`
+  and inverted FX rates at `InternalScale = 12`) uses `Half Away From Zero`
+  (`decimal.DivRound`) per `MONEY-017`, and `CurrencyPolicy.RoundingMethod`
+  (`Half-to-Even` / `Half-Up` per `MONEY-020` / `POL-009`) is passed
+  consistently into `ValidateEntryDoubleEntry`. During multi-currency posting,
+  `PST-004` rejects caller functional amounts whose unrounded deviation exceeds
+  `0.5` functional minor unit or whose sign differs (`ErrInvalidAmount`).
   `decimal.Truncate` is used only inside exactness/overflow checks, never as a
   posting policy.
+- `ValidateExchangeRatePrecision` enforces `MONEY-025` (at most `InternalScale = 12`
+  fractional decimal digits) and `MONEY-026` (28 significant/integer digit bounds).
+  ISO 4217 currency lookups exclude `XXX` and non-spendable special codes (`XTS`,
+  `XAU`, `XAG`, `XPT`, `XPD`, `XDR`) across `types` and `masterdata`, while
+  recognizing active ISO 4217 entries such as `XCG`.
 - `InternalScale = 12` is an intermediate division scale. It does not permit
   persisting sub-minor-unit amounts; `MinorUnitsExact` fails closed on them and
   the residual is exposed by `RoundingDifference`.
@@ -89,7 +103,8 @@ monetary rule; see ADR P2-01 and `docs/KERNEL_MONETARY_PRECISION_MATRIX.md`.
 ### Phase 3 master-data clarifications (non-normative)
 
 These notes make `RULE-KERNEL-016` through `RULE-KERNEL-020` executable; they do
-not add a 28th invariant. See ADR P3-01 and the Phase 3 report.
+not add a 28th invariant. See ADR P3-01 and
+`docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md`.
 
 - A zero `CompanyID` is rejected before any reader call by company, account,
   journal, normal-period and adjustment-period validation (`ErrCompanyScopeRequired`).
@@ -112,7 +127,7 @@ not add a 28th invariant. See ADR P3-01 and the Phase 3 report.
 
 These notes make the policy part of `RULE-KERNEL-010`, `RULE-KERNEL-017` and
 `RULE-KERNEL-019` executable. They do not create a 28th invariant; see ADR P5-01
-and the Phase 5 report.
+and `docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md`.
 
 - A policy is a company-scoped, versioned fact with a half-open effective
   window `[EffectiveDate, EffectiveTo)`. `EffectiveTo == nil` ends at the next
@@ -133,8 +148,8 @@ and the Phase 5 report.
 
 These notes explain how `RULE-KERNEL-001` through `RULE-KERNEL-017` and
 `RULE-KERNEL-027` are enforced by the posting pipeline. They do not create a
-28th invariant. See `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` and the Phase 6
-report for the executable evidence.
+28th invariant. See `docs/contracts/KERNEL_POSTING_FLOW_SPECIFICATION.md` and
+`docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md` for the evidence.
 
 - Every failure path in `PostEntry` returns before `PostingExecutor` or
   `PostingReversalExecutor` is called. The executor receives only a balanced,
@@ -200,21 +215,28 @@ report for the executable evidence.
 
 These notes make `RULE-KERNEL-009` through `RULE-KERNEL-015` executable as an
 explicit state machine and projection contract; they do not add a 28th
-invariant. See ADR P1-02 addendum and Phase 4 report.
+invariant. See ADR P1-02 addendum and
+`docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md`.
 
-- The journal lifecycle is `draft -> posted -> reversed`; no other transition is
-  allowed. `journal.ValidateTransition` and `AllowedTransitions` are the domain
-  source of this rule.
-- Posted and reversed entries are immutable accounting facts. Domain code must
-  reject in-place mutation (`journal.ValidateImmutability` / `EnsureMutable`);
-  corrections are represented only by linked reversal/correction entries.
+- The journal lifecycle is `draft -> posted -> reversed`, plus `draft -> cancelled`
+  (`EntryCancelled` via `Cancel()`, `JRN-007`) for unposted drafts; no other
+  transition is allowed. `journal.ValidateTransition`, `AllowedTransitions`, and
+  `JournalEntry.Cancel` are the domain sources of this rule.
+- Posted, reversed, and cancelled entries are immutable facts/terminal states.
+  Domain code rejects in-place mutation (`journal.ValidateImmutability` /
+  `EnsureMutable`, including post-posting `MatchingNumber` and
+  `ReconciledAmount` fields per `JRN-008`); corrections to posted entries are
+  represented only by linked reversal/correction entries.
 - Reversal linkage is one-to-one at domain level: a reversal references exactly
   one original (`ReversalOfID`), and a reversed original references exactly one
-  reversal (`ReversedByID`). Storage must enforce atomic uniqueness.
+  reversal (`ReversedByID`). Reversing an existing reversing entry is rejected
+  in `BuildReversalEntryAt` (`PST-008` / `ErrInvalidReversal`). Storage must
+  enforce atomic uniqueness.
 - Posted `JournalEntry` + `EntryLine` remain the canonical GL source of truth.
-  `ledger.PostedMovement` and `RebuildAccountBalances` are deterministic
-  read-only projections, not stored independent entities or materialized balance
-  stores.
+  `ledger.PostedMovement`, `RebuildAccountBalances`, and
+  `RebuildForeignCurrencyBalances` (`LDG-003`) are deterministic read-only
+  projections excluding `Draft` and `Cancelled` (`LDG-001`), not stored
+  independent entities or materialized balance stores.
 - Rebuild ordering is deterministic: `(EffectiveDate UTC, SequenceNumber,
   JournalEntryID.String())` for entries, then `EntryLine.ID.String()` for lines.
 
@@ -245,7 +267,8 @@ report for the decision record.
 These notes make `RULE-KERNEL-010`, `RULE-KERNEL-011`, `RULE-KERNEL-012`,
 `RULE-KERNEL-025` and `RULE-KERNEL-027` testable at the host boundary. They
 do not add a 28th invariant and do not move ACID persistence into the kernel.
-See the Phase 7 report and its four contracts for executable evidence.
+See `docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md` and the Phase 7
+contracts in `docs/contracts/` for the evidence.
 
 - The kernel derives the uniqueness scope from `(CompanyID, Operation, Key)`
   after validation and overwrites any caller-supplied `PostOptions.Scope`,
@@ -276,8 +299,9 @@ See the Phase 7 report and its four contracts for executable evidence.
 These notes make `RULE-KERNEL-010`, `RULE-KERNEL-016`, `RULE-KERNEL-027` and
 the Phase 7 snapshot contract executable at the concurrency boundary. They do
 not create a 28th invariant and do not move locking into the kernel. See ADR
-P8-01, `docs/KERNEL_LOCKING_CONTRACT.md`, `docs/KERNEL_CONCURRENCY_MODEL.md`
-and the Phase 8 report for executable evidence.
+P8-01, `docs/contracts/KERNEL_LOCKING_CONTRACT.md`,
+`docs/contracts/KERNEL_CONCURRENCY_MODEL.md` and
+`docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md` for the evidence.
 
 - `posting.OrderedAccountKeys` and the retained `ExtractAndSortAccountIDs`
   produce deterministic, company-scoped key strings only. They acquire no
@@ -315,8 +339,9 @@ and the Phase 8 report for executable evidence.
 ### Phase 9 valuation and FX clarifications (non-normative)
 
 These notes make `RULE-KERNEL-021` through `RULE-KERNEL-024` executable and do
-not add a 28th invariant. See ADR P9-01, `docs/KERNEL_VALUATION_RULES_MATRIX.md`
-and the Phase 9 report for the executable evidence.
+not add a 28th invariant. See ADR P9-01,
+`docs/contracts/KERNEL_VALUATION_RULES_MATRIX.md` and
+`docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md` for the evidence.
 
 - Four rate types (`SPOT`, `CLOSING`, `AVERAGE`, `HISTORICAL`) are valid;
   revaluation itself asks for `CLOSING`. For one pair and type the registry
@@ -332,10 +357,14 @@ and the Phase 9 report for the executable evidence.
   from the asset case. Revaluation entries are nonzero, balanced adjusting
   entries posted to the designated unrealized gain/loss accounts. Realized FX
   on settlement is a host posting decision, not a kernel revaluation effect.
-- `RevaluationIdempotencyScope` maps the deterministic
-  `(company, account, currency, date)` operation key to the neutral
-  `posting.IdempotencyScope` with operation `revaluation`; the posting and
-  reversal scope derivations are unchanged. Replaying the same stable payload
+- `RevaluationIdempotencyScope` and `RevaluationIdempotencyScopeWithDimensions`
+  (`VAL-009`) map the deterministic `(company, account, currency, dimensions,
+  date)` operation key to the neutral `posting.IdempotencyScope` with operation
+  `revaluation`; the posting and reversal scope derivations are unchanged.
+  `ValidateAccountForRevaluation` and `CalculateForAccount` (`VAL-006` /
+  `MD-004`) restrict closing-rate FX revaluation to Asset and Liability accounts
+  explicitly marked `IsMonetary = true`, rejecting non-monetary and nominal
+  accounts (`ErrInvalidAccountType`). Replaying the same stable payload
   returns the stored entry, while a different payload under the same key is
   `ErrRevaluationAlreadyApplied` — the valuation alias of the phase-7 catalog
   entry and non-retryable under `posting.IsRetryable`. `currency` is the foreign
@@ -343,11 +372,13 @@ and the Phase 9 report for the executable evidence.
   length-prefixed stable fields and exact money strings; only generated IDs,
   timestamps and status are excluded, so regenerating the same result can
   replay while a changed amount, dimension or date cannot.
-- The in-memory `RevaluationRegistry` protects only one process. Phase 9 only
-  produces the scope object: `PostEntry` and the storage SPI do not yet accept
-  the `revaluation` operation. Atomic, durable idempotency across restarts and
-  lost responses remains the host executor's responsibility under
-  `RULE-KERNEL-027` and is tracked as `G-024` for Phase 11.
+- The in-memory `RevaluationRegistry` protects only one process. Since Phase 11
+  the operation is wired end to end: `storage.OperationRevaluation` carries the
+  `revaluation` scope through `PostEntry`, and `RevaluationPayloadFingerprint`
+  supplies the canonical `fx-revaluation-payload-v2|` digest, so `G-024` is
+  **closed** under ADR P11-01 and `docs/contracts/KERNEL_VALUATION_RULES_MATRIX.md`.
+  Atomic, durable persistence across restarts and lost responses remains the
+  host executor's responsibility under `RULE-KERNEL-027`.
 - A revaluation reversal draft carries the reversal date and the link to the
   original, but leaves `FiscalPeriodID` unset; `BuildRevaluationReversalAt`
   delegates to `posting.BuildReversalEntryAt`, and `PostEntry` derives the
@@ -361,7 +392,8 @@ and the Phase 9 report for the executable evidence.
 
 These notes make `RULE-KERNEL-025` and `RULE-KERNEL-026` executable without
 adding a 28th invariant. See ADR P10-01, the audit threat model, the audit
-repository contract and the Phase 10 report for evidence.
+repository contract in `docs/contracts/` and
+`docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md` for evidence.
 
 - The canonical hash covers version, sequence, company, entity type and id,
   action, actor, reason, correlation id, timestamp truncated to the storage

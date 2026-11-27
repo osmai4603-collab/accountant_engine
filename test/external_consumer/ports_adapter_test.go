@@ -114,6 +114,13 @@ func (a *externalPortsAdapter) GetJournalByCode(_ context.Context, companyID typ
 	return a.journal, nil
 }
 
+func (a *externalPortsAdapter) GetJournalByID(_ context.Context, companyID types.CompanyID, journalID masterdata.JournalID) (masterdata.Journal, error) {
+	if companyID != a.company.ID || journalID != a.journal.ID {
+		return masterdata.Journal{}, masterdata.ErrJournalNotFound
+	}
+	return a.journal, nil
+}
+
 func (a *externalPortsAdapter) HasAccountChildren(_ context.Context, companyID types.CompanyID, accountID types.AccountID) (bool, error) {
 	if _, err := a.GetAccount(context.Background(), companyID, accountID); err != nil {
 		return false, err

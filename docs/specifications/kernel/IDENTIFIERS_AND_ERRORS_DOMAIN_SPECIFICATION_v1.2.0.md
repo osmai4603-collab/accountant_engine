@@ -123,6 +123,8 @@
 1. **يجب (MUST)** أن يرفض المسار الصارم أي كسور تتجاوز `MinorUnit` للعملة دون تقريب صامت (`ErrSubMinorUnitAmount`).
 2. **يجب (MUST)** أن يرفض كلا المسارين (الصارم والمقرّب) أي قيمة تتجاوز سعة العدد الصحيح ذي الإشارة 64-بت (`[-2^63, 2^63 - 1]`) بخطأ `ErrAmountExceedsPrecision`.
 
+> **قاعدة الأولوية مقابل `MONEY`:** قد تكون القيمة صالحة بموجب حدود الدقة والنطاق في `MONEY_DOMAIN_SPECIFICATION_v2.6.1.md` (مثل الـ 28 رقمًا معنويًا) ومع ذلك تتجاوز حد تمثيل `int64` للوحدات الصغرى؛ في هذه الحالة **يجب (MUST)** رفضها عند **حد النواة** بخطأ `ErrAmountExceedsPrecision`، دون تقريب أو بتر صامت. أي أن صلاحية `MONEY` شرط لازم ولا تكفي وحدها لقبول القيمة في مسار الحفظ/الترحيل؛ وتبقى `MONEY` مرجعاً للدقة النقدية، بينما يُطبَّق حد التمثيل هذا عند حدود النواة.
+
 **معايير القبول**
 
 - يفشل تمرير `1.005 USD` إلى التحويل الصارم للوحدات الصغرى بخطأ `ErrSubMinorUnitAmount`.
@@ -134,11 +136,25 @@
 
 ### ERR-001 — التمثيل المهيكل للأخطاء المكوّدة
 
-**يجوز (MAY)** تغليف أخطاء المجال والتوافق العام في `CodedError` يحمل `Code` ثابتاً (من الرموز القياسية المعتمدة: `ERR_VALIDATION`, `ERR_NOT_FOUND`, `ERR_CONFLICT`, `ERR_FORBIDDEN`, `ERR_CONCURRENCY`, `ERR_INTERNAL`)، و`Message` وصفياً، و`Cause` مغلفاً اختيارياً. و**يجب (MUST)** أن يدعم فحص الأخطاء فك التغليف (`Unwrapping`) بحيث يتمكن المستدعون من مطابقة كل من الأخطاء الحارسة الدلالية ورموز الأخطاء المهيكلة.
+**يجوز (MAY)** تغليف أخطاء المجال والتوافق العام في `CodedError` يحمل `Code` ثابتاً (من الرموز القياسية المعتمدة في جدول 5.1: `ERR_VALIDATION`, `ERR_NOT_FOUND`, `ERR_CONFLICT`, `ERR_FORBIDDEN`, `ERR_CONCURRENCY`, `ERR_PERSISTENCE`, `ERR_INTERNAL`)، و`Message` وصفياً، و`Cause` مغلفاً اختيارياً. و**يجب (MUST)** أن يدعم فحص الأخطاء فك التغليف (`Unwrapping`) بحيث يتمكن المستدعون من مطابقة كل من الأخطاء الحارسة الدلالية ورموز الأخطاء المهيكلة.
 
 **معايير القبول**
 
 - يحافظ تغليف خطأ حارس في `CodedError` على قابلية المطابقة مقابل كل من رمز الخطأ والسبب الحارس الكامن.
+
+#### جدول 5.1 — الرموز القياسية لـ `CodedError`
+
+| الرمز القياسي | المعنى الدلالي | مرجع الاستخدام في القرارات/العقود |
+| --- | --- | --- |
+| `ERR_VALIDATION` | رفض تحقق مجالي أو بنيوي (`ERR_UNBALANCED_ENTRY` و`ERR_INVALID_AMOUNT` أمثلة خاصة) | `ADR P7-01` لترجمة أخطاء التحقق عند حد الواجهة |
+| `ERR_NOT_FOUND` | كيان مطلوب غير موجود في النطاق المسموح | `ADR P7-01` لترجمة أخطاء الحدود |
+| `ERR_CONFLICT` | تعارض حالة أو نطاق أو بصمة (`ERR_IDEMPOTENCY_PAYLOAD_CONFLICT` مثال خاص) | `ADR P7-01` / `AE-IDEMPOTENCY-CONTRACT` |
+| `ERR_FORBIDDEN` | خرق نطاق شركة/صلاحية على الحد (`ErrScopeViolation` مثال خاص) | `ADR P8-01` / `AE-P8-CONCURRENCY-MODEL` |
+| `ERR_CONCURRENCY` | تعارض عابر قابل لإعادة المحاولة (قفل، تسلسل، منع تكرار قيد التنفيذ) | `ADR P8-01` / `AE-P8-CONCURRENCY-MODEL` |
+| `ERR_PERSISTENCE` | فشل تخزين محايد بعد الترجمة (لا يُكشف رمز المشغّل الخام) | `AE-P8-LOCKING-CONTRACT` / `AE-REMED-P10-AUDIT-CONTRACT` |
+| `ERR_INTERNAL` | فشل داخلي غير مصنّف؛ يُعامل افتراضياً كنهائي وفق `ERR-004` | `ADR P7-01` لسياسة الفشل المغلق |
+
+تُحال سجلات القرارات المعمارية (`ADR`) وعقود النواة إلى هذا الجدول عند وصف ترجمة الأخطاء إلى سطح الواجهة؛ ولا يُنشئ الجدول رموزاً حارسية جديدة ولا يغيّر تصنيف إعادة المحاولة في `ERR-003`.
 
 ### ERR-002 — الترجمة المحايدة لأخطاء الحدود
 
@@ -153,7 +169,7 @@
 **يجب (MUST)** تصنيف أخطاء النواة وحدود التخزين تصنيفاً حتمياً إلى **قابل لإعادة المحاولة (`Retryable`)** أو **غير قابل لإعادة المحاولة (`Non-retryable / Terminal`)**:
 
 - **قابل لإعادة المحاولة:** `ErrIdempotencyInProgress`، و`ErrIdempotencyStorageUnavailable`، و`ErrConcurrentModification` / `ErrConcurrencyConflict`، و`ErrDeadlockDetected`، و`ErrSerializationFailure`، وانتهاء مهل التنفيذ/النقل (تخضع لاستعلام منع تكرار آمن).
-- **غير قابل لإعادة المحاولة (نهائي):** أخطاء التحقق، وعدم تطابق العملة/النطاق/الهوية، و`ErrIdempotencyPayloadConflict` (مرادفه في بعض العقود `ErrIdempotencyConflict`)، و`ErrEntryAlreadyReversed`، و`ErrRevaluationAlreadyApplied`، و`ErrAtomicityViolation`، و`ErrScopeViolation`.
+- **غير قابل لإعادة المحاولة (نهائي):** أخطاء التحقق، وعدم تطابق العملة/النطاق/الهوية، و`ErrIdempotencyPayloadConflict` (الاسم المعتمد؛ انظر جدول 5.2 للأسماء الموثقة) و`ErrEntryAlreadyReversed`، و`ErrRevaluationAlreadyApplied`، و`ErrAtomicityViolation`، و`ErrScopeViolation`.
 
 **معايير القبول**
 
@@ -167,6 +183,16 @@
 
 - يُعامل الخطأ الداخلي غير المصنف أو غير المتوقع بوصفه غير قابل لإعادة المحاولة افتراضياً.
 
+#### جدول 5.2 — الأسماء المعتمدة والأسماء المستعارة الموثقة
+
+| الاسم المعتمد (`Canonical`) | الأسماء المستعارة الموثقة (`Documented aliases`) | ملاحظة التمييز |
+| --- | --- | --- |
+| `ErrIdempotencyPayloadConflict` (معرّف تخزين `ErrIdempotencyPayloadConflict` في `pkg/spi/storage`) | `ErrIdempotencyConflict`، `ErrIdempotencyKeyConflict` | كلها تشير إلى تعارض **الحمولة لنفس نطاق منع التكرار**؛ لا تُستخدم هذه الأسماء للمفتاح الفارغ أو للنطاق المزور |
+| `ErrIdempotencyKeyRequired` | لا يوجد | يُستخدم حصراً عندما يكون `IdempotencyKey` فارغاً أو مسافات بيضاء بعد الاقتطاع (`ID-005`) |
+| `ErrIdempotencyScopeRequired` | لا يوجد | يُستخدم حصراً عند بناء نطاق بمعطيات مزورة/غير مكتملة (مثل تلميح `revaluation` ذو `CompanyID` أو `Key` غير مطابقين)؛ **ليس** مرادفاً لـ `ErrIdempotencyKeyRequired` |
+
+يجب (MUST) على المحولات إرجاع الاسم المعتمد عند حد النواة/التخزين، والاحتفاظ بالأسماء المستعارة لأغراض التوثيق والتوافق مع العقود القائمة فقط؛ ويُحال إلى [عقد منع التكرار](../../contracts/KERNEL_IDEMPOTENCY_CONTRACT.md) عند تفسير حالات التعارض.
+
 ---
 
 ## 6. عقد الأخطاء (Error Contract)
@@ -176,7 +202,8 @@
 | `ErrCompanyScopeRequired` | `CompanyID` صفري/معدوم | ما قبل القراءة / نقطة الدخول | لا |
 | `ErrMissingEntryID` / `ErrMissingLineID` / `ErrMissingJournalID` | معرّف الكيان أو السطر أو اليومية صفري/معدوم | ما قبل التحقق / فحص الهوية | لا |
 | `ErrDuplicateLineID` | تكرار `EntryLineID` في القيد | التحقق من الهوية | لا |
-| `ErrPosterIDRequired` / `ErrIdempotencyKeyRequired` / `ErrReversalReasonRequired` | `ActorID` أو `IdempotencyKey` (مرادفه في عقد النطاق `ErrIdempotencyScopeRequired`) أو السبب فارغ بعد الاقتطاع | ما قبل التحقق | لا |
+| `ErrPosterIDRequired` / `ErrIdempotencyKeyRequired` / `ErrReversalReasonRequired` | `ActorID` أو `IdempotencyKey` أو السبب فارغ بعد الاقتطاع؛ **`ErrIdempotencyKeyRequired` للمفتاح الفارغ فقط، وليس مرادفاً لـ `ErrIdempotencyScopeRequired`** (انظر جدول 5.2) | ما قبل التحقق | لا |
+| `ErrIdempotencyScopeRequired` | تلميح نطاق منع تكرار مزور/غير مكتمل (مثل `revaluation` بمعرّف شركة أو مفتاح غير مطابقين) بعد الاقتطاع | ختم النطاق | لا |
 | `ErrSubMinorUnitAmount` / `ErrAmountExceedsPrecision` | كسر دون الوحدة الصغرى أو فيضان العدد الصحيح 64-بت | تحويل الوحدات الصغرى | لا |
 | `ErrAccountIdentityMismatch` / `ErrCostCenterRequired` / `ErrDimensionReaderRequired` / `ErrInactiveFinancialDimension` | كيان عابر للشركات أو غياب/عدم نشاط الأبعاد التحليلية | التحقق من الحساب والأبعاد | لا |
 | `ErrAccountNotCurrent` / `ErrAccountNotEffective` | الحساب خارج نافذة نفاذه بتاريخ المعاملة | التحقق من الحساب / الأهلية | لا |
@@ -224,9 +251,9 @@
 
 ### الملحق أ — سجل القرارات الهندسية (Decision Log)
 
-- **DEC-ID-001 (الاسم المعتمد لتعارض الحمولة وتوحيد مرادفات الأخطاء الحارسة):**
-  - **القرار:** اعتماد `ErrIdempotencyPayloadConflict` في عقد النواة (ومرادفه الوثائقي `ErrIdempotencyConflict`)، وتوثيق التطابق الدلالي بين `ErrAccountNotCurrent` (`masterdata`) و`ErrAccountNotEffective` (`policy`)، وبين `ErrIdempotencyKeyRequired` (المفتاح الفارغ) و`ErrIdempotencyScopeRequired` (نطاق المنع غير المكتمل/المزور).
-  - **البدائل المدروسة:** إزالة أحد الأسماء فوراً دون مرادف؛ رُفض لأن ذلك يكسر التوافق مع الاختبارات وعقود `SPI` القائمة.
+- **DEC-ID-001 (الاسم المعتمد لتعارض الحمولة وتوثيق الأسماء المستعارة للأخطاء الحارسة):**
+  - **القرار:** اعتماد `ErrIdempotencyPayloadConflict` في عقد النواة/Tخزين، مع `ErrIdempotencyConflict` و`ErrIdempotencyKeyConflict` بوصفهما اسمين مستعاريّن موثّقين (جدول 5.2)، وتوثيق التطابق الدلالي بين `ErrAccountNotCurrent` (`masterdata`) و`ErrAccountNotEffective` (`policy`). ويُبقى `ErrIdempotencyKeyRequired` (المفتاح الفارغ) و`ErrIdempotencyScopeRequired` (نطاق المنع غير المكتمل/المزور) خطأين **منفصلين** بمسارات تحفيز مختلفة، ولا يُوصفان بالترادف.
+  - **البدائل المدروسة:** إزالة أحد الأسماء فوراً دون مرادف؛ رُفض لأن ذلك يكسر التوافق مع الاختبارات وعقود `SPI` القائمة. ودمج خطأي المفتاح الفارغ والنطاق المزور؛ رُفض لأن أنبوب الترحيل يميّز بينهما.
   - **المالك والتاريخ ومُحفّز المراجعة:** مالك المعمارية ومالكي `types`/`posting` (2026-11-27)؛ يُراجع في الإصدار الرئيسي القادم `v2.0.0`.
 
 ### الملحق ب — تتبع القواعد (Rule traceability)
@@ -251,7 +278,7 @@
 ### v1.2.0
 
 - توثيق الرموز القياسية لـ `CodedError` في `ERR-001` وإضافة الأخطاء الحارسة للأبعاد والنفاذ والعكس إلى جدول §6.
-- تجريد `ID-006` من اسم النوع البرمجي `int64` وتوثيق مرادفات الأخطاء الحارسة في `DEC-ID-001`.
+- توثيق محايد مع الإبقاء على حد تمثيل `int64` عند حدود النواة في `ID-006`، وتوثيق الأسماء المعتمدة والمستعارة للأخطاء الحارسة في `DEC-ID-001` وجدول 5.2.
 - استيفاء ترويسة النضج والمالك وحقول `NSM-001`.
 
 ### v1.1.0

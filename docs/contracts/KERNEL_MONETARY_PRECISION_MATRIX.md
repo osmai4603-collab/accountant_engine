@@ -3,7 +3,7 @@
 - **رمز الوثيقة:** `AE-REMED-P2-MATRIX`
 - **المرحلة:** 2 — سلامة الأنواع والقيم المالية
 - **القرار المرجعي:** [ADR P2-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p2-01)
-- **الخطة:** [KERNEL_REMEDIATION_EXECUTION_PLAN.md](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المرحلة 2 مهمة 1
+- **الخطة:** ~~KERNEL_REMEDIATION_EXECUTION_PLAN.md~~ *(حُذف مجلد `plans/`)*، المرحلة 2 مهمة 1
 - **النطاق:** `internal/kernal/types` ونقاط استخدام `Money` في `journal` و`posting` و`valuation`
 - **الحالة:** مصفوفة تنفيذية مُثبتة بالاختبارات؛ لا تغيير في السلوك المالي القائم
 
@@ -12,7 +12,7 @@
 ## 1. الثوابت والأنواع
 
 | النوع/الثابت | القيمة | المعنى | مجال القيم | قاعدة الإنشاء | دليل التنفيذ |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | `Money` | `decimal.Decimal` + `string` | قيمة مالية دقيقة مرتبطة بعملة | أي Decimal يقبل قواعد `newMoney` أدناه | `NewMoney`, `NewMoneyFromDecimal`, `NewMoneyFromString`, `Zero` | `types/money.go:32-81` |
 | `FinancialScale` | `4` | مقياس عرض فقط؛ ليس وحدة صغرى ولا مقياس حفظ | ثابت | لا يُستخدم في قرار مالي؛ يُستخدم في `String` و`MarshalJSON` وfallback التوافق | `money.go:22`, `money.go:258-260`, `money.go:301-310` |
 | `InternalScale` | `12` | مقياس القسمة والتجميع الوسيط | ثابت | `Divide` → `DivRound(scalar, 12)` | `money.go:23`, `money.go:205-210` |
@@ -28,7 +28,7 @@
 ## 2. قواعد البناء والرفض
 
 | العملية | القاعدة | الخطأ عند المخالفة | اختبار الإثبات |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `NewMoney(amount, currency)` | تطبيع الرمز؛ رفض `XXX`/المجهول؛ فحص الأسس والدلالة والخانات الصحيحة | `ErrInvalidCurrency`, `ErrAmountExceedsPrecision` | `TestNewMoneyNormalizesCurrencyAndRejectsXXX`, `TestNewMoneyPrecisionBoundaryMatrix`, `FuzzMoneyConstructorPrecisionAndRoundTrip` |
 | `NewMoneyFromString(value, currency)` | `TrimSpace` ثم `decimal.NewFromString` ثم نفس قواعد `newMoney` | `ErrInvalidAmount`, `ErrInvalidCurrency`, `ErrAmountExceedsPrecision` | `TestInvalidAmounts`, `TestNewMoneyPrecisionBoundaryMatrix` |
 | `Zero(currency)` | `NewMoney(decimal.Zero, currency)` | كقواعد `newMoney` | `TestZeroValueMoneyJSONRoundTrip` |
@@ -37,7 +37,7 @@
 ## 3. مصفوفة المداخل والمخارج حسب الوحدة الصغرى
 
 | فئة العملة | ممثلون | `MinorUnit` | مثال كمية | `MinorUnitsExact` | `MinorUnits` | `Rounded()` | الفرق المسموح |
-|---|---|---:|---|---|---|---|---|
+| --- | --- | ---: | --- | --- | --- | --- | --- |
 | بلا كسور | JPY, KRW, CLP, BIF | 0 | `1.5` | `ErrSubMinorUnitAmount` | `2` (half-to-even) | `2` | `≤ 0.5` وحدة |
 | وحدتان عشريتان | USD, EUR, SAR, GBP | 2 | `1.005` | `ErrSubMinorUnitAmount` | `100` | `1.00` | `≤ 0.005` وحدة |
 | ثلاث وحدات | KWD, BHD, OMR, IQD | 3 | `1.0005` | `ErrSubMinorUnitAmount` | `1000` | `1.000` | `≤ 0.0005` وحدة |
@@ -48,7 +48,7 @@
 ## 4. العمليات وسياساتها
 
 | العملية | السياسة | حتمية/حدود | اختبار الإثبات |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `Add`, `Subtract` | فحص تطابق العملة ثم `newMoney` على النتيجة | تجمّع عشري exact؛ لا يعتمد على ترتيب Map | `TestMoneyOperationsPreserveCurrency`, `TestSequentialOperationsAreDeterministicAndBounded`, `FuzzMoneyOperationsPreserveCurrencyAndDeterminism` |
 | `Multiply` | ضرب عشري ثم إعادة التحقق من السقوف | تجاوز 28 خانة → `ErrAmountExceedsPrecision` | `TestMoneyOperationsPreserveCurrency` |
 | `Divide` | `DivRound(scalar, InternalScale)` | مقسوم عليه صفر → `ErrInvalidAmount`؛ كسور داخلية حتى 12 | `TestDivideKeepsInternalPrecisionUntilPosting`, `TestSequentialOperationsAreDeterministicAndBounded` |
@@ -63,7 +63,7 @@
 ## 5. التقريب نصف إلى زوجي (Banker's Rounding)
 
 | المقياس | midpoint | نتيجة زوجية | نتيجة فردية | الدليل |
-|---:|---|---|---|---|
+| ---: | --- | --- | --- | --- |
 | 0 | `2.5` / `3.5` | `2` / `4` | حسب زوجية خانة الآحاد | `TestBankersRoundingEdgeCases` |
 | 2 | `10.005` / `10.015` | `10.00` / `10.02` | `10.02` عند فردية الخانة | `TestBankersRoundingEdgeCases`, `TestBankersRoundingTieToEvenProperty` |
 | 3 | `1.0005` / `1.0015` | `1.000` / `1.002` | حسب زوجية الخانة الثالثة | `TestBankersRoundingEdgeCases`, `TestBankersRoundingTieToEvenProperty` |
@@ -83,7 +83,7 @@
 ## 7. التتبع إلى القواعد المحاسبية
 
 | القاعدة | ما تثبته هذه المصفوفة |
-|---|---|
+| --- | --- |
 | `RULE-KERNEL-001` | الفروق الناتجة عن التقريب معلنة وقابلة للتسوية الصريحة |
 | `RULE-KERNEL-002` | وحدة العملة إلزامية في الجمع/الطرح والمقارنة |
 | `RULE-KERNEL-003` | رفض المدخلات النصية والأسس غير الصالحة |

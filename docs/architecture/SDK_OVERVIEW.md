@@ -9,12 +9,12 @@
 - **مكتبة Go مضمنة (In-Process Library):** لا خادم HTTP، ولا gRPC، ولا منافذ شبكية، ولا بروتوكولات نقل داخلها. كل شيء يتم باستدعاء دوال Go مباشرة داخل عملية التطبيق المضيف.
 - **منشئ مركزي (Builder):** تجمع الاعتماديات عبر `sdk.NewBuilder(opts...).Build(ctx)`، ولا يوجد مسار بناء بديل.
 - **واجهة تعتمد على المنافذ (Ports):** لا تأخذ خياراً يُسمى `WithPostgres` أو `WithMemory`؛ بل تأخذ `storage.Ports` مجردة يوفّرها محوّل التخزين (Adapter) الذي يختاره المضيف.
-- **سطح خدمات مقسّم:** `Ledger()`، `Reporting()`، `Governance()`، `Events()`، `Standards()`، `Scheduler()`، و`Close()`.
+- **سطح خدمات مقسّم:** `Ledger()`، `Reporting()`، `Governance()`، `Events()`، `Standards()`، `Scheduler()` (ست خدمات)، إضافةً إلى `Close()` و`CloseWithContext()` لإدارة دورة الحياة لا كخدمات مجال.
 - **نظام قدرات صريح (Explicit Opt-in):** التقارير، الحوكمة، المعايير الدولية، الأحداث، والدفاتر المساعدة لا تُفعّل صامتة؛ إما تُقدَّم بشكل صريح أو تُعيد `ErrCapabilityNotImplemented` صراحة.
 - **حارسة للثوابت المحاسبية:** تمنع المرور إلى طبقة التطبيق إذا كانت القيود غير مكتملة، وتتحقق من القدرات المطلوبة قبل بناء المحرك (Fail-fast).
 - **طبقة تكييف بين عالمين:** تحوّل أنواع `pkg/api/v1` العامة إلى أنواع `internal/kernal`، وتمرّر الأوامر إلى `pkg/spi/application.Service` ثم إلى `internal/kernal/posting`.
 
-الحجم الحالي: **18 ملف Go داخل `pkg/sdk` + 1 ملف توثيق في `internal/orbitals/sdkapplication`**، بإجمالي ~3,827 سطراً شاملاً للاختبارات.
+الحجم الحالي (جرد 2026-11-27): **21 ملف Go داخل `pkg/sdk`** (18 في الجذر + 3 في `templates/`)، بإجمالي **4,684 سطراً** شاملاً للاختبارات، إضافةً إلى ملف توثيق واحد (`doc.go`) في `internal/orbitals/sdkapplication`.
 
 ---
 
@@ -47,7 +47,7 @@
 
 | الحزمة | مسموح لـ `pkg/sdk`؟ | الغرض |
 | --- | --- | --- |
-| `pkg/api/v1/*` | ✅ | أنواع البيانات العامة (DTOs): `journal`، `events`، `reporting`، `types` |
+| `pkg/api/v1/*` | ✅ | أنواع البيانات العامة (DTOs): `journal`، `events`، `reporting`، `types`، `ledger`، `governance`، `subledger` |
 | `pkg/spi/*` | ✅ | عقود المنافذ: `storage.Ports`، `application.Service`، `standards.*`، `events.*`، `subledger.*` |
 | `internal/kernal/*` | ✅ | النواة: `posting`، `policy`، `journal`، `masterdata`، `types` (داخل الحزمة فقط، لا تُعرَض في التوقيعات العامة) |
 | `internal/orbitals/*` | ✅ | المكونات المدارية (يُستخدم الآن عبر `sdkapplication` كمساحة محجوزة) |
@@ -94,6 +94,7 @@ pkg/sdk/
 ├── module_ports.go              # تحويل Ports إلى standards.ModulePorts
 ├── application.go               # طبقة التطبيق: أوامر/استعلامات + PostingPipeline
 ├── event_ingestion.go           # استيعاب الأحداث + idempotency + recovery (أكبر ملف)
+├── policy_store.go              # مخزن السياسات المؤرخ عبر Ports.Private (ADR P11-04)
 ├── cash_flow.go                 # ملحق GetCashFlow على خدمة التقارير
 ├── errors.go                    # أخطاء عامة موحّدة
 ├── templates/
@@ -102,8 +103,10 @@ pkg/sdk/
 │   └── adapters_test.go
 ├── application_test.go
 ├── builder_test.go
+├── classify_error_phase8_test.go
 ├── consumer_contract_test.go
-└── event_ingestion_test.go
+├── event_ingestion_test.go
+└── policy_store_test.go
 
 internal/orbitals/sdkapplication/
 └── doc.go                       # حزمة محجوزة لمحولات الاستخدام القابلة لإعادة الاستخدام (لا يوجد كود بعد)
@@ -120,8 +123,9 @@ internal/orbitals/sdkapplication/
 | `posting_config.go` | 63 | `PostingConfig` + `validatePostingConfig` + كشف القيم nil المُغلَّفة (typed-nil) |
 | `bootstrap_capabilities.go` | 140 | 6 قدرات قلاعية + رسائل خطأ قابلة للتنفيذ |
 | `module_ports.go` | 31 | بناء `standards.ModulePorts` من `storage.Ports` + `useCases` |
-| `application.go` | 622 | مُنشئات خدمة التطبيق، محوّل master data، `PostingPipeline`، `Authorize`، الأوامر الخمسة، السياسات الافتراضية، تصنيف الأخطاء |
+| `application.go` | 848 | مُنشئات خدمة التطبيق، محوّل master data، `PostingPipeline`، `Authorize`، الأوامر الخمسة، السياسات الافتراضية/المؤرخة، تصنيف الأخطاء |
 | `event_ingestion.go` | 895 | بصمة الحدث، بناء القيد، اختيار القاعدة، آلة حالات idempotency، الاسترداد، تصنيف الفشل، سياق الطلب |
+| `policy_store.go` | 170 | تحميل نسخ السياسات المؤرخة من `Ports.Private` ومسح السياسات الاصطناعية (ADR P11-04) |
 | `cash_flow.go` | 24 | `GetCashFlow` عبر تحقق من واجهة اختيارية على `ReportingStore` |
 | `errors.go` | 31 | أخطاء `ErrIdempotency*` و`ErrEvent*` وأخطاء المنشئ |
 | `templates/adapters.go` | 249 | ثلاثة محولات قطاعية تنفّذ `standards.StandardModule` |
@@ -226,6 +230,8 @@ type Engine interface {
 | `Events()` | `ProcessEvent` | `defaultEventService` | متاحة دائماً، لكنها ترفض مفاتيح idempotency إذا لم تُوفَّر المخازن |
 | `Standards()` | `Registry` / `Diagnostics` / `HasCapability` / `Scheduler` | `defaultStandardsService` | دائماً متاحة |
 | `Scheduler()` | `standards.SchedulerPort` | نفس مجدول `Standards()` | دائماً متاحة |
+
+> `Close()` و`CloseWithContext(ctx)` طريقتا دورة حياة (لا تُعدّان خدمة سابعة)؛ `Close()` يفوّض إلى `CloseWithContext(context.Background())` انظر §6.6.
 
 ### 6.2 `LedgerService` — مسار الترحيل (`builder.go:359`)
 
@@ -370,5 +376,5 @@ if err := engine.CloseWithContext(ctx); err != nil { log.Print(err) }
 - `pkg/spi/standards/{module.go,ports.go,registry.go,diagnostics.go}` — دورة حياة الوحدة
 - `pkg/api/v1/events/{event.go,rules.go}` — الحدث وقواعد الربط
 - `test/external_consumer/*` — إثبات الاكتفاء بـ `pkg/sdk`
-- `docs/ARCHITECTURAL_PRINCIPLES_CHARTER.md` — المبادئ `PRIN-ENG-01..05`
-- `docs/NEW_PROJECT_STRUCTURE.md` — قسم "طبقة السطح العام `pkg/`"
+- `docs/architecture/ARCHITECTURAL_PRINCIPLES_CHARTER.md` — المبادئ `PRIN-ENG-01..05`
+- `docs/architecture/NEW_PROJECT_STRUCTURE.md` — قسم "طبقة السطح العام `pkg/`"

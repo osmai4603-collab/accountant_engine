@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
+	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicevents "github.com/osmai4603-collab/accounting_engine/pkg/spi/events"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
@@ -125,6 +126,13 @@ type MasterDataReader interface {
 // currency and as-of date deterministically.
 type BalanceReader interface {
 	GetAccountBalance(ctx context.Context, companyID types.CompanyID, accountID types.AccountID, asOf time.Time, currency string) (decimal.Decimal, error)
+}
+
+// TransactionBalanceReader is an optional capability port (LDG-003 / DEC-LDG-001)
+// returning deterministic transaction-currency balances alongside functional
+// carrying amounts without altering BalanceReader semantics.
+type TransactionBalanceReader interface {
+	GetTransactionBalances(ctx context.Context, filter ledger.ForeignCurrencyBalanceFilter) ([]ledger.ForeignCurrencyBalance, error)
 }
 
 // AuditRecord is a single immutable audit entry appended by the engine.

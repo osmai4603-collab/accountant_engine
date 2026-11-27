@@ -261,6 +261,17 @@ type g019g022PlainMasterData struct {
 	storage.MasterDataReader
 }
 
+func (a g019g022PlainMasterData) GetJournalByID(
+	ctx context.Context,
+	companyID types.CompanyID,
+	journalID publicmasterdata.JournalID,
+) (publicmasterdata.Journal, error) {
+	if repo, ok := a.MasterDataReader.(publicmasterdata.JournalRepository); ok {
+		return repo.GetJournalByID(ctx, companyID, journalID)
+	}
+	return publicmasterdata.Journal{}, publicmasterdata.ErrJournalNotFound
+}
+
 // g019g022PolicyMasterData keeps the adapter's real Phase 11 capabilities but
 // presents distinct functional/presentation currencies to the SDK. The shared
 // parity fixture deliberately uses USD for both, which makes the SDK's
@@ -324,6 +335,17 @@ func (a g019g022PolicyMasterData) GetAnalyticalDimensionForCompany(
 	id string,
 ) (publicmasterdata.AnalyticalDimensionValue, error) {
 	return a.dimensions.GetAnalyticalDimensionForCompany(ctx, companyID, kind, id)
+}
+
+func (a g019g022PolicyMasterData) GetJournalByID(
+	ctx context.Context,
+	companyID types.CompanyID,
+	journalID publicmasterdata.JournalID,
+) (publicmasterdata.Journal, error) {
+	if repo, ok := a.MasterDataReader.(publicmasterdata.JournalRepository); ok {
+		return repo.GetJournalByID(ctx, companyID, journalID)
+	}
+	return publicmasterdata.Journal{}, publicmasterdata.ErrJournalNotFound
 }
 
 func g019g022DraftCommand(f UnifiedFixture, centerID types.CostCenterID, projectID types.ProjectID, key string) publicapplication.CreateDraftCommand {

@@ -115,3 +115,9 @@ type Store interface {
 	CreateFiscalPeriod(context.Context, FiscalPeriod) error
 	GetFiscalPeriod(context.Context, types.CompanyID, types.FiscalPeriodID) (FiscalPeriod, error)
 }
+
+// JournalRepository exposes journal lookup by unique ID so posting can verify
+// effective windows, activity, and account/currency rules against the catalog.
+type JournalRepository interface {
+	GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID types.JournalID) (Journal, error)
+}

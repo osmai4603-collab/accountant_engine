@@ -31,8 +31,10 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
 
 | الدالة | الاستراتيجية |
 | --- | --- |
-| `GetJournalByID` | يجرب أولاً منفذاً خاصاً يُعيد نوع kernal، ثم منفذاً يُعيد النوع العام، ثم `GetJournalByCode("GENERAL")` إذا طابق الـ ID، وإلا يُعيد مجلة تركيبية باسم `GENERAL` و`tarikh 2000-01-01` دون خطأ. |
+| `GetJournalByID` | يجرب أولاً منفذاً خاصاً يُعيد نوع kernal، ثم منفذاً يُعيد النوع العام، ثم `GetJournalByCode("GENERAL")` إذا طابق الـ ID؛ وإلا يُعيد مجلة تركيبية باسم `GENERAL` وتاريخ `2000-01-01` **فقط كمسار توافق قديمي** حين لا يوفّر المحول متجراً مؤرخاً/منفذاً خاصاً للمجلات (انظر الملاحظة أدناه). |
 | `GetPeriodByNumber` | يتطلب منفذاً خاصاً؛ وإلا يعطي `errors.New("adjustment periods not supported")`. |
+
+> **المجلة التركيبية `GENERAL` (توافق قديمي، ADR P11-04):** القيمة `2000-01-01` كانت تُستخدم تاريخياً كعنصر افتراضي؛ بعد ADR P3-01/P11-04 لا يُعدّ بديلاً صامتاً عن متجر مؤرخ. إذا وفّر المضيف متجر يوميات/سياسات مؤرخاً، يُعتمد عليه ويُفشل مغلقاً عند غياب اليومية أو غياب نسخة تغطي التاريخ؛ المسار التركيبي محصور في المحولات القديمة التي لا تعرض منفذاً مؤرخاً، ولا يجوز أن يتقدّم على متجر فعلي. لا علاقة له بسياسات `2000-01-01` الاصطناعية المذكورة في §7.4.
 
 ### 7.3 `executePosting` و`executeReversalPosting` (`application.go:176`)
 
@@ -43,7 +45,7 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
    - `ActorID` / `Reason` / `CorrelationID` من `PostOptions`.
    - `Idempotency` من `commitIdempotency`: ينسخ نطاق النواة الخاتم والبصمة المستقرة لمساري `post`/`reverse`؛ التلميح المحقَّق `revaluation` يُحفظ كما هو ولا يُعاد تعيينه إلى `post`. لا يوجد use-case عام لإعادة التقييم في SDK (المرحلة 11، `G-024`، ADR P11-01).
 3. `ports.Posting.CommitPosting(ctx, commit)` — الذرية مسؤولية المحوّل.
-4. إلحاق سجل تدقيق عبر `ports.Audit.AppendAudit` إن وُجد. بعد المرحلة 11 يُلحق Adapter سجل التدقيق ذرياً في نفس معاملة القيد؛ إلحاق SDK منفصل كان قد يترك دليلاً غير متوازن.
+4. إلحاق سجل تدقيق عبر `ports.Audit.AppendAudit` إن وُجد. بعد المرحلة 11 يُلحق Adapter سجل التدقيق **ذرياً في نفس معاملة القيد** (`UnitOfWork`)؛ إلحاق SDK منفصل أُزيل لمنع دليل غير متوازن.
 
 ### 7.4 `ensurePolicies` (`application.go:260`)
 
@@ -60,7 +62,7 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
 
 ### 7.4.1 منافذ master data الاختيارية (المرحلة 11، `G-019`/`G-022`)
 
-يربط SDK قارئ النسخة النافذة ومراكز التكلفة والأبعاد التحليلية انتقائياً إن وفّرها المحول عبر `Ports.Private`. غيابها يُبقي النواة في وضع الفشل المغلق؛ لا تُوسَّع `storage.Ports` المستقرة، ولا تظهر أنواع `internal/kernal` في التوقيعات العامة.
+يربط SDK قارئ النسخة النافذة ومراكز التكلفة والأبعاد التحليلية انتقائياً إن وفّرها المحول؛ التنفيذ في `newApplication` (`application.go`) يستخدم **type assertions على `ports.MasterData`** لـ `publicmasterdata.EffectiveAccountReader` و`CostCenterReader` و`AnalyticalDimensionReader`، ثم يغلّفها في قارئ مركّب قبل تمريره إلى `posting.NewPostingPipeline` (وفق [ADR P11-02](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-02)). أما `Ports.Private[PolicyStoreExtensionKey]` فيُستخدم لمخزن السياسات المؤرخ (ADR P11-04)، وليس لاكتشاف منافذ master data. غياب القدرات يُبقي النواة في وضع الفشل المغلق؛ لا تُوسَّع `storage.Ports` المستقرة، ولا تظهر أنواع `internal/kernal` في التوقيعات العامة.
 
 ### 7.5 `authorize` (`application.go:290`)
 
@@ -77,7 +79,7 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
 | --- | --- |
 | `CreateDraft` / `CreateDraftWithID` | ID تلقائي إن لم يُعطَ؛ تاريخ effective ← now، posting ← effective؛ مجلة افتراضية عبر بحث `GENERAL` ثم `RETAIL, AGRICULTURE, SAAS, DEFAULT`؛ توليد ID لكل سطر؛ تصنيف افتراضي `EntryClassRegular`؛ تحليل `ExchangeRate` بـ decimal؛ حفظ عبر `Drafts.SaveDraft`. |
 | `Validate` | يتطلب حالة `draft`، يضمن السياسات، ثم `posting.ValidateEntryDoubleEntry`. |
-| `Post` | `Idempotency.Claim` (من `storage.Ports`) → إذا كانت الحالة `completed` فيُعاد القيد مع `IdempotentReplay: true`، وإلا `ErrIdempotencyInProgress`؛ ثم `pipeline.PostEntry`؛ عند الفشل يُعلَّم المفتاح `terminal_failure`، وعند النجاح `Complete`. |
+| `Post` | `Idempotency.Claim` (من `storage.Ports`) → إذا كانت الحالة `completed` فيُعاد القيد مع `IdempotentReplay: true`، وإلا `ErrIdempotencyInProgress`؛ ثم `pipeline.PostEntry`؛ عند الفشل يُعلَّم المفتاح `retryable_failure` (فشل عابر) أو `terminal_failure` (فشل نهائي) وفق تصنيف `posting.IsRetryable`، وعند النجاح `Complete`. |
 | `Reverse` | `posting.BuildReversalEntry` ثم نفس الـ pipeline مع `Reason` و`PostOptions`. |
 | `GetEntry` | تفويض إلى `Entries.GetEntry` بعد التفويض. |
 
@@ -179,7 +181,7 @@ stateDiagram-v2
 
 تفاصيل مهمة:
 
-- **بدون مفتاح idempotency** (`key == ""`): يُرحَّل مباشرة دون أي سجل ديمومة.
+- **بدون مفتاح idempotency** (`key == ""`): يُرفض بخطأ `ErrIdempotencyKeyRequired` في مسار `PostEntry`؛ أما في مسار استيعاب الأحداث (`ProcessEvent`) فيُرحَّل مباشرة دون سجل ديمومة.
 - **بمفتاح بدون مخزن**: `ErrIdempotencyStateUnavailable` → `ErrDependencyUnavailable`.
 - **مصدر غير افتراضي**: يتطلب أن ينفّذ المخزن `ScopedIdempotencyStore`؛ وإلا خطأ `does not support source-system scoping`. المصدر الافتراضي `"event"` يحافظ على المفتاح الخام للتوافق مع السجلات القديمة.
 - **الحالة `started`:** انتظار مقيّد بـ `WithEventIdempotencyWaitPolicy` (افتراضي 2s/25ms) عبر `waitForIngestion`؛ بعد انتهاء المهلة يُحاول `recoverStartedIngestion`.
@@ -192,7 +194,7 @@ stateDiagram-v2
 
 ## 9. الخيارات (`options`) والقدرات القلاعية (Bootstrap Capabilities)
 
-### 9.1 جدول الخيارات (`options.go`)
+### 9.1 جدول الخيارات (`options.go` + `bootstrap_capabilities.go`)
 
 | الخيار | الأثر | التحقق |
 | --- | --- | --- |
@@ -206,6 +208,8 @@ stateDiagram-v2
 | `WithStandard(module)` | يضيف وحدة معيار/قطاع | module ≠ nil |
 | `WithSubledgerARAP(stores)` | يعلن توفّر مخازن AR/AP | يجب توفّر `Receivables` و`Payables` و`Balance` (كشف typed-nil عبر `reflect`) |
 | `WithRequiredCapabilities(caps...)` | يفرض توفر قدرات قبل البناء | أسماء معروفة فقط، إزالة التكرار |
+
+> **موقع الخيار:** `WithRequiredCapabilities` مُعرَّف فعلياً في `bootstrap_capabilities.go` (ويُطبَّق أثناء `Build`/`preflight` عبر `builder.go`)، **وليس في `options.go`** الذي يحمل بقية خيارات `WithXXX`.
 
 ### 9.2 `PostingConfig` (`posting_config.go`)
 
@@ -323,8 +327,8 @@ type EventInput struct {
 | 8 | `ProcessEvent` يرفض `Dimensions` تماماً ويتطلب عملة = العملة الوظيفية | لا تحويل FX ولا أبعاد تحليلية عبر هذا المسار حالياً. |
 | 9 | فشل `RunScheduledJobs` لا يُفشل `Build` | يُسجَّل كـ disabled reason فقط؛ راقب `Diagnostics().DisabledReasons`. |
 | 10 | `internal/orbitals/sdkapplication` يحتوي على `doc.go` فقط | الحزمة محجوزة معمارياً لكنها لا تحتوي محولات استخدام بعد. |
-| 11 | أخطاء `AppendAudit` و`setPolicy` (مغلقة جزئياً في المرحلة 11) | `setPolicy` لم يَعُد مُهمَلاً، والتدقيق يُلحق ذرياً في Adapter؛ يبقى تأكيد تغطية كل مسارات الاستيعاب مرتبطاً بتشغيل بوابة العقد الكاملة. |
-| 12 | `GetJournalByID` في محول البيانات الوصفية قد يُعيد مجلة `GENERAL` تركيبية | تحقق من وجود المجلات فعلياً في master data قبل الاعتماد على هذا المسار. |
+| 11 | أخطاء `AppendAudit` و`setPolicy` (`G-021` **مغلقة** في المرحلة 11) | `setPolicy` لم يَعُد مُهمَلاً، والتدقيق يُلحق ذرياً في Adapter؛ الأخطاء تُعاد ولا تُبتلع. تأكيد التغطية يتم بتشغيل بوابة العقد الكاملة، لا بتصنيف الفجوة مفتوحة/جزئية. |
+| 12 | `GetJournalByID` في محول البيانات الوصفية قد يُعيد مجلة `GENERAL` تركيبية (`2000-01-01`) | مسار توافق قديمي فقط عند غياب متجر مؤرخ؛ مع متجر مؤرخ يفشل مغلقاً (ADR P11-04). تحقق من وجود المجلات فعلياً قبل الاعتماد عليه. |
 
 > هذه القائمة يجب مراجعتها عند كل تحديث للمحرك؛ الهدف منها منع الافتراض الخاطئ بأن "التسجيل في Diagnostics" يعني "خدمة قابلة للاستدعاء".
 

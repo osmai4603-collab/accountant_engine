@@ -249,3 +249,38 @@ func TestTransactionErrorClassification(t *testing.T) {
 		t.Fatal("RetryableError must unwrap to its cause")
 	}
 }
+
+func TestFingerprintRejectsDelimiterInjectionInFreeTextFields(t *testing.T) {
+	entry := newPostingTestEntry(t, "creator-1")
+	scope := IdempotencyScope{
+		CompanyID: entry.CompanyID,
+		Operation: IdempotencyPosting,
+		Key:       "fx-revaluation|allowed-in-key",
+	}
+	opts := PostOptions{ActorID: "actor-1", Reason: "valid"}
+
+	if _, err := FingerprintCallerPayload(entry, opts, scope); err != nil {
+		t.Fatalf("baseline FingerprintCallerPayload failed with pipe in IdempotencyKey: %v", err)
+	}
+
+	malicious := []func(*journal.JournalEntry, *PostOptions){
+		func(e *journal.JournalEntry, _ *PostOptions) { e.Description = "ok|entry.posted_by=attacker" },
+		func(e *journal.JournalEntry, _ *PostOptions) { e.SourceModule = "billing|bad" },
+		func(e *journal.JournalEntry, _ *PostOptions) { e.ReferenceID = "ref\ninjected" },
+		func(e *journal.JournalEntry, _ *PostOptions) { e.ReversalReason = "bad\rreason" },
+		func(e *journal.JournalEntry, _ *PostOptions) { e.Lines[0].MatchingNumber = "M|1" },
+		func(_ *journal.JournalEntry, o *PostOptions) { o.ActorID = "actor|spoof" },
+		func(_ *journal.JournalEntry, o *PostOptions) { o.Reason = "reason|spoof" },
+	}
+	for i, mutate := range malicious {
+		e := entry.Clone()
+		o := opts
+		mutate(&e, &o)
+		if _, err := FingerprintCallerPayload(e, o, scope); !errors.Is(err, ErrInvalidEntry) {
+			t.Fatalf("case %d: FingerprintCallerPayload error = %v, want ErrInvalidEntry", i, err)
+		}
+		if _, err := FingerprintRequest(e, o, scope); !errors.Is(err, ErrInvalidEntry) {
+			t.Fatalf("case %d: FingerprintRequest error = %v, want ErrInvalidEntry", i, err)
+		}
+	}
+}

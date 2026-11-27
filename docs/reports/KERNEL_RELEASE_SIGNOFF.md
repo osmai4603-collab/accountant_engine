@@ -1,23 +1,25 @@
-# وثيقة الاعتماد والتوقيع النهائي للإصدار (Release Sign-off) — `v1.0.0`
+# وثيقة الاعتماد والتوقيع النهائي للإصدار (Release Sign-off) — `v1.0.0` *(مُلغاة — `SUPERSEDED`)*
 
-- **الحالة النهائية:** **`GO` — اعتماد كامل للإصدار** (جميع البوابات من G1 إلى G15 خضراء ومستوفاة بالكامل بأدلة تشغيلية حقيقية).
-- **تاريخ التقييم والاعتماد (UTC):** `2026-11-22`
-- **الإصدار المعتمد:** `v1.0.0`
+- **الحالة النهائية:** **`SUPERSEDED` — أُلغي هذا الاعتماد** بعد اكتشاف تضاربات توثيقية ومرجعية في تحليل الفجوات بتاريخ 2026-11-27 (راجع [`DOCS_CONFLICT_ANALYSIS.md`](../analysis/DOCS_CONFLICT_ANALYSIS.md)). **لا يوجد اعتماد إصدار ساري في هذه الوثيقة**؛ يلزم إعداد وثيقة اعتماد جديدة بعد تصحيح جميع التضاربات.
+- **تاريخ التقييم (UTC):** `2026-11-22` *(التوقيع المرجعي أدناه ملغى)*
+- **الإصدار المُقيَّم (غير معتمد حالياً):** `v1.0.0`
 - **مسار الحزمة:** `github.com/osmai4603-collab/accounting_engine`
-- **شجرة الكود المعتمدة (Commit SHA):** `c28151d0c5f2dd1bd761fb09820b3b99774fa728`
+- **شجرة الكود المُقيَّمة تاريخياً (Commit SHA):** `c28151d0c5f2dd1bd761fb09820b3b99774fa728` *(لا تُطابق Commit التقارير الأحدث؛ راجع تحليل التضاربات)*
 - **البيئة والمترجم:** Linux x86_64, `go version go1.26.3 linux/amd64`
-- **المراجع الحاكمة:**
-  - خطة المعالجة الشاملة: [docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
-  - تقرير التحقق النهائي (Tasks 1–20): [docs/KERNEL_FINAL_VERIFICATION_REPORT.md](KERNEL_FINAL_VERIFICATION_REPORT.md)
-  - تقرير تنفيذ المرحلة 12: [docs/KERNEL_REMEDIATION_PHASE12_REPORT.md](KERNEL_FINAL_VERIFICATION_REPORT.md)
-  - سجل الفجوات المحدث: [docs/KERNEL_REMEDIATION_GAP_REGISTER.md](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)
+- **المراجع الحاكمة (تاريخية — للاطلاع لا للاعتماد):**
+  - خطة المعالجة الشاملة: ~~docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md~~ *(حُذف مجلد `plans/`؛ دون رابط حي)*
+  - تقرير التحقق النهائي (Tasks 1–20): [docs/KERNEL_FINAL_VERIFICATION_REPORT.md](KERNEL_FINAL_VERIFICATION_REPORT.md) *(نتائج تاريخية، ليست شهادة سارية)*
+  - تقرير التحقق النهائي (يحل محل تقرير المرحلة 12 المحذوف): [docs/KERNEL_FINAL_VERIFICATION_REPORT.md](KERNEL_FINAL_VERIFICATION_REPORT.md)
+  - سجل الفجوات المحدث: ~~docs/KERNEL_REMEDIATION_GAP_REGISTER.md~~ *(حُذف)*؛ راجع [تقرير الفجوات](KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md) و[تحليل التضاربات](../analysis/DOCS_CONFLICT_ANALYSIS.md).
   - تقارير التكافؤ والطفرات والتغطية: [test/contract_parity/parity_report.md](../../test/contract_parity/parity_report.md), [internal/kernal/KERNEL_MUTATION_REPORT.md](../../internal/kernal/KERNEL_MUTATION_REPORT.md), [internal/kernal/KERNEL_COVERAGE_EXCEPTIONS.md](../../internal/kernal/KERNEL_COVERAGE_EXCEPTIONS.md)
 
 ---
 
-## 1. جدول التحقق من بوابات الجودة الخمس عشرة (Gates G1–G15)
+## 1. جدول التحقق التاريخي من بوابات الجودة الخمس عشرة (Gates G1–G15)
 
-| رمز البوابة | اسم وتعريف البوابة | النتيجة | الدليل التشغيلي الموثق |
+> النتائج `GO` أدناه مُسجَّلة ضمن الاعتماد المُلغى ولا تُقرأ كقرار ساري. الترقيم الرسمي للبوابات هو `G01–G11` في [`QUALITY_GATES_SPECIFICATION.md`](../quality/QUALITY_GATES_SPECIFICATION.md)؛ وهذا الجدول تشغيلي قديم راجعه [`QUALITY_GATES_CROSSWALK.md`](../quality/QUALITY_GATES_CROSSWALK.md). كما أن ادعاءات الأداء هنا (`ms/op`) ليست قياس حمل، ولا تطابق `performance_samples.json` المسجّل (~63 TPS، p95 337.7ms).
+
+| رمز البوابة | اسم وتعريف البوابة | النتيجة التاريخية | الدليل التشغيلي الموثق |
 | :--- | :--- | :---: | :--- |
 | **G1** | نظافة البناء والتجميع | **GO** | `go build ./...` يكتمل بدون أي أخطاء أو تحذيرات |
 | **G2** | اختبارات الوحدة الشاملة | **GO** | `go test ./... -count=1` خضراء 100% لكافة الحزم |
@@ -39,7 +41,7 @@
 
 ## 2. معالجة موانع الإصدار السابقة (Resolution of Historical NO-GO Blockers)
 
-تم حل جميع الموانع الثلاثة التي أدت إلى رفض الإصدار سابقاً في تقرير `docs/release_signoff_v1.0.0.md`:
+سُجِّل تاريخياً أن الموانع الثلاثة التالية عولجت قبل إلغاء الاعتماد؛ وهي أقوال المرحلة 12 قبل التضاربات المكتشفة في 2026-11-27، وليست إثباتاً لاعتماد ساري (المرجع الأصلي `docs/release_signoff_v1.0.0.md` محذوف):
 
 1. **مانع زمن استجابة الترحيل (Latency / Throughput):**
    - تم تقليص زمن مسار الترحيل من 40.50 ms إلى **12.55 ms** (تسريع بأكثر من 3.2 أضعاف)، والترحيل المتزامن إلى **9.24 ms**، مع خفض تخصيصات الذاكرة بنسبة تزيد عن 69%.
@@ -50,8 +52,10 @@
 
 ---
 
-## 3. قرار الاعتماد النهائي والتوقيع
+## 3. قرار الاعتماد النهائي والتوقيع *(مُلغى)*
 
-- **القرار النهائي:** **`GO` — معتمد رسميّاً للنشر والإصدار المستقر (v1.0.0)**
-- **جهة الاعتماد:** فريق مهندسي النواة المحاسبية والتحقق النهائي (Kernel Engineering & Verification Authority)
-- **الختم الزمني:** `2026-11-22T06:14:00Z`
+- **القرار الساري:** **`SUPERSEDED` — لا يوجد إذن نشر أو إصدار مستقر بموجب هذه الوثيقة.** أي استشهاد بهذه الوثيقة كمرجع `GO` غير صالح.
+- **القرار التاريخي الملغى:** ~~`GO` — معتمد رسميّاً للنشر والإصدار المستقر (v1.0.0)~~ *(أُلغي بموجب السطر 3)*
+- **جهة الاعتماد التاريخية:** فريق مهندسي النواة المحاسبية والتحقق النهائي (Kernel Engineering & Verification Authority) — توقيعها غير سارٍ بعد الإلغاء.
+- **الختم الزمني التاريخي:** `2026-11-22T06:14:00Z`
+- **المطلوب لإعادة الاعتماد:** تصحيح التضاربات في [`DOCS_CONFLICT_ANALYSIS.md`](../analysis/DOCS_CONFLICT_ANALYSIS.md)، وإغلاق بوابات `G01–G11` الرسمية بأدلة مُحدَّثة (Run ID / Environment / Commit / Evidence URI)، ثم إصدار وثيقة اعتماد جديدة بتوقيع جهة معتمدة معلومة.

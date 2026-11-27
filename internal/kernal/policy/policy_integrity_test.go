@@ -627,6 +627,20 @@ func TestPolicyFingerprintIsCanonicalAndContentBound(t *testing.T) {
 			}
 		})
 	}
+
+	if checked, err := FingerprintChecked(posting, currency); err != nil || checked != first {
+		t.Fatalf("FingerprintChecked = (%q, %v), want (%q, nil)", checked, err, first)
+	}
+	badCurrency := currency
+	badCurrency.FunctionalCurrency = "USD|bad"
+	if _, err := FingerprintChecked(posting, badCurrency); !errors.Is(err, ErrInvalidPolicy) {
+		t.Fatalf("delimiter-injected currency error = %v, want ErrInvalidPolicy", err)
+	}
+	specialCurrency := currency
+	specialCurrency.FunctionalCurrency = "XTS"
+	if err := specialCurrency.Validate(); !errors.Is(err, ErrInvalidPolicy) {
+		t.Fatalf("special XTS policy error = %v, want ErrInvalidPolicy", err)
+	}
 }
 
 func TestPolicyEngineConcurrentResolveAndVersionUpdate(t *testing.T) {

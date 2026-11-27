@@ -3,9 +3,13 @@
 - **رمز الوثيقة:** `AE-REP-KERNEL-FINAL-VERIFICATION`
 - **الإصدار المستهدف:** Accounting Kernel v1.0.0 (Remediation Plan Final)
 - **تاريخ الفحص:** 2026-11-22
-- **الحالة الإجمالية للبوابات:** **PASS** (استيفاء تام لكافة بوابات الجودة الـ 15)
-- **الخطة المرجعية:** [`docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
-- **سجل الفجوات النهائي:** [`docs/KERNEL_REMEDIATION_GAP_REGISTER.md`](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)
+- **الحالة الإجمالية للبوابات:** **PASS** (استيفاء تام لكافة بوابات الجودة الـ 15) — *نتيجة تاريخية ضمن اعتماد مُلغى؛ راجع التنبيه أدناه*
+- **الحالة الراهنة للتقرير:** **سجل تاريخي (`Historical Record`)** — ليس شهادة اجتياز سارية ولا يمنح إذن إصدار. اعتماد الإصدار المُشار إليه مُلغى (`SUPERSEDED`) في [`KERNEL_RELEASE_SIGNOFF.md`](KERNEL_RELEASE_SIGNOFF.md).
+
+> **تنبيه حالة الاعتماد:** النتائج أدناه تعكس شجرة 2026-11-22 وتتعارض مع سجلات لاحقة: `E4 Not Verified` لأداء التشغيل والاستعادة في [`COMPLIANCE_TEST_SUITE_INDEX.md`](../quality/COMPLIANCE_TEST_SUITE_INDEX.md) (السطور 66–67)، وسجل تشغيل فارغ بالقيم النائبة `Pass/Fail/Not Run` (السطر 73)، ومواصفات ما زالت `Review Candidate`. لا يُعتمد هذا التقرير لإغلاق بوابة `G10`/`G11` دون أدلة مُحدَّثة. راجع [`DOCS_CONFLICT_ANALYSIS.md`](../analysis/DOCS_CONFLICT_ANALYSIS.md).
+> **ملاحظة الترقيم:** ترقيم البوابات في هذا التقرير (G1–G15) هو ترقيم تشغيلي خاص بمراحل التحقق. الترقيم الرسمي المعتمد هو G01–G11 في [`QUALITY_GATES_SPECIFICATION.md`](../quality/QUALITY_GATES_SPECIFICATION.md). راجع [`QUALITY_GATES_CROSSWALK.md`](../quality/QUALITY_GATES_CROSSWALK.md) لربط الأنظمة.
+- **الخطة المرجعية:** ~~`docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md`~~ *(حُذف مجلد `plans/`)*
+- **سجل الفجوات النهائي:** ~~`docs/KERNEL_REMEDIATION_GAP_REGISTER.md`~~ *(حُذف مجلد `plans/`)*
 
 ---
 
@@ -15,7 +19,7 @@
 
 - **نظام التشغيل:** Linux 7.2.6-76070206-generic x86_64
 - **إصدار Go المعتمد:** `go version go1.26.3 linux/amd64` (مطابق لـ `go.mod` و`toolchain`)
-- **حالة Git والمستودع:** فرع `main`، Commit الأساس `c28151d`
+- **حالة Git والمستودع:** فرع `main`، Commit الأساس `c28151d` *(commit تاريخي؛ تقارير التكافؤ الأحدث تذكر `94054d9`، وحزمة الجودة `e3318e4` — لا يمكن ربط النتائج بشجرة واحدة)*
 - **محول التخزين الفعلي:** PostgreSQL 18.6 معزول مع تفعيل دور غير superuser لفحص RLS وعزل الشركات
 - **محول التخزين الذاكري:** Memory Driver معزول لكل سيناريو
 
@@ -34,17 +38,17 @@
 | 7 | اختبارات الفازينج الشاملة | تشغيل أهداف Fuzz الـ 16 عبر `scripts/run_fuzz_all.sh` | 16/16 هدفاً PASS بـ 0 panics | **PASS** |
 | 8 | اختبار الطفرات الدلالية الموجهة | تشغيل `scripts/run_mutation_tests.sh` على القواعد الـ 8 | قتل 8/8 طفرات بنسبة 100.0% | **PASS** |
 | 9 | بوابة النقاء المعماري | تشغيل `./scripts/verify_architecture.sh` | 11/11 قاعدة معمارية خضراء (R1–R6) | **PASS** |
-| 10 | تكافؤ عقود محولات التخزين | تشغيل `test/contract_parity` على المحولين | 90 سيناريو PASS، 0 FAIL، 0 فرق غير معلن | **PASS** |
+| 10 | تكافؤ عقود محولات التخزين | تشغيل `test/contract_parity` على المحولين | 90 **نتيجة** PASS (45 سيناريو × محولين)، 0 FAIL، 0 فرق غير معلن | **PASS** |
 | 11 | حقن الأعطال والتزامن والعزل | سيناريوهات Phase 7 و Phase 8 المشتركة | حجز أقفال فعلي، فائز واحد، عزل RLS | **PASS** |
 | 12 | إعادة بناء GL وتطابق الأرصدة | `TestContractParity_GLRebuildDeterminismAndParity` | تطابق تام للأرصدة المعاد بناؤها مع المحولين | **PASS** |
 | 13 | الأداء ومقارنة خط الأساس | `go test ./test/benchmark -bench . -benchtime=1s` | تحسن بنسبة 30% إلى 300% عن خط الأساس | **PASS** |
 | 14 | فحص الذاكرة والتخصيصات | `go test ./test/benchmark -benchmem` | تخصيصات محدودة ومستقرة في المسار الساخن | **PASS** |
 | 15 | توافق السطح العام API/SPI | `./scripts/check_api_compat.sh` | صفر كسور أو حذف غير معلن في التوقيعات | **PASS** |
-| 16 | الثوابت الـ 27 ومصفوفة التتبع | `TestKernelTraceabilityMatrixCoversAllRulesAndNamedTests` | تغطية 100% لكافة القواعد بدوال واختبارات حقيقية | **PASS** |
+| 16 | القواعد/الثوابت ومصفوفة التتبع | `TestKernelTraceabilityMatrixCoversAllRulesAndNamedTests` | تغطية 100% لكافة القواعد بدوال واختبارات حقيقية؛ عدد «27» رقم تاريخي مختلف عن 13 ثابت `ACC` و47 معرّف `RULE-ACC` (راجع تحليل التضاربات) | **PASS** |
 | 17 | إغلاق الفجوات والمخاطر المتبقية | تحديث `KERNEL_REMEDIATION_GAP_REGISTER.md` | إغلاق كافة فجوات Critical/High بالكامل | **PASS** |
 | 18 | وثيقة اعتماد الإصدار | إعداد `KERNEL_RELEASE_SIGNOFF.md` | جاهزية موثقة ومعتمدة تقنياً | **PASS** |
 | 19 | التقرير النهائي للتحقق | إعداد هذه الوثيقة وتوثيق الأدلة | اكتمال الجرد الشامل والأدلة الحية | **PASS** |
-| 20 | قرار بوابة الإصدار | مطابقة معايير البوابات الـ 15 في القسم 6 | **RELEASE GO / PASS** | **PASS** |
+| 20 | قرار بوابة الإصدار | مطابقة معايير البوابات الـ 15 في القسم 6 | **RELEASE GO / PASS** *(تاريخي — مُلغى، انظر القسم 5)* | **PASS** |
 
 ---
 
@@ -81,11 +85,15 @@
 | **ميزان المراجعة الوسيط (Trial Balance Proxy)** | 1.28 – 1.38 ms/op | **0.873 ms/op** | 9,172 B/op (292 allocs) | **~35% أسرع** |
 
 > أظهرت كافة القياسات المرجعية تحسناً ملموساً واستقراراً تاماً في تخصيصات الذاكرة، دون أي انحدار أداء (Zero Regressions).
+>
+> **تحفّظ التوثيق:** هذه أرقام `ms/op` لمقاييس دقيقة (microbenchmarks) وليست قياس حمل تحت 1000 TPS. العيّنة المسجّلة في [`performance_samples.json`](performance_samples.json) تُظهر `tps ≈ 63.3` و`p50 ≈ 238.7ms` و`p95 ≈ 337.7ms` لمسار `posting_pipeline/postgres`، بما يتجاوز عتبات [`release_rollback_runbook.md`](../operations/runbooks/release_rollback_runbook.md) (`P50 ≤ 15ms`، `P95 ≤ 50ms`). لا توجد وثيقة توفّق بين القياسين؛ لا تُستخدم هذه الأرقام لادعاء جاهزية تشغيلية.
 
 ---
 
-## 5. قرار بوابة الإصدار النهائي (Release Decision)
+## 5. قرار بوابة الإصدار النهائي (Release Decision) — *تاريخي/مُلغى*
 
-بناءً على اكتمال جميع المراحل من 0 إلى 12، وإغلاق كافة الفجوات الحرجة وعالية الأولوية، واستيفاء البوابات النوعية الـ 15 بأدلة حية ومستقلة وقابلة لإعادة التشغيل:
+بناءً على اكتمال جميع المراحل من 0 إلى 12، وإغلاق كافة الفجوات الحرجة وعالية الأولوية، واستيفاء البوابات النوعية الـ 15 بأدلة حية ومستقلة وقابلة لإعادة التشغيل، سُجِّل تاريخياً:
 
-**قرار البوابة: PASS — مصادقة نهائية وجاهزية للإصدار (RELEASE GO).**
+~~**قرار البوابة: PASS — مصادقة نهائية وجاهزية للإصدار (RELEASE GO).**~~
+
+**القرار الساري:** لا يوجد قرار إصدار ساري؛ اعتماد الإصدار مُلغى (`SUPERSEDED`) في [`KERNEL_RELEASE_SIGNOFF.md`](KERNEL_RELEASE_SIGNOFF.md). يلزم إعادة إغلاق بوابات `G01–G11` الرسمية بأدلة مُحدَّثة قبل أي قرار `GO` جديد.

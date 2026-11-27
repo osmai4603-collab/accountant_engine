@@ -40,6 +40,14 @@ func Run(t *testing.T, store masterdata.Store) {
 	if _, err := store.GetJournalByCode(ctx, types.NewCompanyID(), journal.Code); err != masterdata.ErrJournalNotFound {
 		t.Errorf("read journal under another company error = %v, want ErrJournalNotFound", err)
 	}
+	if journalRepo, ok := store.(masterdata.JournalRepository); ok {
+		if got, err := journalRepo.GetJournalByID(ctx, company.ID, journal.ID); err != nil || !reflect.DeepEqual(got, journal) {
+			t.Fatalf("get journal by id = %#v, %v; want %#v", got, err, journal)
+		}
+		if _, err := journalRepo.GetJournalByID(ctx, types.NewCompanyID(), journal.ID); err != masterdata.ErrJournalNotFound {
+			t.Errorf("read journal by id under another company error = %v, want ErrJournalNotFound", err)
+		}
+	}
 
 	for _, invalidJournal := range []masterdata.Journal{
 		{ID: masterdata.NewJournalID(), CompanyID: company.ID, Code: "  ", Name: "Invalid"},
@@ -75,10 +83,11 @@ func Run(t *testing.T, store masterdata.Store) {
 		t.Error("read journal with cancelled context succeeded")
 	}
 
+	isMonetaryCash := true
 	account := masterdata.Account{
 		ID: types.AccountID(uuid.New()), CompanyID: company.ID, Code: "1000", Name: "Cash",
 		Type: masterdata.AccountTypeAsset, NormalBalance: masterdata.NormalBalanceDebit,
-		Currency: "USD", IsReconcilable: true, IsActive: true, IsCashEquivalent: true,
+		Currency: "USD", IsReconcilable: true, IsActive: true, IsMonetary: &isMonetaryCash, IsCashEquivalent: true,
 		CashFlowActivity: "operating", SubClassification: "unclassified", IFRSCategory: "unclassified",
 	}
 	if err := store.CreateAccount(ctx, account); err != nil {
@@ -154,4 +163,3 @@ func AssertUnsupported(t *testing.T, store masterdata.Store) {
 		}
 	}
 }
-

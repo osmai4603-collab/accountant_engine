@@ -4,7 +4,7 @@
 - **المرحلة:** 7 و11 — المعاملات والذرية ومنع التكرار، ثم تكافؤ نطاق `revaluation` بين المحولات
 - **التاريخ:** 2026-11-22
 - **خط الأساس المرجعي:** الالتزام `94054d9c9a5f8d8419c9871b2d61b17b44d5b556`
-- **الخطة:** [`KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المهام 4–9 (المرحلة 7) والمهمة 17 (المرحلة 11)
+- **الخطة:** ~~`KERNEL_REMEDIATION_EXECUTION_PLAN.md`~~ *(حُذف مجلد `plans/`)*، المهام 4–9 (المرحلة 7) والمهمة 17 (المرحلة 11)
 - **التنفيذ المرجعي:** `internal/kernal/posting/transaction.go`، `internal/kernal/posting/pipeline.go`، `pkg/spi/storage/ports.go`، `pkg/spi/storage/errors.go`
 - **الوثائق المرتبطة:** [عقد معاملة الترحيل](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [ذرية العكس](./KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [مجموعة اختبارات العقد](./KERNEL_CONTRACT_TEST_SUITE.md)
 
@@ -27,18 +27,19 @@ Scope.String()   = "company=<id>|operation=<post|reverse|revaluation>|key=<trimm
 | --- | --- | --- |
 | `CompanyID` | `entry.CompanyID` بعد Clone والتحقق | لا يُقبل نطاق شركة فارغ أو مختلف عن القيد |
 | `Operation` | `post` افتراضياً، و`reverse` إذا كان `ReversalOfID != nil`، و`revaluation` عند تلميح نطاق موثَّق في `PostOptions.Scope` | نفس نص المفتاح في الترحيل والعكس وإعادة التقييم يمثل ثلاث عمليات مختلفة |
-| `Key` | `strings.TrimSpace(opts.IdempotencyKey)` | مفتاح فارغ أو مسافات يُرفض بـ `ErrIdempotencyKeyRequired` (أو `ErrIdempotencyScopeRequired` عند بناء النطاق) |
+| `Key` | `strings.TrimSpace(opts.IdempotencyKey)` | مفتاح فارغ أو مسافات يُرفض بـ `ErrIdempotencyKeyRequired`؛ أمّا تلميح النطاق المزور/غير المكتمل فيُرفض بـ `ErrIdempotencyScopeRequired`؛ الخطآن منفصلان وليسا مرادفين |
 
 `BuildIdempotencyScope` هو المصدر الوحيد لهذه القيم. يُكتب فوق `Scope` الذي يرسله المتصل قبل استدعاء Executor، باستثناء تلميح `revaluation` الموثَّق: يقبل النواة العملية الثالثة فقط إذا تطابق `Scope.CompanyID` مع شركة القيد و`Scope.Key` مع `opts.IdempotencyKey`؛ وأي انحراف يُرفض بـ `ErrIdempotencyScopeRequired`. شركة النطاق ومفتاحه لا يُؤخذان أبداً من المتصل. الدليل: `TestPostEntryStampsIdempotencyContractOnExecutorOptions`، `TestBuildIdempotencyScopeHonorsValidatedRevaluationHint` و`TestBuildIdempotencyScopeRejectsForgedRevaluationHint`.
 
 ## 3. بصمة الطلب
 
-هناك بصمتان canonical بصيغة `sha256:<hex>`:
+هناك **بصمتان اثنتان** canonical بصيغة `sha256:<hex>` لعمليات `post`/`reverse`، **تُضاف إليهما بصمة `revaluation` v2** ببادئة `fx-revaluation-payload-v2|` لعمليات إعادة التقييم؛ لا تُستبدل إحدى البصمتين بالأخرى ولا تُستخدم بصمة الترحيل العامة لإعادة التقييم (`VAL-010`، `ADR P11-01`).
 
 | البصمة | الوظيفة | من يستخدمها |
 | --- | --- | --- |
 | `RequestFingerprint` | digest للنسخة المجمدة بعد التحقق والختم، بما يشمل `FiscalPeriodID` و`PolicyFingerprint` و`PostingDate` و`PostedAt` | `(PostOptions.RequestFingerprint)` يُسلَّم إلى Executor لوصف اللقطة التي قررتها النواة بالضبط |
 | `CallerFingerprint` | digest للحقول التي يملكها المتصل قبل التحويل، ويبقى ثابتاً عبر خطوات الترحيل | `PostingCommit.Idempotency.PayloadHash` في SDK، ويُستخدم للكشف عن إعادة المفتاح بحمولة مختلفة قبل وبعد الترحيل |
+| بصمة `revaluation` v2 (`fx-revaluation-payload-v2|`) | digest قانوني مسبوق الطول لحمولة إعادة التقييم، مع استبعاد المعرّفات المولّدة عشوائياً | `PayloadHash` عند ترحيل `operation=revaluation`؛ انظر [مصفوفة قواعد التقييم](./KERNEL_VALUATION_RULES_MATRIX.md) و`VAL-010` |
 
 قواعدCanonical موحدة:
 
@@ -51,7 +52,7 @@ Scope.String()   = "company=<id>|operation=<post|reverse|revaluation>|key=<trimm
 
 الدليل: `TestRequestFingerprintIsCanonicalAndPayloadSensitive` و`TestRequestFingerprintIgnoresLineOrder`.
 
-> الفرق بين البصمتين مقصود: `RequestFingerprint` يصف «ماذا حُفظ فعلاً»، و`CallerFingerprint` يصف «ماذا أرسل المتصل». استخدام إحداهما مكان الأخرى يسبب تعارضاً زائفاً بعد أن تملأ النواة حقول الفترة والسياسة والتاريخ.
+> الفرق بين البصمتين الخاصتين بـ `post`/`reverse` مقصود: `RequestFingerprint` يصف «ماذا حُفظ فعلاً»، و`CallerFingerprint` يصف «ماذا أرسل المتصل». استخدام إحداهما مكان الأخرى يسبب تعارضاً زائفاً بعد أن تملأ النواة حقول الفترة والسياسة والتاريخ. أمّا بصمة `revaluation` v2 فهي حمولة مستقلة ببادئتها، ولا تُستبدل بأيّ من البصمتين السابقتين.
 
 ## 4. حالة التنفيذ
 
@@ -105,7 +106,7 @@ Scope.String()   = "company=<id>|operation=<post|reverse|revaluation>|key=<trimm
 | `ErrIdempotencyStorageUnavailable` | retryable | المخزن قد يعود؛ الترحيل لا يتم بدونه |
 | `ErrConcurrencyConflict` | retryable | تعارض تسلسلي يُعاد تشغيله من بداية وحدة العمل |
 | `context.DeadlineExceeded` | retryable | يجب أولاً التحقق بالمفتاح قبل أي إعادة إرسال |
-| `ErrIdempotencyConflict` | non-retryable | تغيير البصمة مستحيل دون طلب جديد صريح |
+| `ErrIdempotencyPayloadConflict` (الاسم المعتمد؛ `ErrIdempotencyConflict` و`ErrIdempotencyKeyConflict` أسماء موثّقة، انظر جدول 5.2 في [مواصفة المعرّفات والأخطاء](../specifications/kernel/IDENTIFIERS_AND_ERRORS_DOMAIN_SPECIFICATION_v1.2.0.md)) | non-retryable | تغيير البصمة مستحيل دون طلب جديد صريح |
 | `ErrReversalAlreadyApplied` | non-retryable | العكس الثاني محظور نهائياً |
 | `ErrRevaluationAlreadyApplied` | non-retryable | نطاق إعادة التقييم استُخدم بنتيجة محاسبية مختلفة |
 | `ErrAtomicityViolation` | non-retryable | خلل في المحول لا تحلّه إعادة المحاولة |
@@ -130,7 +131,7 @@ type PostingIdempotency struct {
 ## 10. القيود المتبقية
 
 - تخصيص رقم السلسلة في SDK يبقى قبل الالتزام؛ فشل ما قبل Commit قد يترك فجوة في أرقام القيود، لكنه لا يترك قيداً أو أثراً مالياً. هذا محفوظ لضمان توافق اختبارات atomic الحالية، وموثّق كقيد residual في [تقرير المرحلة 7](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
-- `Lookup` الحالية تأخذ `(companyID, key)` لا العملية صراحةً؛ نطاق التفرد نفسه ثلاثي ومفروض في الحجز، لكن عند استخدام نفس نص المفتاح لعمليات `post` و`reverse` و`revaluation` فإن الاستعلام بالمفتاح المجرد يُرجع أحدث سجل. التوصية للمضيف: مفاتيح نصية مختلفة لكل نوع عملية عند الاعتماد على الاستعلام؛ مفتاح إعادة التقييم يبدأ بادئة `fx-revaluation|` لضمان ذلك.
+- `Lookup` الحالية تأخذ `(companyID, key)` لا العملية صراحةً؛ نطاق التفرد نفسه ثلاثي ومفروض في الحجز، لكن عند استخدام نفس نص المفتاح لعمليات `post` و`reverse` و`revaluation` فإن الاستعلام بالمفتاح المجرد يُرجع أحدث سجل. التوصية للمضيف: مفاتيح نصية مختلفة لكل نوع عملية عند الاعتماد على الاستعلام؛ مفتاح إعادة التقييم يبدأ بادئة `fx-revaluation|` لضمان ذلك. يُشار إلى هذا القيد صراحةً في [عقد معاملة الترحيل](./KERNEL_POSTING_TRANSACTION_CONTRACT.md) و[نموذج التزامن](./KERNEL_CONCURRENCY_MODEL.md): الاستعلام هو `(companyID, key)` عبر العمليات، ولذلك على المضيفين استخدام بادئات مفاتيح مختلفة لكل عملية قبل الاعتماد على نتيجة ما بعد الالتزام.
 
 ## 11. الحكم
 

@@ -17,4 +17,3 @@ func TestPostgresMasterDataContract(t *testing.T) {
 
 	masterdatacontract.Run(t, driver)
 }
-

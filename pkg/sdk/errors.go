@@ -28,4 +28,3 @@ var (
 	ErrIdempotencyRecordNotFound   = publicevents.ErrRecordNotFound
 	ErrIdempotencyStateConflict    = publicevents.ErrStateConflict
 )
-

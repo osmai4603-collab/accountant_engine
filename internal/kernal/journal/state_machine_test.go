@@ -11,7 +11,7 @@ import (
 )
 
 func TestEntryStatusStateMachine(t *testing.T) {
-	valid := []EntryStatus{EntryDraft, EntryPosted, EntryReversed}
+	valid := []EntryStatus{EntryDraft, EntryPosted, EntryReversed, EntryCancelled}
 	for _, s := range valid {
 		if !s.IsValid() {
 			t.Fatalf("expected %q to be valid", s)
@@ -20,10 +20,10 @@ func TestEntryStatusStateMachine(t *testing.T) {
 	if EntryStatus("").IsValid() || EntryStatus("bogus").IsValid() {
 		t.Fatal("invalid statuses must not be valid")
 	}
-	if !EntryDraft.IsMutable() || EntryPosted.IsMutable() || EntryReversed.IsMutable() {
+	if !EntryDraft.IsMutable() || EntryPosted.IsMutable() || EntryReversed.IsMutable() || EntryCancelled.IsMutable() {
 		t.Fatal("mutability mismatch")
 	}
-	if EntryDraft.IsTerminal() || EntryPosted.IsTerminal() || !EntryReversed.IsTerminal() {
+	if EntryDraft.IsTerminal() || EntryPosted.IsTerminal() || !EntryReversed.IsTerminal() || !EntryCancelled.IsTerminal() {
 		t.Fatal("terminal mismatch")
 	}
 }
@@ -35,14 +35,21 @@ func TestEntryStatusTransitions(t *testing.T) {
 		allowed bool
 	}{
 		{EntryDraft, EntryPosted, true},
+		{EntryDraft, EntryCancelled, true},
 		{EntryPosted, EntryReversed, true},
 		{EntryDraft, EntryDraft, false},
 		{EntryDraft, EntryReversed, false},
 		{EntryPosted, EntryDraft, false},
 		{EntryPosted, EntryPosted, false},
+		{EntryPosted, EntryCancelled, false},
 		{EntryReversed, EntryDraft, false},
 		{EntryReversed, EntryPosted, false},
 		{EntryReversed, EntryReversed, false},
+		{EntryReversed, EntryCancelled, false},
+		{EntryCancelled, EntryDraft, false},
+		{EntryCancelled, EntryPosted, false},
+		{EntryCancelled, EntryReversed, false},
+		{EntryCancelled, EntryCancelled, false},
 		{EntryStatus("bogus"), EntryPosted, false},
 		{EntryDraft, EntryStatus("bogus"), false},
 	}
@@ -66,7 +73,7 @@ func TestEntryStatusTransitions(t *testing.T) {
 }
 
 func TestAllowedTransitions(t *testing.T) {
-	if got := AllowedTransitions(EntryDraft); !reflect.DeepEqual(got, []EntryStatus{EntryPosted}) {
+	if got := AllowedTransitions(EntryDraft); !reflect.DeepEqual(got, []EntryStatus{EntryPosted, EntryCancelled}) {
 		t.Fatalf("draft transitions: %#v", got)
 	}
 	if got := AllowedTransitions(EntryPosted); !reflect.DeepEqual(got, []EntryStatus{EntryReversed}) {
@@ -74,6 +81,9 @@ func TestAllowedTransitions(t *testing.T) {
 	}
 	if got := AllowedTransitions(EntryReversed); got != nil {
 		t.Fatalf("reversed transitions: %#v", got)
+	}
+	if got := AllowedTransitions(EntryCancelled); got != nil {
+		t.Fatalf("cancelled transitions: %#v", got)
 	}
 	if got := AllowedTransitions(EntryStatus("bogus")); got != nil {
 		t.Fatalf("invalid transitions: %#v", got)
@@ -85,8 +95,14 @@ func TestJournalEntryEnsureMutable(t *testing.T) {
 	if err := entry.EnsureMutable(); err != nil {
 		t.Fatalf("draft should be mutable: %v", err)
 	}
-	for _, status := range []EntryStatus{EntryPosted, EntryReversed} {
+	if !entry.IsMutable() {
+		t.Fatal("draft entry.IsMutable() should be true")
+	}
+	for _, status := range []EntryStatus{EntryPosted, EntryReversed, EntryCancelled} {
 		entry.Status = status
+		if entry.IsMutable() {
+			t.Fatalf("status %s entry.IsMutable() should be false", status)
+		}
 		err := entry.EnsureMutable()
 		if !errors.Is(err, ErrImmutableEntry) {
 			t.Fatalf("status %s should be immutable: %v", status, err)
@@ -189,6 +205,17 @@ func TestValidateReversalLinkage(t *testing.T) {
 	draftOriginal.Status = EntryDraft
 	if err := ValidateReversalLinkage(draftOriginal, reversal); !errors.Is(err, ErrInvalidReversalLinkage) {
 		t.Fatalf("draft original should fail: %v", err)
+	}
+
+	cancelledOriginal := original
+	cancelledOriginal.Status = EntryCancelled
+	if err := ValidateReversalLinkage(cancelledOriginal, reversal); !errors.Is(err, ErrInvalidReversalLinkage) {
+		t.Fatalf("cancelled original should fail: %v", err)
+	}
+	cancelledReversal := reversal
+	cancelledReversal.Status = EntryCancelled
+	if err := ValidateReversalLinkage(original, cancelledReversal); !errors.Is(err, ErrInvalidReversalLinkage) {
+		t.Fatalf("cancelled reversal should fail: %v", err)
 	}
 }
 

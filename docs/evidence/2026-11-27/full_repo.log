@@ -1,0 +1,72 @@
+Commit (HEAD): de7e525a78cc0561cc0577334716423e148ed321
+Working tree: MODIFIED (uncommitted); SHA-256 fingerprint below is authoritative
+Tree SHA-256: 88cf8438c82def56a8c617af2f5dddd934510d7807b8651d7e772f5e26bf7426
+Environment: go version go1.26.3 linux/amd64 linux/amd64
+UTC: 2026-11-27T03:49:57+00:00
+$ go test ./... -count=1
+Exit Code: 0
+
+--- stdout ---
+?   	github.com/osmai4603-collab/accounting_engine/internal	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal	0.229s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/apperrors	0.003s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/governance	0.028s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/journal	0.009s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/ledger	0.005s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata	0.008s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/policy	0.009s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/posting	0.032s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/types	0.034s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation	0.010s
+?   	github.com/osmai4603-collab/accounting_engine/internal/orbitals	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/consolidation	0.009s
+?   	github.com/osmai4603-collab/accounting_engine/internal/orbitals/events	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/internal/orbitals/postingcompat	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/reconciliation	0.019s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/reconciliation/bank_parsers	0.005s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/reporting	0.023s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/reporting/taxonomy	0.023s
+?   	github.com/osmai4603-collab/accounting_engine/internal/orbitals/sdkapplication	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/subledgers	0.020s
+?   	github.com/osmai4603-collab/accounting_engine/modules	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/modules/ias12	0.029s
+ok  	github.com/osmai4603-collab/accounting_engine/modules/ifrs15	0.022s
+ok  	github.com/osmai4603-collab/accounting_engine/modules/ifrs16	0.032s
+ok  	github.com/osmai4603-collab/accounting_engine/modules/ifrs9	0.030s
+?   	github.com/osmai4603-collab/accounting_engine/pkg	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/events	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/reporting	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/subledger	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/sdk	0.020s
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/sdk/templates	0.017s
+?   	github.com/osmai4603-collab/accounting_engine/pkg/spi	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/spi/application	0.009s
+?   	github.com/osmai4603-collab/accounting_engine/pkg/spi/events	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/spi/standards	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/spi/storage	0.010s
+?   	github.com/osmai4603-collab/accounting_engine/pkg/spi/subledger	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/scripts/apisnapshot	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/scripts/internalapi	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/storage	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/storage/masterdatacontract	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/storage/memory	0.019s
+ok  	github.com/osmai4603-collab/accounting_engine/storage/postgres	17.319s
+?   	github.com/osmai4603-collab/accounting_engine/storage/postgres/migrations	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/test	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/test/acid	0.507s
+ok  	github.com/osmai4603-collab/accounting_engine/test/atomic	1.717s
+ok  	github.com/osmai4603-collab/accounting_engine/test/benchmark	0.004s
+ok  	github.com/osmai4603-collab/accounting_engine/test/concurrency	0.149s
+ok  	github.com/osmai4603-collab/accounting_engine/test/contract_parity	29.008s
+ok  	github.com/osmai4603-collab/accounting_engine/test/dr	10.846s
+?   	github.com/osmai4603-collab/accounting_engine/test/unit	[no test files]
+
+--- stderr ---
+

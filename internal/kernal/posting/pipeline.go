@@ -163,7 +163,7 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 		return journal.JournalEntry{}, ErrMissingFunctionalCurrency
 	}
 	functionalCurrency, ok := types.LookupCurrency(company.FunctionalCurrency)
-	if !ok || functionalCurrency.Code == types.XXX {
+	if !ok || functionalCurrency.IsSpecial() {
 		return journal.JournalEntry{}, types.ErrInvalidCurrency
 	}
 	postingPolicy, err := p.policyEngine.PostingPolicyFor(entry.CompanyID, entry.EffectiveDate)
@@ -207,18 +207,11 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 
 	var period masterdata.FiscalPeriod
 	if entry.TargetPeriodNumber == 13 || entry.TargetPeriodNumber == 14 {
-		if entry.Classification != journal.EntryClassAdjusting &&
-			!(entry.TargetPeriodNumber == 13 && entry.Classification == journal.EntryClassClosing) {
-			return journal.JournalEntry{}, masterdata.ErrInvalidAdjustmentPeriod
-		}
 		period, err = masterdata.ValidateAdjustmentPeriodForPostingWithSoftClose(
 			ctx, p.reader, entry.CompanyID, entry.EffectiveDate, entry.TargetPeriodNumber,
 			postingPolicy.AllowSoftClosedPosting,
 		)
 	} else {
-		if entry.TargetPeriodNumber != 0 && entry.TargetPeriodNumber != 1 {
-			return journal.JournalEntry{}, masterdata.ErrInvalidAdjustmentPeriod
-		}
 		period, err = masterdata.ValidatePeriodForPostingWithSoftClose(
 			ctx, p.reader, entry.CompanyID, entry.EffectiveDate, postingPolicy.AllowSoftClosedPosting,
 		)
@@ -226,11 +219,7 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	if err != nil {
 		return journal.JournalEntry{}, err
 	}
-	if entry.TargetPeriodNumber == 1 &&
-		(entry.Classification != journal.EntryClassOpening || period.Number != 1) {
-		return journal.JournalEntry{}, masterdata.ErrInvalidAdjustmentPeriod
-	}
-	if entry.TargetPeriodNumber == 0 && entry.Classification == journal.EntryClassOpening {
+	if entry.TargetPeriodNumber == 1 && period.Number != 1 {
 		return journal.JournalEntry{}, masterdata.ErrInvalidAdjustmentPeriod
 	}
 	entry.FiscalPeriodID = period.ID
@@ -260,17 +249,19 @@ func (p *PostingPipeline) PostEntry(ctx context.Context, entry journal.JournalEn
 	accounts := make(map[types.AccountID]masterdata.Account, len(entry.Lines))
 	accountTypes := make(map[types.AccountID]masterdata.AccountType, len(entry.Lines))
 	for _, line := range entry.Lines {
-		// One effective-dated read feeds both validation and eligibility. A
-		// second read here could observe a different master-data version after
-		// validation and let the executor persist an unvalidated account.
-		account, err := masterdata.ResolvePostableAccountAsOf(
-			ctx, p.reader, entry.CompanyID, line.AccountID, entry.EffectiveDate,
-		)
-		if err != nil {
-			return journal.JournalEntry{}, err
+		// One effective-dated read per distinct AccountID feeds both validation
+		// and eligibility (PST-006). Re-reading on repeated lines could observe a
+		// different master-data version within one posting.
+		if _, cached := accounts[line.AccountID]; !cached {
+			account, err := masterdata.ResolvePostableAccountAsOf(
+				ctx, p.reader, entry.CompanyID, line.AccountID, entry.EffectiveDate,
+			)
+			if err != nil {
+				return journal.JournalEntry{}, err
+			}
+			accounts[line.AccountID] = account
+			accountTypes[line.AccountID] = account.Type
 		}
-		accounts[line.AccountID] = account
-		accountTypes[line.AccountID] = account.Type
 		if err := validateFinancialDimensions(ctx, p.reader, entry.CompanyID, line); err != nil {
 			return journal.JournalEntry{}, err
 		}
@@ -356,6 +347,9 @@ func validateFinancialDimensions(
 			}
 			if costCenter.ID != parentID || costCenter.CompanyID != companyID {
 				return masterdata.ErrInvalidCostCenter
+			}
+			if !costCenter.Active {
+				return ErrInactiveFinancialDimension
 			}
 		}
 	}

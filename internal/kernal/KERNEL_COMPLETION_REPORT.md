@@ -1,6 +1,8 @@
 # تقرير إنجاز استكمال النواة المحاسبية — Kernel Completion Report v12
 
-> **Superseded (متجاوز):** هذا التقرير سجل تاريخي لنتائج v12، وليس دليلاً معاد تشغيله للحالة الحالية ولا مصدراً لقرار بوابة المرحلة 1. المرجع الحالي: [خطة المعالجة](../../docs/plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md) و[تقرير المرحلة 1](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
+> **Superseded (متجاوز):** هذا التقرير سجل تاريخي لنتائج v12، وليس دليلاً معاد تشغيله للحالة الحالية ولا مصدراً لقرار بوابة المرحلة 1. المرجع الحالي: [تحليل التضاربات](../../docs/analysis/DOCS_CONFLICT_ANALYSIS.md)، [مقارنة kernal بـ docs](../../docs/analysis/KERNAL_VS_DOCS_COMPARISON.md) و[تقرير التحقق](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
+>
+> **تنبيه الأرقام:** جميع القيم أدناه (93.1% تغطية، 9 أهداف Fuzz، 66 مرجعاً/160 اختباراً، بوابات A–O) قيم تاريخية للإصدار v12. القيم المقيسة على شجرة العمل في 2026-11-27: 16 هدف Fuzz، تغطية 91.8%، 155 مرجعاً داخل backticks و264 تعريف اختبار. الترقيم الرسمي للبوابات هو `G01–G11` في [مواصفة البوابات](../../docs/quality/QUALITY_GATES_SPECIFICATION.md)؛ A–O نظام تاريخي. لا يوجد قرار اعتماد سارٍ حالياً.
 
 - **رمز التقرير:** `AE-REP-KERNEL-V12-FINAL`
 - **وثيقة الخطة:** `AE-PLAN-KERNEL-V12-FINAL-STABILIZATION`

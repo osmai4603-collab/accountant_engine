@@ -23,16 +23,27 @@ func TestCurrencyRegistryIsDeterministicAndIsolated(t *testing.T) {
 			t.Fatalf("duplicate currency code %s", code)
 		}
 		seenCodes[code] = true
-		if currency.NumericCode == "" || seenNumeric[currency.NumericCode] {
+		if currency.NumericCode == "" || (!currency.IsHistoric() && seenNumeric[currency.NumericCode]) {
 			t.Fatalf("invalid or duplicate numeric code %q for %s", currency.NumericCode, code)
 		}
-		seenNumeric[currency.NumericCode] = true
+		if !currency.IsHistoric() {
+			seenNumeric[currency.NumericCode] = true
+		}
 		if currency.MinorUnit < 0 || currency.MinorUnit > 4 {
 			t.Fatalf("currency %s has minor unit %d outside 0..4", code, currency.MinorUnit)
 		}
 	}
-	if !seenCodes[string(XXX)] {
-		t.Fatal("XXX must remain registered as a sentinel but rejected for money")
+	if !seenCodes[string(XXX)] || !seenCodes[string(XCG)] {
+		t.Fatal("XXX sentinel and XCG replacement currency must remain registered")
+	}
+	if got, ok := LookupCurrencyByNumericCode("532"); !ok || got.Code != XCG {
+		t.Fatalf("LookupCurrencyByNumericCode(532) = (%+v, %v), want XCG", got, ok)
+	}
+	for _, special := range []CurrencyCode{XXX, XTS, XDR, XAU, XAG, XPT, XPD} {
+		curr, ok := LookupCurrency(string(special))
+		if !ok || !curr.IsSpecial() || curr.IsSpendable() {
+			t.Fatalf("special code %s = (%+v, %v), want IsSpecial=true IsSpendable=false", special, curr, ok)
+		}
 	}
 
 	all[0].MinorUnit = 99

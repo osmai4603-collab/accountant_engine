@@ -356,6 +356,8 @@ Account Type وNormal Balance وContra Classification؛ فالحساب المق�
 | ACC-012 | اتساق الرصيد | يمكن مطابقة الأرصدة مع الحركات المرحلة ومصدر الحقيقة المعتمد |
 | ACC-013 | التوازن بالعملة الوظيفية | عند تعدد العملات، يتساوى إجمالي المدين والدائن بالعملة الوظيفية بعد التحويل والتقريب وفق السياسة المعلنة، مع معالجة الفروقات صراحة |
 
+> **ملاحظة namespace:** معرّفات `ACC-xxx` في هذا المعيار مستقلة عن `RULE-ACC-xxx` في `docs/rules`؛ `ACC-013` هنا = التوازن بالعملة الوظيفية ولا يعني `RULE-ACC-013` (IAS 21). لا تُعاد ترقيم أي من المجموعتين.
+
 تصنف الثوابت إلى Accounting وDomain وTransaction وMonetary وTemporal و
 Isolation وHistorical Invariants. ويجب تحديد طبقة فرض كل ثابت: Domain،
 Application، Persistence Adapter، Database Constraint، أو أكثر من طبقة
@@ -1233,6 +1235,7 @@ Credit = 100
 
 - مجموع أوزان المحاور الأصلية ما زال 100%.
 - أضيف ACC-013 بعد ACC-012 دون إعادة استخدام معرف.
+- **ملاحظة namespace:** معرّفات `ACC-xxx` في هذا المعيار مستقلة عن `RULE-ACC-xxx` في `docs/rules`؛ `ACC-013` هنا = التوازن بالعملة الوظيفية ولا يعني `RULE-ACC-013` (IAS 21).
 - لا يشترط المعيار ConnectionID لمفتاح Idempotency.
 - يصف المعيار Transactional Outbox بوصفه كتابة ذرية في المعاملة المحلية نفسها.
 - لا يصنف Materialized Balance غير المتزامن خطأً بذاته.

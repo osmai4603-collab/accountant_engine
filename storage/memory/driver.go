@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
+	publicgovernance "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicevents "github.com/osmai4603-collab/accounting_engine/pkg/spi/events"
@@ -76,8 +76,8 @@ type Driver struct {
 	balances              map[accountBalanceKey]decimal.Decimal
 	auditRecords          []storage.AuditRecord
 	auditLastHash         string
-	governanceAuditLogs   map[types.CompanyID][]kernalgovernance.AuditLog
-	governanceCheckpoints map[types.CompanyID]kernalgovernance.AuditCheckpoint
+	governanceAuditLogs   map[types.CompanyID][]publicgovernance.AuditLog
+	governanceCheckpoints map[types.CompanyID]publicgovernance.AuditCheckpoint
 	idempotency           map[idempotencyKey]storage.IdempotencyRecord
 
 	// Public event ingestion
@@ -104,8 +104,8 @@ func newDriver() *Driver {
 		entries:               make(map[types.CompanyID]map[types.JournalEntryID]journal.JournalEntry),
 		balances:              make(map[accountBalanceKey]decimal.Decimal),
 		auditRecords:          make([]storage.AuditRecord, 0),
-		governanceAuditLogs:   make(map[types.CompanyID][]kernalgovernance.AuditLog),
-		governanceCheckpoints: make(map[types.CompanyID]kernalgovernance.AuditCheckpoint),
+		governanceAuditLogs:   make(map[types.CompanyID][]publicgovernance.AuditLog),
+		governanceCheckpoints: make(map[types.CompanyID]publicgovernance.AuditCheckpoint),
 		idempotency:           make(map[idempotencyKey]storage.IdempotencyRecord),
 		eventIngestions:       make(map[string]publicevents.Ingestion),
 		eventMappings:         make(map[string]publicevents.AccountMapping),
@@ -132,8 +132,8 @@ func (d *Driver) clone() *Driver {
 		balances:              make(map[accountBalanceKey]decimal.Decimal, len(d.balances)),
 		auditRecords:          make([]storage.AuditRecord, len(d.auditRecords)),
 		auditLastHash:         d.auditLastHash,
-		governanceAuditLogs:   make(map[types.CompanyID][]kernalgovernance.AuditLog, len(d.governanceAuditLogs)),
-		governanceCheckpoints: make(map[types.CompanyID]kernalgovernance.AuditCheckpoint, len(d.governanceCheckpoints)),
+		governanceAuditLogs:   make(map[types.CompanyID][]publicgovernance.AuditLog, len(d.governanceAuditLogs)),
+		governanceCheckpoints: make(map[types.CompanyID]publicgovernance.AuditCheckpoint, len(d.governanceCheckpoints)),
 		idempotency:           make(map[idempotencyKey]storage.IdempotencyRecord, len(d.idempotency)),
 		eventIngestions:       make(map[string]publicevents.Ingestion, len(d.eventIngestions)),
 		eventMappings:         make(map[string]publicevents.AccountMapping, len(d.eventMappings)),
@@ -145,7 +145,7 @@ func (d *Driver) clone() *Driver {
 	for cid, accMap := range d.accounts {
 		cp.accounts[cid] = make(map[types.AccountID]masterdata.Account, len(accMap))
 		for aid, acc := range accMap {
-			cp.accounts[cid][aid] = acc
+			cp.accounts[cid][aid] = cloneAccount(acc)
 		}
 	}
 	for cid, codeMap := range d.accountCodes {
@@ -207,7 +207,7 @@ func (d *Driver) clone() *Driver {
 	}
 	copy(cp.auditRecords, d.auditRecords)
 	for companyID, logs := range d.governanceAuditLogs {
-		cp.governanceAuditLogs[companyID] = append([]kernalgovernance.AuditLog(nil), logs...)
+		cp.governanceAuditLogs[companyID] = append([]publicgovernance.AuditLog(nil), logs...)
 	}
 	for companyID, checkpoint := range d.governanceCheckpoints {
 		cp.governanceCheckpoints[companyID] = checkpoint
@@ -250,12 +250,7 @@ func (d *Driver) copyFrom(src *Driver) {
 }
 
 func cloneEntry(entry journal.JournalEntry) journal.JournalEntry {
-	cloned := entry
-	if entry.Lines != nil {
-		cloned.Lines = make([]journal.EntryLine, len(entry.Lines))
-		copy(cloned.Lines, entry.Lines)
-	}
-	return cloned
+	return entry.Clone()
 }
 
 func cloneAccount(account masterdata.Account) masterdata.Account {
@@ -267,6 +262,10 @@ func cloneAccount(account masterdata.Account) masterdata.Account {
 	if account.ParentID != nil {
 		parent := *account.ParentID
 		cloned.ParentID = &parent
+	}
+	if account.IsMonetary != nil {
+		monetary := *account.IsMonetary
+		cloned.IsMonetary = &monetary
 	}
 	return cloned
 }

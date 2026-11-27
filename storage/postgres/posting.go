@@ -12,11 +12,10 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
-	"github.com/shopspring/decimal"
 )
 
 var (
-	ErrEntryNotFound = errors.New("postgres: entry not found")
+	ErrEntryNotFound = fmt.Errorf("postgres: %w", storage.ErrEntryNotFound)
 	ErrInvalidEntry  = errors.New("postgres: invalid journal entry")
 )
 
@@ -290,9 +289,18 @@ func insertMoveLines(ctx context.Context, tx pgx.Tx, entry journal.JournalEntry)
 			return err
 		}
 
-		fDebitMinor := line.FunctionalDebit.Amount().Mul(decimal.NewFromInt(100)).IntPart()
-		fCreditMinor := line.FunctionalCredit.Amount().Mul(decimal.NewFromInt(100)).IntPart()
-		txMinor := line.TransactionAmount.Amount().Mul(decimal.NewFromInt(100)).IntPart()
+		fDebitMinor, err := moneyMinorUnits(line.FunctionalDebit)
+		if err != nil {
+			return err
+		}
+		fCreditMinor, err := moneyMinorUnits(line.FunctionalCredit)
+		if err != nil {
+			return err
+		}
+		txMinor, err := moneyMinorUnits(line.TransactionAmount)
+		if err != nil {
+			return err
+		}
 		if line.FunctionalCredit.Amount().IsPositive() {
 			txMinor = -txMinor
 		}
@@ -311,4 +319,11 @@ func insertMoveLines(ctx context.Context, tx pgx.Tx, entry journal.JournalEntry)
 		}
 	}
 	return nil
+}
+
+func moneyMinorUnits(m types.Money) (int64, error) {
+	if m.Currency() == "" && m.Amount().IsZero() {
+		return 0, nil
+	}
+	return m.MinorUnitsExact()
 }

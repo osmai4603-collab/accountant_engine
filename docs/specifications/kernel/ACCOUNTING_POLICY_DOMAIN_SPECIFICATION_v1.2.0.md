@@ -165,7 +165,9 @@
 
 - `CompanyID`، وتاريخا `EffectiveDate` و`EffectiveTo` لكل سياسة؛
 - `AllowSoftClosedPosting`، وضوابط التأريخ الرجعي (`MaxBackdatingDays`, `AllowBackdatingException`)، وإلزامية الأبعاد لحسابات الإيرادات والمصروفات (`RequireCostCenterForIncomeExpense`, `RequireAnalyticalDimensionForIncomeExpense`)؛
-- `FunctionalCurrency`، و`PresentationCurrency`، وقائمة `AllowedCurrencies` (مطبّعةً بأحرف كبيرة ومفروزةً معجمياً ومفصولةً بفواصل)، و`AutoSettleRoundingDifferences`، و`RoundingDifferenceAccountID`، وطريقة التقريب `RoundingMethod` (تُحل عند الفراغ إلى التقريب المصرفي `Half-to-Even` وفق `MONEY-019`).
+- `FunctionalCurrency`، و`PresentationCurrency`، وقائمة `AllowedCurrencies` (مطبّعةً بأحرف كبيرة ومفروزةً معجمياً ومفصولةً بفواصل)، و`AutoSettleRoundingDifferences`، و`RoundingDifferenceAccountID`، وطريقة التقريب `RoundingMethod`.
+
+حدود الترحيل (`MaxBackdatingDays`, `AllowBackdatingException`) وطريقة التقريب (`RoundingMethod`) كلاهما **حقول مهيّأة من السياسة** (`policy-configured`)؛ وتُطبَّق قيمها الصريحة كما هي، أمّا عند فراغ `RoundingMethod` فيُحلّ الافتراضي `Half-to-Even` وفق `MONEY-019`. ولا تُستبدل حدود الترحيل الغائبة بافتراض ضمني مختلف، ويُثبَّت الحل النهائي في `PolicyFingerprint`.
 
 **يجب ألّا (MUST NOT)** يدخل رقم إصدار التخزين (`Version` في `PolicyVersion`) ضمن مدخلات البصمة (`ADR P11-04 §7`)، و**يجب (MUST)** أن تكون `PolicyFingerprint` دليل تدقيق فقط تشمله فحوصات عدم القابلية للتعديل بعد الترحيل.
 

@@ -23,6 +23,8 @@ technical_terms: "en"
 > 4. محولات التخزين الملموسة (`storage/`).
 > 5. وحدات المعايير التخصصية (`modules/`).
 > مع الاستبعاد التام والنهائي لكافة خوادم وبروتوكولات النقل الشبكي والمصادقة وإدارة الهويات.
+>
+> **ملاحظة توثيقية (2026-11-27):** الشجرة أدناه وثيقة هيكلية تاريخية تُطابقها اللقطة التنفيذية؛ الملفات الموسومة «مخطط — غير موجود حالياً» لم تُنشأ بعد، والمسارات الصحيحة للوثائق وللأرصدة/المدارات مُصحَّحة أدناه. قواعد الاستيراد في القسم 5 محدَّثة وفق [ADR P7-01](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p7-01) و[ADR P8-01](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p8-01).
 
 ---
 
@@ -72,26 +74,37 @@ accounting_engine/
 │
 ├── internal/                             # 🔒 2. المنطق الداخلي المحمي للنواة ومكوناتها (Internal Domain)
 │   │
-│   ├── kernal/                           # 🟢 النواة المحاسبية الصرفة (Kernal Accounting Kernel)
+│   ├── kernal/                           # 🟢 النواة المحاسبية الصرفة: تسع حزم + حزمة جذر (doc-only)
 │   │   ├── posting/                      # محرك الترحيل الذري، القيد المزدوج، العكس، والتقريب
-│   │   │   ├── pipeline.go               # خط أنابيب الترحيل المالي الذري الثماني
+│   │   │   ├── pipeline.go               # خط أنابيب الترحيل المالي الذري ذو 17 مرحلة (0–16)
 │   │   │   ├── entry_validation.go       # التحقق الرياضي والهيكلي الصارم للقيد المزدوج والعملة
 │   │   │   ├── rounding.go               # تسوية فروق التقريب المصرفي وحساب الفروق الصريح
 │   │   │   ├── reversal.go               # محرك القيود العكسية والربط الدلالي
-│   │   │   ├── lock_manager.go           # إدارة أقفال الحسابات المرتبة تصاعدياً لمنع Deadlocks
-│   │   │   ├── content_hash.go           # التجزئة الثابتة لمحتوى القيد وبصمة الاعتماد
-│   │   │   ├── dimensions.go             # محرك التحقق من أبعاد التكلفة والمشاريع
-│   │   │   └── error_classification.go   # تصنيف الأخطاء المحاسبية وفق التصنيف المعياري
+│   │   │   ├── lock_manager.go           # ترتيب مفاتيح الأقفال فقط؛ القفل الفعلي في Adapter/Host (ADR P8-01)
+│   │   │   ├── content_hash.go           # (مخطط — غير موجود حالياً) التجزئة الثابتة لمحتوى القيد
+│   │   │   ├── dimensions.go             # (مخطط — غير موجود حالياً) التحقق من أبعاد التكلفة والمشاريع
+│   │   │   └── error_classification.go   # (مخطط — غير موجود حالياً) تصنيف الأخطاء المحاسبية
 │   │   │
 │   │   ├── masterdata/                   # إدارة شجرة الحسابات والتقويم المالي
 │   │   │   ├── coa.go                    # شجرة الحسابات، التدرج، وفحص الحسابات التجميعية
 │   │   │   ├── account.go                # الكيان الكامل للحساب والتصنيفات ودوال الأهلية
-│   │   │   ├── account_version.go        # التتبع التاريخي لتغيرات الحسابات (Effective-Dating)
+│   │   │   ├── account_version.go        # (مخطط — غير موجود حالياً) التتبع التاريخي لتغيرات الحسابات
 │   │   │   ├── fiscal_calendar.go        # تقويم الفترات والسنوات وفصل فترات التسوية 13 و 14
 │   │   │   ├── journal.go                # تعريف اليوميات المحاسبية وضوابط العملات والحسابات
 │   │   │   ├── cost_center.go            # هيكلية مراكز التكلفة والتحقق منها
 │   │   │   ├── dimension.go              # الأبعاد المالية التحليلية وقيمها
-│   │   │   └── company_scope.go          # عزل وضبط نطاق الشركة المستأجرة
+│   │   │   ├── company_scope.go          # عزل وضبط نطاق الشركة المستأجرة
+│   │   │   └── ports.go                  # منافذ Reader المجردة (لا حفظ ملموس داخل النواة)
+│   │   │
+│   │   ├── journal/                      # نموذج القيد: JournalEntry + EntryLine (لا تحقق ولا حفظ)
+│   │   │   ├── entry.go                  # الحقول/الحالات/روابط العكس والنسخ الدفاعي
+│   │   │   └── doc.go                    # توثيق الحزمة
+│   │   │
+│   │   ├── ledger/                       # DTOs مرجعية خفيفة لـ pkg/api/v1/ledger (ليس GL)
+│   │   │   ├── account.go                # DTO الحساب
+│   │   │   ├── period.go                 # DTO الفترة/السنة المالية
+│   │   │   ├── projection.go             # إسقاط قراءة حتمي مشتق من القيود المرحلة
+│   │   │   └── doc.go                    # توثيق الحزمة
 │   │   │
 │   │   ├── types/                        # كائنات القيمة والحساب العشري الدقيق
 │   │   │   ├── money.go                  # تمثيل المبالغ عبر الحساب العشري أو Int64 الصغرى
@@ -102,19 +115,19 @@ accounting_engine/
 │   │   ├── valuation/                    # أسعار الصرف وإعادة التقييم
 │   │   │   ├── exchange_rate.go          # سجل أسعار الصرف التاريخية والتحويل المالي
 │   │   │   ├── conversion.go             # محرك التحويل المالي الصريح بين العملات
-│   │   │   ├── rates.go                  # إدارة مستويات أسعار الصرف ومزوداتها
+│   │   │   ├── rates.go                  # (مخطط — غير موجود حالياً) مستويات أسعار الصرف ومزوداتها
 │   │   │   └── revaluation.go            # تسوية وإعادة تقييم فروق العملات الأجنبية (IAS 21)
 │   │   │
-│   │   ├── policy/                       # السياسات وضوابط الاعتماد المالي
-│   │   │   ├── policy.go                 # نموذج السياسات الشامل (Posting & Currency Policies)
-│   │   │   ├── posting_rules.go          # قواعد الترحيل والاعتماد والرقابة المزدوجة
+│   │   ├── policy/                       # السياسات النافذة زمنياً (بلا موافقات أو RBAC داخل النواة)
+│   │   │   ├── policy.go                 # (مخطط — غير موجود حالياً) نموذج السياسات الشامل
+│   │   │   ├── posting_rules.go          # قواعد الترحيل والأهلية والنوافذ؛ لا اعتماد ولا رقابة مزدوجة
 │   │   │   └── eligibility.go            # سياسات أهلية الحسابات للعمليات
 │   │   │
 │   │   ├── governance/                   # الحوكمة وسجل التدقيق الجنائي
-│   │   │   ├── audit_chain.go            # سجل التدقيق الدائم (Append-Only) المشفر بالفواصل الصريحة
+│   │   │   ├── audit_chain.go            # سجل التدقيق الدائم (Append-Only) المشفر بالتجزئة
 │   │   │   ├── verifier.go               # محرك الفحص الجنائي واكتشاف التلاعب والحذف
-│   │   │   ├── approvals.go              # بصمات الاعتماد والتحقق الرقابي
-│   │   │   └── sod_policy.go             # فصل المهام والصلاحيات (Segregation of Duties)
+│   │   │   ├── approvals.go              # خارج النواة (الموافقات مملوكة للمضيف) — (مخطط — غير موجود حالياً)
+│   │   │   └── sod_policy.go             # خارج النواة (RBAC/FSoD مملوك للمضيف) — (مخطط — غير موجود حالياً)
 │   │   │
 │   │   └── apperrors/                    # الأخطاء المحاسبية المعيارية المكودة
 │   │       └── errors.go                 # هيكل CodedError والتصنيفات المحاسبية الموحدة
@@ -133,24 +146,27 @@ accounting_engine/
 │       │   └── cash_flow_statement.go    # قائمة التدفقات النقدية وفق IAS 7
 │       │
 │       ├── events/                       # محرك استيعاب ومطابقة الأحداث
-│       │   ├── event_processor.go        # تحويل الحدث الاقتصادي لقيد محاسبي
-│       │   └── idempotency_store.go      # إدارة مفاتيح عدم التكرار وكشف التعارضات
+│       │   └── doc.go                    # توثيق الحزمة؛ المنفذ الفعلي في pkg/spi/events وpkg/sdk
+│       │   ├── event_processor.go        # (مخطط — غير موجود حالياً) تحويل الحدث الاقتصادي لقيد
+│       │   └── idempotency_store.go      # (مخطط — غير موجود حالياً) مفاتيح عدم التكرار
 │       │
 │       ├── reconciliation/               # المطابقات والتسويات المصرفية
 │       │   ├── matcher.go                # محرك مقارنة السجلات الداخلية والخارجية
 │       │   └── bank_parsers/             # محللات كشوف البنك (CAMT.053 و MT940)
 │       │
 │       ├── consolidation/                # توحيد القوائم للشركات التابعة
-│       │   └── intercompany.go           # استبعاد المعاملات البينية وترجمة العملات
+│       │   ├── engine.go                 # محرك التوحيد الفعلي
+│       │   └── intercompany.go           # (مخطط — غير موجود حالياً) استبعاد المعاملات البينية
 │       │
 │       └── sdkapplication/               # محولات حالات الاستخدام الداخلية للمكتبة
-│           └── year_end_closing.go       # سير عمل إقفال نهاية السنة الذري
+│           ├── doc.go                    # حزمة محجوزة (لا كود بعد)
+│           └── year_end_closing.go       # (مخطط — غير موجود حالياً) إقفال نهاية السنة
 │
 ├── storage/                              # ⚙️ 3. محولات التخزين الملموسة (Concrete Storage Adapters)
 │   ├── postgres/                         # محول PostgreSQL الإنتاجي الكامل
 │   │   ├── adapter.go                    # تنفيذ واجهات pkg/spi/storage
 │   │   ├── uow.go                        # إدارة المعاملات الذرية (Unit of Work)
-│   │   ├── migrations/                   # ملفات الترحيل SQL (32 Up / 32 Down)
+│   │   ├── migrations/                   # ملفات الترحيل SQL (36 زوجاً Up/Down — 72 ملفاً)
 │   │   ├── rls_policies.sql              # سياسات عزل المستأجرين على مستوى الصفوف (RLS)
 │   │   └── triggers_worm.sql             # Triggers منع التعديل والحذف (Append-Only WORM)
 │   │
@@ -180,16 +196,24 @@ accounting_engine/
 │   ├── external_consumer/                # اختبار المستهلك الخارجي (استيراد pkg/sdk فقط دون internal)
 │   └── benchmark/                        # قياس زمن استجابة الترحيل (P95 < 50ms) والضغط المتزامن
 │
-└── docs/                                 # 📖 6. الوثائق والمعايير المعمارية الرسمية المعتمدة
-    ├── PID_RESTRUCTURING_EMBEDDABLE_KERNAL.md
-    ├── TARGET_ACCOUNTING_KERNAL.md
-    ├── ARCHITECTURAL_PRINCIPLES_CHARTER.md
-    ├── ACCOUNTING_CAPABILITIES_INVENTORY.md
-    ├── ACCOUNTING_BUSINESS_RULES.md
-    ├── ENGINEERING_BUSINESS_RULES.md
-    ├── ACCOUNTING_ENGINE_SUCCESS_CRITERIA.md
-    ├── ACCOUNTING_ENGINE_ACCEPTANCE_CRITERIA.md
-    └── NEW_PROJECT_STRUCTURE.md
+└── docs/                                 # 📖 6. الوثائق والمعايير (المسارات الفعلية بعد إعادة التنظيم)
+    ├── analysis/DOCS_CONFLICT_ANALYSIS.md         # تحليل تضاربات (لا قرار اعتماد)
+    ├── architecture/
+    │   ├── TARGET_ACCOUNTING_KERNEL.md            # المسار الصحيح (لا TARGET_ACCOUNTING_KERNAL.md)
+    │   ├── ARCHITECTURAL_PRINCIPLES_CHARTER.md
+    │   ├── KERNEL_ARCHITECTURE_DECISION_RECORDS.md
+    │   ├── KERNEL_ARCHITECTURE_MAP.md
+    │   ├── NEW_PROJECT_STRUCTURE.md
+    │   ├── SDK_OVERVIEW.md
+    │   └── SDK_INTERNALS_AND_LIFECYCLE.md
+    ├── rules/
+    │   ├── ACCOUNTING_CAPABILITIES_INVENTORY.md
+    │   ├── ACCOUNTING_BUSINESS_RULES.md
+    │   ├── ENGINEERING_BUSINESS_RULES.md
+    │   ├── ACCOUNTING_ENGINE_SUCCESS_CRITERIA.md
+    │   └── ACCOUNTING_ENGINE_ACCEPTANCE_CRITERIA.md
+    └── contracts/                                # عقود النواة (انظر القسم 5)
+        └── KERNEL_LOCKING_CONTRACT.md
 ```
 
 ---
@@ -200,7 +224,7 @@ accounting_engine/
 
 * **`pkg/sdk/`:** هذه الحزمة هي **الواجهة الوحيدة** التي يراها مطور النظام المضيف عند استدعاء المحرك داخل تطبيقه. توفر المنشئ `sdk.NewBuilder`، وكائن المحرك الرئيسي `sdk.Engine`، والخدمات المجردة (`LedgerService`, `ReportingService`, `EventIngestionService`).
 * **`pkg/api/v1/`:** نماذج بيانات ثابتة غير قابلة للتغيير (`Immutable DTOs`)، لا تحتوي على أي منطق تخزين أو استعلام.
-* **`pkg/spi/`:** عقود الموانئ (Ports) التي تضمن استقلالية المحرك؛ حيث تتحدث النواة مع هذه العقود ولا تعلم من ينفذها.
+* **`pkg/spi/`:** عقود الموانئ (Ports) التي تضمن استقلالية المحرك؛ يمرّرها المضيف/SDK ولا تستوردها حزم `internal/kernal` مباشرة (ADR P1-01/P7-01).
 
 ### 2. طبقة النواة المحاسبية الصرفة (`internal/kernal/`)
 
@@ -210,7 +234,7 @@ accounting_engine/
 ### 3. طبقة المكونات المدارية (`internal/orbitals/`)
 
 * مكونات وظيفية متقدمة تدور في فلك النواة وتتغذى من مخرجاتها.
-* يتم تفعيلها بصورة اختيارية (`Opt-in`) عبر خيارات المنشئ `sdk.WithReporting()` أو `sdk.WithSubledgers()`.
+* يتم تفعيلها بصورة اختيارية (`Opt-in`) عبر خيارات المنشئ `sdk.WithReporting()` أو `sdk.WithSubledgerARAP()`.
 
 ### 4. طبقة موائمات التخزين (`storage/`)
 
@@ -227,7 +251,7 @@ accounting_engine/
 | :--- | :--- | :--- | :--- |
 | **خادم gRPC و HTTP REST** | `cmd/accounting-service/` | المحرك مكتبة مضمنة؛ تضمين خوادم شبكية يفرض منافذ شبكية وتبعية معقدة غير مرغوبة تعيق التضمين السلس. | إذا رغبت بنشر المحرك كخدمة مصغرة، يتم إنشاء مستودع مستقل كـ Gateway يستورد `pkg/sdk`. |
 | **تعريفات Protobuf و gRPC** | `proto/` | لا حاجة لأي عقود شبكية أو تسلسل ثنائي للشبكة داخل النواة المحاسبية. | ينقل إلى مستودع خدمة النقل الشبكي الخارجية. |
-| **أداة الأوامر القديمة** | `cmd/agy/` | كانت تعتمد على `legacyengine` المتجاوز للعقود وتكسر حدود الحزم. | استبدالها بأمثلة استخدام نقية داخل `examples/` أو عبر SDK مباشرة. |
+| **أداة الأوامر القديمة** | `cmd/agy/` | كانت تعتمد على `legacyengine` المتجاوز للعقود وتكسر حدود الحزم. | عبر SDK مباشرة؛ مجلد `examples/` **غير موجود حالياً** (مخطط). |
 | **المصادقة وتوكنات JWT** | `internal/serviceauth/` | إدارة المستخدمين وكلمات المرور والتوكنات مسؤولية مزود الهوية المركزي (IAM) للنظام المضيف. | يمرر النظام المضيف سياق الهوية الموثوق (`Principal`) عبر `context.Context`. |
 | **تحديد معدل الطلبات** | `internal/ratelimit/` | وظيفة تخص حافة الشبكة وبوابات المرور (API Gateways)، وليس النواة المالية الحسابية. | بوابات النقل وحافة الشبكة في النظام المضيف. |
 | **الواجهات المزدوجة القديمة** | `facade.go`, `internal/legacyengine/` | وجود مسارين متوازيين للبناء (`WithCoreStorage` مقابل `WithStoragePorts`) كان يسبب تشويشاً معمارياً. | مسار بناء واحد موحد حصراً: `sdk.NewBuilder(sdk.WithStoragePorts(...))`. |
@@ -266,8 +290,8 @@ flowchart TD
         SPI["pkg/spi"]
     end
 
-    subgraph InternalCore ["النواة المحاسبية (internal/kernal/)"]
-        CORE_PKG["posting, masterdata, types, valuation, policy, governance"]
+    subgraph InternalCore ["النواة المحاسبية (internal/kernal/): 9 حزم + جذر"]
+        CORE_PKG["types, apperrors, journal, ledger, masterdata, governance, policy, posting, valuation"]
     end
 
     subgraph InternalOrbitals ["المكونات المدارية (internal/orbitals/)"]
@@ -288,16 +312,15 @@ flowchart TD
     ORBIT_PKG --> SPI
     ORBIT_PKG --> CORE_PKG
     
-    CORE_PKG --> API
-    CORE_PKG --> SPI
-    
     STORAGE_PKG --> SPI
     STORAGE_PKG --> API
 
     %% قواعد الحظر الصارمة
     CORE_PKG -.->|محظور قطعياً| ORBIT_PKG
     CORE_PKG -.->|محظور قطعياً| STORAGE_PKG
-    API -.->|محظور قطعياً| InternalCore
+    CORE_PKG -.->|محظور قطعياً| PublicSurface
+    %% ADR P7-01: الاستثناء الوحيد: pkg/api/v1 يعيد تصدير أنواع kernal عبر type X = kernal...X
+    API -.->|جسر الأسماء المستعارة فقط — ADR P7-01| InternalCore
     SPI -.->|محظور قطعياً| InternalCore
 
     style PublicSurface fill:#023e8a,stroke:#0077b6,stroke-width:2px,color:#fff;
@@ -305,6 +328,8 @@ flowchart TD
     style InternalOrbitals fill:#1d3557,stroke:#457b9d,stroke-width:2px,color:#fff;
     style StorageAdapters fill:#6a0572,stroke:#8b008b,stroke-width:2px,color:#fff;
 ```
+
+> **تفسير الاستثناء (ADR P7-01):** الاتصال من `pkg/api/v1` إلى `InternalCore` مسموح **فقط** كجسر إعادة تصدير (`type X = kernal...X`)؛ لا يوجد أي استيراد في الاتجاه المعاكس من النواة إلى `pkg/*` أو `storage/*`، و`pkg/spi/**` ممنوع من أي `internal/*`.
 
 ---
 

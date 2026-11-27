@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
+	publicgovernance "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	ErrEntryNotFound = errors.New("memory: entry not found")
+	ErrEntryNotFound = fmt.Errorf("memory: %w", storage.ErrEntryNotFound)
 	ErrInvalidEntry  = errors.New("memory: invalid journal entry")
 )
 
@@ -87,7 +87,7 @@ type postingSnapshot struct {
 	balances            map[accountBalanceKey]decimal.Decimal
 	auditRecords        []storage.AuditRecord
 	auditLastHash       string
-	governanceAuditLogs map[types.CompanyID][]kernalgovernance.AuditLog
+	governanceAuditLogs map[types.CompanyID][]publicgovernance.AuditLog
 }
 
 func (d *Driver) snapshotPostingState() postingSnapshot {
@@ -96,10 +96,10 @@ func (d *Driver) snapshotPostingState() postingSnapshot {
 		balances:            make(map[accountBalanceKey]decimal.Decimal, len(d.balances)),
 		auditRecords:        append([]storage.AuditRecord(nil), d.auditRecords...),
 		auditLastHash:       d.auditLastHash,
-		governanceAuditLogs: make(map[types.CompanyID][]kernalgovernance.AuditLog, len(d.governanceAuditLogs)),
+		governanceAuditLogs: make(map[types.CompanyID][]publicgovernance.AuditLog, len(d.governanceAuditLogs)),
 	}
 	for companyID, logs := range d.governanceAuditLogs {
-		copied := make([]kernalgovernance.AuditLog, len(logs))
+		copied := make([]publicgovernance.AuditLog, len(logs))
 		for i, log := range logs {
 			copied[i] = cloneAuditLog(log)
 		}
@@ -303,7 +303,7 @@ func (d *Driver) commitPostingLocked(ctx context.Context, commit storage.Posting
 	// The verifiable v2 chain is part of the same commit: a posting must never
 	// leave a posted movement without hash-chained audit evidence, and a failed
 	// audit append must roll back the whole posting (Phase 7 contract).
-	if _, err := d.appendAuditLogAtomicLocked(kernalgovernance.AuditLog{
+	if _, err := d.appendAuditLogAtomicLocked(publicgovernance.AuditLog{
 		CompanyID:     auditRec.CompanyID,
 		EntityType:    auditRec.EntityType,
 		EntityID:      auditRec.EntityID,

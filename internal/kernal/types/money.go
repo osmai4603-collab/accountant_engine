@@ -12,10 +12,13 @@ import (
 // Precision contract:
 //
 //   - FinancialScale is a display scale; it is not a currency's MinorUnit.
-//   - InternalScale is the scale used for intermediate division.
+//   - InternalScale (12) is the scale used for intermediate division, which uses
+//     Half Away From Zero (decimal.DivRound) per MONEY-017, whereas NewMoney,
+//     display, and posting default to Half-to-Even (Banker's rounding) per MONEY-019.
 //   - MaximumSignificantDigits counts coefficient digits after trailing zeros
 //     are removed. MaximumIntegerDigits counts decimal places left of the
-//     point. MaximumRepresentationalScale limits decimal places right of it.
+//     point. MaximumRepresentationalScale (28, per §2.3) limits decimal places
+//     right of it across InternalScale (12) division intermediates and bounds checks.
 //   - Persisted posting amounts use the currency's MinorUnit. Conversion to
 //     int64 minor units can still fail for otherwise valid Money values.
 const (
@@ -65,7 +68,7 @@ func Zero(currency string) (Money, error) {
 
 func newMoney(amount decimal.Decimal, currency string) (Money, error) {
 	currencyInfo, ok := LookupCurrency(currency)
-	if !ok || currencyInfo.Code == XXX {
+	if !ok || currencyInfo.IsSpecial() {
 		return Money{}, ErrInvalidCurrency
 	}
 	if amount.Exponent() < -MaximumRepresentationalScale || amount.Exponent() > MaximumIntegerDigits {
@@ -78,6 +81,26 @@ func newMoney(amount decimal.Decimal, currency string) (Money, error) {
 		return Money{}, ErrAmountExceedsPrecision
 	}
 	return Money{amount: amount, currency: currency}, nil
+}
+
+// ValidateExchangeRatePrecision enforces MONEY-025 (at most InternalScale = 12
+// fractional decimal digits) and MONEY-026 (28 significant/integer digit bounds)
+// on exchange rates without silent truncation or rounding.
+func ValidateExchangeRatePrecision(rate decimal.Decimal) error {
+	if !rate.IsPositive() {
+		return ErrInvalidAmount
+	}
+	if rate.Exponent() < -MaximumRepresentationalScale || rate.Exponent() > MaximumIntegerDigits {
+		return ErrAmountExceedsPrecision
+	}
+	if precisionDigits(rate) > MaximumSignificantDigits || integerDigits(rate) > MaximumIntegerDigits {
+		return ErrAmountExceedsPrecision
+	}
+	scaled := rate.Shift(InternalScale)
+	if !scaled.Equal(scaled.Truncate(0)) {
+		return ErrAmountExceedsPrecision
+	}
+	return nil
 }
 
 // Rounded returns the amount rounded to the currency's minor unit using
@@ -164,12 +187,25 @@ func (m Money) MinorUnitsExact() (int64, error) {
 // HasSubMinorUnitFraction reports whether the amount cannot be represented
 // exactly in the currency's minor units.
 func (m Money) HasSubMinorUnitFraction() bool {
-	currency, ok := LookupCurrency(m.currency)
-	if !ok {
+	has, err := m.HasSubMinorUnitFractionChecked()
+	if err != nil {
 		return false
 	}
+	return has
+}
+
+// HasSubMinorUnitFractionChecked reports whether the amount contains precision
+// finer than its currency's minor unit, failing closed on empty or invalid currency.
+func (m Money) HasSubMinorUnitFractionChecked() (bool, error) {
+	if m.currency == "" {
+		return false, ErrInvalidCurrency
+	}
+	currency, ok := LookupCurrency(m.currency)
+	if !ok || currency.IsSpecial() {
+		return false, ErrInvalidCurrency
+	}
 	minorUnits := m.amount.Shift(currency.MinorUnit)
-	return !minorUnits.Equal(minorUnits.Truncate(0))
+	return !minorUnits.Equal(minorUnits.Truncate(0)), nil
 }
 
 // RoundingDifference returns the residual between the exact amount and its
@@ -235,15 +271,15 @@ func (m Money) IsNegative() bool {
 }
 
 func (m Money) Equal(other Money) bool {
-	return m.currency == other.currency && m.amount.Equal(other.amount)
+	return m.currency != "" && m.currency == other.currency && m.amount.Equal(other.amount)
 }
 
 func (m Money) GreaterThan(other Money) bool {
-	return m.currency == other.currency && m.amount.GreaterThan(other.amount)
+	return m.currency != "" && m.currency == other.currency && m.amount.GreaterThan(other.amount)
 }
 
 func (m Money) LessThan(other Money) bool {
-	return m.currency == other.currency && m.amount.LessThan(other.amount)
+	return m.currency != "" && m.currency == other.currency && m.amount.LessThan(other.amount)
 }
 
 func (m Money) ensureSameCurrency(other Money) error {

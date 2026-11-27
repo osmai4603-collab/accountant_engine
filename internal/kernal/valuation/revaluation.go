@@ -11,13 +11,18 @@ import (
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	"github.com/shopspring/decimal"
 )
 
-var ErrInvalidPosition = errors.New("invalid monetary position")
+var (
+	ErrInvalidPosition           = errors.New("invalid monetary position")
+	ErrInvalidAccountType        = masterdata.ErrInvalidAccountType
+	ErrZeroRevaluationDifference = errors.New("fx revaluation difference cannot be zero")
+)
 
 type PositionType string
 
@@ -26,14 +31,40 @@ const (
 	NonMonetary PositionType = "NON_MONETARY"
 )
 
+// RevaluationDimensions holds optional analytical dimensions that scope an
+// IAS 21 FX revaluation balance (VAL-009 / DEC-VAL-001).
+type RevaluationDimensions struct {
+	PartnerID      *apiTypes.PartnerID
+	CostCenterID   *apiTypes.CostCenterID
+	ProjectID      *apiTypes.ProjectID
+	SegmentID      *apiTypes.SegmentID
+	BusinessUnitID *apiTypes.BusinessUnitID
+}
+
+func (d RevaluationDimensions) isEmpty() bool {
+	return d.PartnerID == nil && d.CostCenterID == nil && d.ProjectID == nil &&
+		d.SegmentID == nil && d.BusinessUnitID == nil
+}
+
+// RevaluationEntryOptions customizes metadata and analytical dimensions of a
+// generated IAS 21 revaluation journal entry.
+type RevaluationEntryOptions struct {
+	AdjustingEntryType journal.AdjustingEntryType
+	CreatedBy          string
+	Dimensions         *RevaluationDimensions
+}
+
 type MonetaryPosition struct {
 	AccountID              apiTypes.AccountID
+	AccountType            masterdata.AccountType
+	IsMonetary             *bool
 	ForeignCurrencyBalance decimal.Decimal
 	TransactionCurrency    string
 	FunctionalCurrency     string
 	CarryingAmount         types.Money
 	Type                   PositionType
 	IsLiability            bool
+	Dimensions             RevaluationDimensions
 }
 
 type FXResult struct {
@@ -47,6 +78,7 @@ type FXResult struct {
 	RateReference          ExchangeRate
 	RateReferenceAvailable bool
 	RateInverted           bool
+	Dimensions             RevaluationDimensions
 }
 
 type RateProvider interface {
@@ -80,18 +112,39 @@ func NewRevaluationRegistry() *RevaluationRegistry {
 // currency is the foreign transaction currency of the monetary position, never
 // the functional currency; date is the valuation day truncated to UTC.
 func RevaluationOperationKey(company apiTypes.CompanyID, account apiTypes.AccountID, currency string, date time.Time) (string, error) {
+	return RevaluationOperationKeyWithDimensions(company, account, currency, date, RevaluationDimensions{})
+}
+
+// RevaluationOperationKeyWithDimensions derives a deterministic operation key
+// scoped by analytical dimensions (VAL-009 / DEC-VAL-001). When all dimensions
+// are unset it returns the canonical dimensionless key for compatibility.
+func RevaluationOperationKeyWithDimensions(
+	company apiTypes.CompanyID,
+	account apiTypes.AccountID,
+	currency string,
+	date time.Time,
+	dims RevaluationDimensions,
+) (string, error) {
 	currency = strings.ToUpper(strings.TrimSpace(currency))
 	if company == (apiTypes.CompanyID{}) || account == (apiTypes.AccountID{}) || date.IsZero() {
 		return "", ErrInvalidPosition
 	}
-	if _, ok := types.LookupCurrency(currency); !ok {
+	if currencyInfo, ok := types.LookupCurrency(currency); !ok || currencyInfo.IsSpecial() {
 		return "", types.ErrInvalidCurrency
 	}
-	if currency == string(types.XXX) {
-		return "", types.ErrInvalidCurrency
+	base := fmt.Sprintf("fx-revaluation|company=%s|account=%s|currency=%s|date=%s",
+		company.String(), account.String(), currency, date.UTC().Format("2006-01-02"))
+	if dims.isEmpty() {
+		return base, nil
 	}
-	return fmt.Sprintf("fx-revaluation|company=%s|account=%s|currency=%s|date=%s",
-		company.String(), account.String(), currency, date.UTC().Format("2006-01-02")), nil
+	return fmt.Sprintf("%s|partner=%s|cost_center=%s|project=%s|segment=%s|business_unit=%s",
+		base,
+		dimOrDash(dims.PartnerID),
+		dimOrDash(dims.CostCenterID),
+		dimOrDash(dims.ProjectID),
+		dimOrDash(dims.SegmentID),
+		dimOrDash(dims.BusinessUnitID),
+	), nil
 }
 
 // RevaluationIdempotencyScope maps the deterministic revaluation operation key
@@ -101,7 +154,19 @@ func RevaluationOperationKey(company apiTypes.CompanyID, account apiTypes.Accoun
 // RevaluationPayloadFingerprint as the payload hash. PostEntry itself is not
 // extended with a revaluation-specific parameter.
 func RevaluationIdempotencyScope(company apiTypes.CompanyID, account apiTypes.AccountID, currency string, date time.Time) (posting.IdempotencyScope, error) {
-	key, err := RevaluationOperationKey(company, account, currency, date)
+	return RevaluationIdempotencyScopeWithDimensions(company, account, currency, date, RevaluationDimensions{})
+}
+
+// RevaluationIdempotencyScopeWithDimensions derives the idempotency scope
+// including analytical dimension boundaries per VAL-009.
+func RevaluationIdempotencyScopeWithDimensions(
+	company apiTypes.CompanyID,
+	account apiTypes.AccountID,
+	currency string,
+	date time.Time,
+	dims RevaluationDimensions,
+) (posting.IdempotencyScope, error) {
+	key, err := RevaluationOperationKeyWithDimensions(company, account, currency, date, dims)
 	if err != nil {
 		return posting.IdempotencyScope{}, err
 	}
@@ -116,12 +181,19 @@ func RevaluationIdempotencyScope(company apiTypes.CompanyID, account apiTypes.Ac
 	return scope, nil
 }
 
+func dimOrDash[T interface{ String() string }](id *T) string {
+	if id == nil {
+		return "-"
+	}
+	return (*id).String()
+}
+
 func RevaluationReferenceID(result FXResult, date time.Time) (string, error) {
 	currency := strings.ToUpper(strings.TrimSpace(result.Currency))
 	if result.AccountID == (apiTypes.AccountID{}) || date.IsZero() {
 		return "", ErrInvalidPosition
 	}
-	if _, ok := types.LookupCurrency(currency); !ok {
+	if currencyInfo, ok := types.LookupCurrency(currency); !ok || currencyInfo.IsSpecial() {
 		return "", types.ErrInvalidCurrency
 	}
 	return fmt.Sprintf("FX-REVAL-%s-%s-%s", result.AccountID.String(), currency, date.UTC().Format("2006-01-02")), nil
@@ -255,9 +327,74 @@ func NewRevaluationEngine(provider RateProvider) *RevaluationEngine {
 	return &RevaluationEngine{provider: provider}
 }
 
+// ValidateAccountForRevaluation enforces VAL-006 / MD-004: only Asset and
+// Liability accounts explicitly marked IsMonetary=true may be revalued at the
+// IAS 21 closing rate; non-monetary accounts and Equity/Income/Expense fail closed.
+func ValidateAccountForRevaluation(account masterdata.Account) error {
+	if account.ID == (apiTypes.AccountID{}) {
+		return ErrInvalidPosition
+	}
+	if account.Type != masterdata.AccountTypeAsset && account.Type != masterdata.AccountTypeLiability {
+		return fmt.Errorf("%w: %w: account %s type %s is not eligible for FX revaluation",
+			ErrInvalidAccountType, ErrInvalidPosition, account.Code, account.Type)
+	}
+	if account.IsMonetary == nil || !*account.IsMonetary {
+		return fmt.Errorf("%w: %w: account %s is non-monetary or missing IsMonetary classification",
+			ErrInvalidAccountType, ErrInvalidPosition, account.Code)
+	}
+	return nil
+}
+
+// CalculateForAccount validates the account against VAL-006 / MD-004 and computes
+// the IAS 21 unrealized FX revaluation result for that position.
+func (e *RevaluationEngine) CalculateForAccount(
+	ctx context.Context,
+	position MonetaryPosition,
+	account masterdata.Account,
+	asOf time.Time,
+) (FXResult, error) {
+	if position.AccountID != (apiTypes.AccountID{}) && position.AccountID != account.ID {
+		return FXResult{}, ErrInvalidPosition
+	}
+	if err := ValidateAccountForRevaluation(account); err != nil {
+		return FXResult{}, err
+	}
+	position.AccountID = account.ID
+	position.AccountType = account.Type
+	isMonetary := *account.IsMonetary
+	position.IsMonetary = &isMonetary
+	position.IsLiability = account.Type == masterdata.AccountTypeLiability
+	return e.Calculate(ctx, position, asOf)
+}
+
+func validatePositionAccountEligibility(position MonetaryPosition) error {
+	if position.IsMonetary != nil && !*position.IsMonetary {
+		return fmt.Errorf("%w: %w: non-monetary item cannot be revalued", ErrInvalidAccountType, ErrInvalidPosition)
+	}
+	if position.AccountType == "" {
+		return nil
+	}
+	switch position.AccountType {
+	case masterdata.AccountTypeAsset:
+		if position.IsLiability {
+			return ErrInvalidPosition
+		}
+	case masterdata.AccountTypeLiability:
+		if !position.IsLiability {
+			return ErrInvalidPosition
+		}
+	default:
+		return fmt.Errorf("%w: %w: account type %q cannot be revalued", ErrInvalidAccountType, ErrInvalidPosition, position.AccountType)
+	}
+	return nil
+}
+
 func (e *RevaluationEngine) Calculate(ctx context.Context, position MonetaryPosition, asOf time.Time) (FXResult, error) {
 	if position.Type != Monetary {
 		return FXResult{}, ErrInvalidPosition
+	}
+	if err := validatePositionAccountEligibility(position); err != nil {
+		return FXResult{}, err
 	}
 	if asOf.IsZero() {
 		return FXResult{}, ErrInvalidPosition
@@ -268,12 +405,12 @@ func (e *RevaluationEngine) Calculate(ctx context.Context, position MonetaryPosi
 		position.FunctionalCurrency == "" ||
 		position.CarryingAmount.Currency() != position.FunctionalCurrency ||
 		!position.ForeignCurrencyBalance.IsPositive() ||
-		!position.CarryingAmount.Amount().IsPositive() {
+		position.CarryingAmount.Amount().IsNegative() {
 		return FXResult{}, ErrInvalidPosition
 	}
 	for _, code := range []string{position.TransactionCurrency, position.FunctionalCurrency} {
 		currency, ok := types.LookupCurrency(code)
-		if !ok || currency.Code == types.XXX {
+		if !ok || currency.IsSpecial() {
 			return FXResult{}, types.ErrInvalidCurrency
 		}
 	}
@@ -325,6 +462,7 @@ func (e *RevaluationEngine) Calculate(ctx context.Context, position MonetaryPosi
 		RateReference:          ref,
 		RateReferenceAvailable: true,
 		RateInverted:           inverted,
+		Dimensions:             position.Dimensions,
 	}, nil
 }
 
@@ -384,8 +522,19 @@ func GenerateRevaluationEntry(result FXResult, accounts FXJournalAccounts, date 
 
 // GenerateRevaluationEntryAt generates a strictly balanced double-entry for IAS 21 FX adjustments with explicit timestamp.
 func GenerateRevaluationEntryAt(result FXResult, accounts FXJournalAccounts, date, now time.Time) (journal.JournalEntry, error) {
+	return GenerateRevaluationEntryAtWithOptions(result, accounts, date, now, RevaluationEntryOptions{})
+}
+
+// GenerateRevaluationEntryAtWithOptions generates a strictly balanced double-entry
+// for IAS 21 FX adjustments with explicit timestamp, adjusting metadata, actor, and dimensions.
+func GenerateRevaluationEntryAtWithOptions(
+	result FXResult,
+	accounts FXJournalAccounts,
+	date, now time.Time,
+	opts RevaluationEntryOptions,
+) (journal.JournalEntry, error) {
 	if result.Difference.Amount().IsZero() {
-		return journal.JournalEntry{}, ErrInvalidPosition
+		return journal.JournalEntry{}, fmt.Errorf("%w: %w", ErrZeroRevaluationDifference, ErrInvalidPosition)
 	}
 	if date.IsZero() || now.IsZero() ||
 		accounts.CompanyID == (apiTypes.CompanyID{}) ||
@@ -396,8 +545,31 @@ func GenerateRevaluationEntryAt(result FXResult, accounts FXJournalAccounts, dat
 		return journal.JournalEntry{}, ErrInvalidPosition
 	}
 	currency := strings.ToUpper(strings.TrimSpace(result.Difference.Currency()))
-	if _, ok := types.LookupCurrency(currency); !ok || currency == string(types.XXX) {
+	if currencyInfo, ok := types.LookupCurrency(currency); !ok || currencyInfo.IsSpecial() {
 		return journal.JournalEntry{}, types.ErrInvalidCurrency
+	}
+	adjType := opts.AdjustingEntryType
+	if adjType == "" {
+		adjType = journal.AdjustingEntryAccrual
+	}
+	targetPeriod := 0
+	switch adjType {
+	case journal.AdjustingEntryAccrual,
+		journal.AdjustingEntryDeferral,
+		journal.AdjustingEntryProvisionEstimate,
+		journal.AdjustingEntryReclassification:
+	case journal.AdjustingEntryAudit, journal.AdjustingEntryAuditLegacy:
+		targetPeriod = 14
+	default:
+		return journal.JournalEntry{}, posting.ErrInvalidAdjustingEntryMetadata
+	}
+	createdBy := strings.TrimSpace(opts.CreatedBy)
+	if createdBy == "" {
+		createdBy = "system-valuation"
+	}
+	dims := result.Dimensions
+	if opts.Dimensions != nil {
+		dims = *opts.Dimensions
 	}
 
 	absDiff := result.Difference.Amount().Abs()
@@ -423,12 +595,13 @@ func GenerateRevaluationEntryAt(result FXResult, accounts FXJournalAccounts, dat
 		PostingDate:         date.UTC(),
 		Status:              journal.EntryDraft,
 		Classification:      journal.EntryClassAdjusting,
-		AdjustingEntryType:  journal.AdjustingEntryAccrual,
+		AdjustingEntryType:  adjType,
+		TargetPeriodNumber:  targetPeriod,
 		AdjustmentReason:    fmt.Sprintf("IAS 21 FX Revaluation for %s", result.Currency),
 		ReferenceID:         referenceID,
 		TransactionCurrency: currency,
 		ExchangeRate:        decimal.NewFromInt(1),
-		CreatedBy:           "system-valuation",
+		CreatedBy:           createdBy,
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
@@ -476,6 +649,15 @@ func GenerateRevaluationEntryAt(result FXResult, accounts FXJournalAccounts, dat
 			FunctionalCredit:    funcAmt,
 		}
 	}
+	positionLine.PartnerID = cloneDimPtr(dims.PartnerID)
+	positionLine.CostCenterID = cloneDimPtr(dims.CostCenterID)
+	positionLine.ProjectID = cloneDimPtr(dims.ProjectID)
+	positionLine.SegmentID = cloneDimPtr(dims.SegmentID)
+	positionLine.BusinessUnitID = cloneDimPtr(dims.BusinessUnitID)
+	pnlLine.CostCenterID = cloneDimPtr(dims.CostCenterID)
+	pnlLine.ProjectID = cloneDimPtr(dims.ProjectID)
+	pnlLine.SegmentID = cloneDimPtr(dims.SegmentID)
+	pnlLine.BusinessUnitID = cloneDimPtr(dims.BusinessUnitID)
 
 	entry.Lines = []journal.EntryLine{positionLine, pnlLine}
 
@@ -484,6 +666,14 @@ func GenerateRevaluationEntryAt(result FXResult, accounts FXJournalAccounts, dat
 	}
 
 	return entry, nil
+}
+
+func cloneDimPtr[T any](v *T) *T {
+	if v == nil {
+		return nil
+	}
+	copied := *v
+	return &copied
 }
 
 // BuildRevaluationReversalAt creates the exact reversal of a posted revaluation

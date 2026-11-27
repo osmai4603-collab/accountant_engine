@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"time"
 
-	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
 	publicgovernance "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
@@ -49,7 +48,7 @@ func (d *Driver) GetAuditRecords() []storage.AuditRecord {
 	return res
 }
 
-func cloneAuditLog(log kernalgovernance.AuditLog) kernalgovernance.AuditLog {
+func cloneAuditLog(log publicgovernance.AuditLog) publicgovernance.AuditLog {
 	cloned := log
 	cloned.Payload = append([]byte(nil), log.Payload...)
 	return cloned
@@ -57,7 +56,7 @@ func cloneAuditLog(log kernalgovernance.AuditLog) kernalgovernance.AuditLog {
 
 func (d *Driver) AppendAuditLogAtomic(ctx context.Context, log publicgovernance.AuditLog) (publicgovernance.AuditLog, error) {
 	if err := ctx.Err(); err != nil {
-		return kernalgovernance.AuditLog{}, err
+		return publicgovernance.AuditLog{}, err
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -66,14 +65,14 @@ func (d *Driver) AppendAuditLogAtomic(ctx context.Context, log publicgovernance.
 
 // appendAuditLogAtomicLocked is the lock-holding core used both by the public
 // port and by the posting commit path, which already owns d.mu.
-func (d *Driver) appendAuditLogAtomicLocked(log kernalgovernance.AuditLog) (kernalgovernance.AuditLog, error) {
+func (d *Driver) appendAuditLogAtomicLocked(log publicgovernance.AuditLog) (publicgovernance.AuditLog, error) {
 	if d.readOnly {
-		return kernalgovernance.AuditLog{}, ErrReadOnlyTransaction
+		return publicgovernance.AuditLog{}, ErrReadOnlyTransaction
 	}
 	logs := d.governanceAuditLogs[log.CompanyID]
 	log.ID = int64(len(logs) + 1)
 	log.SequenceNumber = uint64(len(logs) + 1)
-	log.PreviousLogHash = kernalgovernance.GenesisHash
+	log.PreviousLogHash = publicgovernance.GenesisHash
 	if len(logs) > 0 {
 		log.PreviousLogHash = logs[len(logs)-1].CurrentLogHash
 	}
@@ -82,7 +81,7 @@ func (d *Driver) appendAuditLogAtomicLocked(log kernalgovernance.AuditLog) (kern
 	} else {
 		log.Timestamp = log.Timestamp.UTC()
 	}
-	log.CurrentLogHash = kernalgovernance.CalculateHash(log)
+	log.CurrentLogHash = publicgovernance.CalculateHash(log)
 	stored := cloneAuditLog(log)
 	d.governanceAuditLogs[log.CompanyID] = append(logs, stored)
 	return cloneAuditLog(stored), nil
@@ -109,7 +108,7 @@ func (d *Driver) GetLastAuditLogForCompany(ctx context.Context, companyID types.
 
 func (d *Driver) IterateAuditLogs(ctx context.Context, companyID types.CompanyID, fn func(publicgovernance.AuditLog) error) error {
 	if fn == nil {
-		return kernalgovernance.ErrInvalidAuditSnapshot
+		return publicgovernance.ErrInvalidAuditSnapshot
 	}
 	d.mu.RLock()
 	logs := d.cloneAuditLogsLocked(companyID)
@@ -125,9 +124,9 @@ func (d *Driver) IterateAuditLogs(ctx context.Context, companyID types.CompanyID
 	return nil
 }
 
-func (d *Driver) cloneAuditLogsLocked(companyID types.CompanyID) []kernalgovernance.AuditLog {
+func (d *Driver) cloneAuditLogsLocked(companyID types.CompanyID) []publicgovernance.AuditLog {
 	stored := d.governanceAuditLogs[companyID]
-	cloned := make([]kernalgovernance.AuditLog, len(stored))
+	cloned := make([]publicgovernance.AuditLog, len(stored))
 	for i, log := range stored {
 		cloned[i] = cloneAuditLog(log)
 	}
@@ -136,21 +135,21 @@ func (d *Driver) cloneAuditLogsLocked(companyID types.CompanyID) []kernalgoverna
 
 func (d *Driver) GetAuditVerificationSnapshot(ctx context.Context, companyID types.CompanyID) (publicgovernance.AuditVerificationSnapshot, error) {
 	if err := ctx.Err(); err != nil {
-		return kernalgovernance.AuditVerificationSnapshot{}, err
+		return publicgovernance.AuditVerificationSnapshot{}, err
 	}
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	logs := d.cloneAuditLogsLocked(companyID)
 	checkpoint, ok := d.governanceCheckpoints[companyID]
 	if !ok {
-		checkpoint = kernalgovernance.AuditCheckpoint{
+		checkpoint = publicgovernance.AuditCheckpoint{
 			CompanyID:      companyID,
 			SequenceNumber: 0,
 			Version:        0,
-			LogHash:        kernalgovernance.GenesisHash,
+			LogHash:        publicgovernance.GenesisHash,
 		}
 	}
-	return kernalgovernance.AuditVerificationSnapshot{
+	return publicgovernance.AuditVerificationSnapshot{
 		CompanyID:         companyID,
 		SnapshotSequence:  uint64(len(logs)),
 		Checkpoint:        checkpoint,
@@ -169,12 +168,12 @@ func (d *Driver) SetExternalAuditCheckpoint(ctx context.Context, companyID types
 		return ErrReadOnlyTransaction
 	}
 	checkpoint.CompanyID = companyID
-	if err := kernalgovernance.ValidateCheckpoint(checkpoint); err != nil {
+	if err := publicgovernance.ValidateCheckpoint(checkpoint); err != nil {
 		return err
 	}
 	if current, ok := d.governanceCheckpoints[companyID]; ok &&
 		(checkpoint.Version <= current.Version || checkpoint.SequenceNumber < current.SequenceNumber) {
-		return kernalgovernance.ErrInvalidAuditCheckpoint
+		return publicgovernance.ErrInvalidAuditCheckpoint
 	}
 	d.governanceCheckpoints[companyID] = checkpoint
 	return nil

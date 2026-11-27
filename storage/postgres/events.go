@@ -243,4 +243,3 @@ func (d *Driver) SavePublicEventAccountMapping(ctx context.Context, mapping publ
 		return err
 	})
 }
-

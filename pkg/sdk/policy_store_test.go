@@ -435,4 +435,31 @@ func TestFailedVersionedPolicyRegistrationRollsBackAndCanRetry(t *testing.T) {
 	if loaded.MaxBackdatingDays != 7 {
 		t.Fatalf("MaxBackdatingDays = %d, want 7", loaded.MaxBackdatingDays)
 	}
+
+	// Out-of-band update picked up after InvalidateCompanyPolicies or ReloadCompanyPolicies.
+	nextStart := time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
+	v2Posting := storage.PolicyVersion{
+		CompanyID:     companyID,
+		PolicyID:      uuid.New(),
+		Kind:          storage.PolicyKindPosting,
+		Version:       2,
+		EffectiveFrom: nextStart,
+		Payload:       policyVersionJSON(t, storage.PostingPolicyPayload{MaxBackdatingDays: 14}),
+	}
+	store.mu.Lock()
+	store.versions[storage.PolicyKindPosting] = append(store.versions[storage.PolicyKindPosting], v2Posting)
+	store.mu.Unlock()
+
+	if err := app.ReloadCompanyPolicies(ctx, companyID); err != nil {
+		t.Fatalf("ReloadCompanyPolicies: %v", err)
+	}
+	v2Loaded, err := app.policyEngine.PostingPolicyFor(companyID, nextStart.Add(time.Hour))
+	if err != nil || v2Loaded.MaxBackdatingDays != 14 {
+		t.Fatalf("reloaded v2 policy = (%+v, %v), want MaxBackdatingDays=14", v2Loaded, err)
+	}
+
+	app.InvalidateCompanyPolicies(companyID)
+	if _, err := app.policyEngine.PostingPolicyFor(companyID, asOf); !errors.Is(err, policy.ErrPolicyNotFound) {
+		t.Fatalf("policy after InvalidateCompanyPolicies = %v, want ErrPolicyNotFound", err)
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	"github.com/shopspring/decimal"
 )
@@ -91,24 +92,42 @@ func ValidateEntryLine(line journal.EntryLine, round func(apiTypes.Money) (apiTy
 	if !line.ExchangeRate.IsPositive() {
 		return ErrInvalidExchangeRate
 	}
+	if err := apiTypes.ValidateExchangeRatePrecision(line.ExchangeRate); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidExchangeRate, err)
+	}
 	if line.TransactionCurrency == fDebitCur && !line.ExchangeRate.Equal(decimal.NewFromInt(1)) {
 		return ErrInvalidExchangeRate
 	}
 
+	// Enforce PST-004 before normalization: caller functional amounts must
+	// share the sign of TransactionAmount * ExchangeRate and stay within 0.5
+	// functional minor unit of that unrounded product.
+	rawExpected := line.TransactionAmount.Amount().Mul(line.ExchangeRate)
+	actualMoney := line.FunctionalDebit
+	if !creditZero {
+		actualMoney = line.FunctionalCredit
+	}
+	if actualMoney.Amount().Sign() != rawExpected.Sign() {
+		return apiTypes.ErrInvalidAmount
+	}
+	funcCurrency, ok := apiTypes.LookupCurrency(fDebitCur)
+	if !ok || funcCurrency.IsSpecial() {
+		return apiTypes.ErrInvalidCurrency
+	}
+	halfMinorUnit := decimal.New(5, -funcCurrency.MinorUnit-1)
+	if actualMoney.Amount().Sub(rawExpected).Abs().GreaterThan(halfMinorUnit) {
+		return apiTypes.ErrInvalidAmount
+	}
+
 	// Compare at the functional currency's posting precision. Transaction
 	// amounts can carry greater precision than the amount stored in the ledger.
-	expectedAmt := line.TransactionAmount.Amount().Mul(line.ExchangeRate)
-	expectedMoney, err := apiTypes.NewMoney(expectedAmt, fDebitCur)
+	expectedMoney, err := apiTypes.NewMoney(rawExpected, fDebitCur)
 	if err != nil {
 		return err
 	}
 	expectedMoney, err = roundMoney(expectedMoney, round)
 	if err != nil {
 		return err
-	}
-	actualMoney := line.FunctionalDebit
-	if !creditZero {
-		actualMoney = line.FunctionalCredit
 	}
 	actualMoney, err = roundMoney(actualMoney, round)
 	if err != nil {
@@ -214,6 +233,10 @@ func ValidateEntryClassificationMetadata(entry journal.JournalEntry) error {
 	} else if entry.AdjustingEntryType != "" || entry.AdjustmentReason != "" {
 		return ErrInvalidAdjustingEntryMetadata
 	}
+
+	if err := validateTargetPeriodClassification(entry); err != nil {
+		return err
+	}
 	// A draft cannot already carry a reversal: only a posted entry may be
 	// reversed, and posted entries never re-enter the pipeline. Accepting a
 	// pre-linked draft would let a caller describe an impossible lifecycle.
@@ -233,6 +256,27 @@ func ValidateEntryClassificationMetadata(entry journal.JournalEntry) error {
 		}
 	} else if strings.TrimSpace(entry.ReversalReason) != "" {
 		return ErrInvalidReversal
+	}
+	return nil
+}
+
+func validateTargetPeriodClassification(entry journal.JournalEntry) error {
+	switch entry.TargetPeriodNumber {
+	case 0:
+		if entry.Classification == journal.EntryClassOpening {
+			return masterdata.ErrInvalidAdjustmentPeriod
+		}
+	case 1:
+		if entry.Classification != journal.EntryClassOpening {
+			return masterdata.ErrInvalidAdjustmentPeriod
+		}
+	case 13, 14:
+		if entry.Classification != journal.EntryClassAdjusting &&
+			!(entry.TargetPeriodNumber == 13 && entry.Classification == journal.EntryClassClosing) {
+			return masterdata.ErrInvalidAdjustmentPeriod
+		}
+	default:
+		return masterdata.ErrInvalidAdjustmentPeriod
 	}
 	return nil
 }
@@ -290,10 +334,13 @@ func ValidateEntryIdentity(entry journal.JournalEntry) error {
 	return nil
 }
 
-// EnsureImmutable verifies that posted or reversed entries cannot be modified.
+// EnsureImmutable verifies that posted, reversed, or cancelled entries cannot be modified.
 func EnsureImmutable(status journal.EntryStatus) error {
 	if status == journal.EntryPosted || status == journal.EntryReversed {
 		return ErrCannotModifyPostedMove
+	}
+	if status == journal.EntryCancelled {
+		return fmt.Errorf("%w: cancelled entry is immutable", ErrInvalidEntryState)
 	}
 	return nil
 }

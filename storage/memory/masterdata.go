@@ -106,6 +106,11 @@ func (d *Driver) CreateJournal(ctx context.Context, j masterdata.Journal) error 
 	if _, exists := jMap[j.Code]; exists {
 		return masterdata.ErrDuplicateJournalCode
 	}
+	for _, existing := range jMap {
+		if existing.ID == j.ID {
+			return masterdata.ErrDuplicateJournalID
+		}
+	}
 	jMap[j.Code] = j
 	return nil
 }
@@ -128,6 +133,30 @@ func (d *Driver) GetJournalByCode(ctx context.Context, companyID types.CompanyID
 		return masterdata.Journal{}, masterdata.ErrJournalNotFound
 	}
 	return j, nil
+}
+
+func (d *Driver) GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID masterdata.JournalID) (masterdata.Journal, error) {
+	if err := ctx.Err(); err != nil {
+		return masterdata.Journal{}, err
+	}
+	if companyID == (types.CompanyID{}) || journalID == (masterdata.JournalID{}) {
+		return masterdata.Journal{}, masterdata.ErrInvalidJournal
+	}
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if err := d.assertReadScope(ctx, companyID, masterdata.ErrJournalNotFound); err != nil {
+		return masterdata.Journal{}, err
+	}
+	jMap, ok := d.journals[companyID]
+	if !ok {
+		return masterdata.Journal{}, masterdata.ErrJournalNotFound
+	}
+	for _, j := range jMap {
+		if j.ID == journalID {
+			return j, nil
+		}
+	}
+	return masterdata.Journal{}, masterdata.ErrJournalNotFound
 }
 
 func (d *Driver) CreateAccount(ctx context.Context, acc masterdata.Account) error {
@@ -161,7 +190,7 @@ func (d *Driver) CreateAccount(ctx context.Context, acc masterdata.Account) erro
 	if _, exists := codeMap[acc.Code]; exists {
 		return masterdata.ErrDuplicateAccountCode
 	}
-	accMap[acc.ID] = acc
+	accMap[acc.ID] = cloneAccount(acc)
 	codeMap[acc.Code] = acc.ID
 	return nil
 }
@@ -180,7 +209,7 @@ func (d *Driver) GetAccount(ctx context.Context, companyID types.CompanyID, acco
 	if !ok {
 		return masterdata.Account{}, masterdata.ErrAccountNotFound
 	}
-	return acc, nil
+	return cloneAccount(acc), nil
 }
 
 func (d *Driver) GetAccountByCode(ctx context.Context, companyID types.CompanyID, code string) (masterdata.Account, error) {
@@ -200,7 +229,7 @@ func (d *Driver) GetAccountByCode(ctx context.Context, companyID types.CompanyID
 	if !ok {
 		return masterdata.Account{}, masterdata.ErrAccountNotFound
 	}
-	return d.accounts[companyID][aid], nil
+	return cloneAccount(d.accounts[companyID][aid]), nil
 }
 
 func (d *Driver) HasAccountChildren(ctx context.Context, companyID types.CompanyID, accountID types.AccountID) (bool, error) {

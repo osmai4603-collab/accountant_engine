@@ -11,7 +11,7 @@ technical_terms: "en"
 
 # خريطة معمارية النواة المحاسبية (المرحلة 1)
 
-> هذه الوثيقة هي الخريطة التنفيذية المطابقة للكود، المرجعية لكل من [وثيقة الرؤية المستهدفة](TARGET_ACCOUNTING_KERNEL.md) و[الخطة](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md). تُستمد الحقائق فيها من `go list` وجرد الملفات ومخطط التدفق الفعلي، لا من الادعاءات المحفوظة. القرارات ملحقة في [P1-01](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-01) و[P1-02](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02) و[P1-03](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-03).
+> هذه الوثيقة هي الخريطة التنفيذية المطابقة للكود، المرجعية لكل من [وثيقة الرؤية المستهدفة](TARGET_ACCOUNTING_KERNEL.md) و~~الخطة~~ *(حُذف مجلد `plans/`)*. تُستمد الحقائق فيها من `go list` وجرد الملفات ومخطط التدفق الفعلي، لا من الادعاءات المحفوظة. القرارات ملحقة في [P1-01](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-01) و[P1-02](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02) و[P1-03](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-03).
 
 ## 1. الحزم التسع + حزمة الجذر
 
@@ -104,6 +104,8 @@ flowchart LR
 
 نتيجة التشغيل في المرحلة 1: `./scripts/verify_architecture.sh` → `PASS` بـ11 قاعدة (لا تخفيض).
 
+> **تنبيه زمني:** سطر `PASS` هذا **لقطة المرحلة 1** (حالة الوثيقة: «معتمد في المرحلة 1 من خطة المعالجة») وليس نتيجة تشغيلية حالية؛ الحالة الراهنة تُقاس بإعادة تشغيل `scripts/verify_architecture.sh`، لا بالاعتماد على هذه اللقطة. انظر [سجل ADR](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md) للتحديثات اللاحقة.
+
 ## 5. الفجوات المرتبطة بهذه الخريطة
 
 | الفجوة | الحالة بعد المرحلة 1 |
@@ -111,4 +113,4 @@ flowchart LR
 | `G-003` خريطة الحزم في الوثيقة المعمارية | مغلقة: هذه الوثيقة + تحديث Target Kernel |
 | `G-004` مصدر حقيقة GL | مغلقة من جانب القرار/التوثيق؛ إثبات إعادة البناء التنفيذي يبقى في المرحلة 4/12 |
 | `G-008` غياب `doc.go` في `apperrors` | مغلقة: `internal/kernal/apperrors/doc.go` |
-| `G-016` انحراف النماذج المرجعية (جديدة) | مفتوحة: Medium، المرحلة 3/11 |
+| `G-016` انحراف النماذج المرجعية (جديدة) | مغلقة جزئياً/أُضيف اختبار انعكاسي (Medium، المرحلة 3/11): `TestReferenceModelsDoNotDriftSilently` يربط `masterdata` و`ledger` |

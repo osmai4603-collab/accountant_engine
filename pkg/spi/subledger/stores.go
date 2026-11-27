@@ -77,4 +77,3 @@ type TreasuryStore interface {
 	GetBankAccount(ctx context.Context, companyID types.CompanyID, id string) (apisubledger.BankAccount, error)
 	SaveTransaction(ctx context.Context, companyID types.CompanyID, tx apisubledger.TreasuryTransaction) error
 }
-

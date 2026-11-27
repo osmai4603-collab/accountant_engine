@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
+	publicgovernance "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/storage/memory"
 )
@@ -16,9 +16,9 @@ func TestMemoryAuditPhase10AtomicAppendAndCheckpoint(t *testing.T) {
 	adapter := memory.New()
 	driver := adapter.Driver()
 	company := types.NewCompanyID()
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 
-	first, err := chain.AppendAt(ctx, kernalgovernance.AuditLog{
+	first, err := chain.AppendAt(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-1",
 		Action: "POST", ActorID: "actor-1", Reason: "approved",
 		CorrelationID: "corr-1", Payload: []byte(`{"amount":"100"}`),
@@ -26,11 +26,11 @@ func TestMemoryAuditPhase10AtomicAppendAndCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.SequenceNumber != 1 || first.PreviousLogHash != kernalgovernance.GenesisHash {
+	if first.SequenceNumber != 1 || first.PreviousLogHash != publicgovernance.GenesisHash {
 		t.Fatalf("first audit log = %+v", first)
 	}
 
-	if err := driver.SetExternalAuditCheckpoint(ctx, company, kernalgovernance.AuditCheckpoint{
+	if err := driver.SetExternalAuditCheckpoint(ctx, company, publicgovernance.AuditCheckpoint{
 		CompanyID: company, SequenceNumber: first.SequenceNumber,
 		Version: 1, LogHash: first.CurrentLogHash,
 	}); err != nil {
@@ -41,7 +41,7 @@ func TestMemoryAuditPhase10AtomicAppendAndCheckpoint(t *testing.T) {
 		t.Fatalf("checkpoint verification = %v, %v", valid, err)
 	}
 
-	second, err := chain.Append(ctx, kernalgovernance.AuditLog{
+	second, err := chain.Append(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-2",
 		Action: "POST", Payload: []byte(`{"amount":"200"}`),
 	})
@@ -58,20 +58,20 @@ func TestMemoryAuditPhase10WithoutCheckpointHasNoTailAnchor(t *testing.T) {
 	adapter := memory.New()
 	driver := adapter.Driver()
 	company := types.NewCompanyID()
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 
-	if _, err := chain.Append(ctx, kernalgovernance.AuditLog{
+	if _, err := chain.Append(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-1", Action: "POST",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := chain.Append(ctx, kernalgovernance.AuditLog{
+	if _, err := chain.Append(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-2", Action: "POST",
 	}); err != nil {
 		t.Fatal(err)
 	}
 	valid, err := chain.VerifyAuditIntegrityWithCheckpoint(ctx, company)
-	if valid || !errors.Is(err, kernalgovernance.ErrAuditCheckpointMismatch) {
+	if valid || !errors.Is(err, publicgovernance.ErrAuditCheckpointMismatch) {
 		t.Fatalf("verification without trusted checkpoint = (%v, %v), want mismatch", valid, err)
 	}
 }
@@ -81,16 +81,16 @@ func TestMemoryAuditPhase10TamperingAndRollback(t *testing.T) {
 	adapter := memory.New()
 	driver := adapter.Driver()
 	company := types.NewCompanyID()
-	chain := kernalgovernance.NewAuditChain(driver)
+	chain := publicgovernance.NewAuditChain(driver)
 
-	log, err := chain.Append(ctx, kernalgovernance.AuditLog{
+	log, err := chain.Append(ctx, publicgovernance.AuditLog{
 		CompanyID: company, EntityType: "journal_entry", EntityID: "JE-1",
 		Action: "POST", Payload: []byte("original"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.SetExternalAuditCheckpoint(ctx, company, kernalgovernance.AuditCheckpoint{
+	if err := driver.SetExternalAuditCheckpoint(ctx, company, publicgovernance.AuditCheckpoint{
 		CompanyID: company, SequenceNumber: 1, Version: 1, LogHash: log.CurrentLogHash,
 	}); err != nil {
 		t.Fatal(err)

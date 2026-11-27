@@ -880,6 +880,100 @@ func (r scopedAccountReader) GetJournalByID(
 	return repository.GetJournalByID(ctx, companyID, journalID)
 }
 
+type countingAccountAsOfReader struct {
+	masterdata.Reader
+	calls map[types.AccountID]int
+}
+
+func (r *countingAccountAsOfReader) GetAccount(
+	ctx context.Context,
+	companyID types.CompanyID,
+	accountID types.AccountID,
+) (masterdata.Account, error) {
+	r.calls[accountID]++
+	return r.Reader.GetAccount(ctx, companyID, accountID)
+}
+
+func (r *countingAccountAsOfReader) GetAccountAsOf(
+	ctx context.Context,
+	companyID types.CompanyID,
+	accountID types.AccountID,
+	effectiveDate time.Time,
+) (masterdata.Account, error) {
+	r.calls[accountID]++
+	if er, ok := r.Reader.(masterdata.EffectiveAccountReader); ok {
+		return er.GetAccountAsOf(ctx, companyID, accountID, effectiveDate)
+	}
+	return r.Reader.GetAccount(ctx, companyID, accountID)
+}
+
+func (r *countingAccountAsOfReader) GetJournalByID(
+	ctx context.Context,
+	companyID types.CompanyID,
+	journalID types.JournalID,
+) (masterdata.Journal, error) {
+	if repo, ok := r.Reader.(masterdata.JournalRepository); ok {
+		return repo.GetJournalByID(ctx, companyID, journalID)
+	}
+	return masterdata.Journal{}, masterdata.ErrJournalReaderRequired
+}
+
+func TestPostEntryCachesRepeatedAccountReads(t *testing.T) {
+	base := &mockMasterReaderForPosting{compActive: true, periodOpen: true}
+	reader := &countingAccountAsOfReader{
+		Reader: base,
+		calls:  make(map[types.AccountID]int),
+	}
+	entry := newPostingTestEntry(t, "creator")
+	sameAccount := entry.Lines[0].AccountID
+	line1 := entry.Lines[0]
+	line2 := entry.Lines[1]
+	// Add a third line on the same account and balance credits cleanly.
+	halfAmt := makeMoney(t, "50.00", "USD")
+	zeroUSD := makeMoney(t, "0.00", "USD")
+	line1.TransactionAmount = halfAmt
+	line1.FunctionalDebit = halfAmt
+	line1.FunctionalCredit = zeroUSD
+	line3 := line1
+	line3.ID = types.NewJournalEntryLineID()
+	line3.AccountID = sameAccount
+	entry.Lines = []journal.EntryLine{line1, line3, line2}
+
+	pipeline := NewPostingPipeline(reader, func(_ context.Context, posted journal.JournalEntry, _ PostOptions) (journal.JournalEntry, error) {
+		return posted, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, entry.CompanyID, "USD")))
+
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "cache-account-key"}); err != nil {
+		t.Fatalf("PostEntry with repeated AccountID failed: %v", err)
+	}
+	if reader.calls[sameAccount] != 1 {
+		t.Fatalf("GetAccountAsOf calls for repeated account = %d, want 1", reader.calls[sameAccount])
+	}
+}
+
+func TestPostingRejectsInactiveAncestorCostCenter(t *testing.T) {
+	companyID := types.NewCompanyID()
+	parentID, childID := types.NewCostCenterID(), types.NewCostCenterID()
+	reader := costCenterGraphReader{
+		Reader: &mockMasterReaderForPosting{compActive: true, periodOpen: true},
+		costCenters: map[types.CostCenterID]masterdata.CostCenter{
+			childID:  {ID: childID, CompanyID: companyID, ParentID: &parentID, Code: "CC-CHILD", Name: "Child", Active: true},
+			parentID: {ID: parentID, CompanyID: companyID, Code: "CC-PARENT", Name: "Inactive Parent", Active: false},
+		},
+	}
+	entry := newPostingTestEntry(t, "creator")
+	entry.CompanyID = companyID
+	entry.Lines[0].CostCenterID = &childID
+	pipeline := NewPostingPipeline(reader, func(context.Context, journal.JournalEntry, PostOptions) (journal.JournalEntry, error) {
+		t.Fatal("executor ran despite inactive ancestor cost center")
+		return journal.JournalEntry{}, nil
+	}, WithPolicyEngine(testPostingPolicyEngine(t, companyID, "USD")))
+
+	if _, err := pipeline.PostEntry(context.Background(), entry, PostOptions{ActorID: "poster", IdempotencyKey: "inactive-ancestor-cc"}); !errors.Is(err, ErrInactiveFinancialDimension) {
+		t.Fatalf("inactive ancestor cost center error = %v, want ErrInactiveFinancialDimension", err)
+	}
+}
+
 func TestPostEntryUsesOneInjectedClockForPolicyAndPostingMetadata(t *testing.T) {
 	companyID := types.NewCompanyID()
 	journalID := types.NewJournalID()

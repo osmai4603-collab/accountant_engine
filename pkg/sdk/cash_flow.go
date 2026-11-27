@@ -21,4 +21,3 @@ func (s *defaultReportingService) GetCashFlow(
 	}
 	return reporting.CashFlowStatementReport{}, ErrCapabilityNotImplemented
 }
-

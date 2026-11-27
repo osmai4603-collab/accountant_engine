@@ -35,11 +35,11 @@ Commit / Rollback
 ## 3. دورة حياة الطلب المتزامن
 
 1. **التحقق وال freezing:** `PostEntry` يقرأ البيانات الرئيسية مرة واحدة باستخدام ساعة محقونة، ويجمّد `FiscalPeriodID` و`PolicyFingerprint` و`EffectiveDate` و`PostingDate` والمبالغ والخطوط. لا يعيد المحول قراءة أي من هذه القيم.
-2. **الختم:** `IdempotencyScope` و`RequestFingerprint` و`CallerFingerprint` تُشتق من النسخة المجمّدة وتكتب فوق أي قيمة قدمها المتصل.
+2. **الختم:** `IdempotencyScope` و`RequestFingerprint` و`CallerFingerprint` تُشتق من النسخة المجمّدة وتكتب فوق أي قيمة قدمها المتصل، **باستثناء تلميح `revaluation` الموثَّق**، الذي يُقبل للعملية الثالثة فقط إذا تطابق `Scope.CompanyID` و`Scope.Key` مع شركة القيد ومفتاحه، وأي انحراف يُرفض بـ `ErrIdempotencyScopeRequired` (`PST-009`، [عقد منع التكرار](./KERNEL_IDEMPOTENCY_CONTRACT.md#2-نطاق-التفرد)).
 3. **النطاق:** `storage.WithCompanyContext` يربط المعاملة بشركة واحدة؛ `ValidateIdempotencyScope` يرفض أي انحراف بـ `ErrScopeViolation`.
 4. **الحجز:** `storage.PostingLockTargets` يُنتج أربع فئات؛ `WithOrderedLocks` يحجز تصاعدياً ويحرر تنازلياً.
 5. **الالتزام:** حجز idempotency، تسلسل اليومية، القيد، الأرصدة، التدقيق، وروابط العكس تكتب في وحدة واحدة.
-6. **النتيجة:** replay يعيد نفس `EntryID`؛ الفشل قبل Commit بلا أثر؛ الفشل بعد Commit يُحل بـ `IdempotencyLookup`.
+6. **النتيجة:** replay يعيد نفس `EntryID`؛ الفشل قبل Commit بلا أثر؛ الفشل بعد Commit يُحل بـ `IdempotencyLookup`. وهذا الاستعلام هو `(companyID, key)` عبر العمليات الثلاث، لا `(companyID, scope)`؛ على المضيف تمييز المفاتيح نصياً ببادئات لكل عملية حتى لا يُعاد سجل `post` عند طلب `reverse` (`KERNEL_IDEMPOTENCY_CONTRACT §10`).
 
 ## 4. سياسة اللقطة (Snapshot Policy)
 
@@ -56,6 +56,7 @@ Commit / Rollback
 ### مستوى العزل
 
 - PostgreSQL يعمل بـ `READ COMMITTED` افتراضياً لأن القيد المجمّد لا يُعاد تفسيره عند الكتابة.
+- **استثناء لقطة التدقيق:** مأخذ لقطة التحقق من سجل التدقيق يطلب `IsolationRepeatableRead` مع `ReadOnly` في معاملة واحدة (`GetAuditVerificationSnapshot`) للحصول على لقطة متسقة؛ وهو مسار قراءة منفصل عن مسار الترحيل الافتراضي، انظر [عقد مستودع التدقيق](./KERNEL_AUDIT_REPOSITORY_CONTRACT.md) (مصفوفة السلوك).
 - إذا احتاج المضيف ضمانات قراءة أعلى لعملياته الخاصة، يطلب صراحةً `IsolationRepeatableRead` أو `IsolationSerializable` عبر `storage.TxOptions`.
 - لا يُخفى رفع المستوى أو تخفيضه داخل النواة.
 
@@ -77,8 +78,8 @@ Commit / Rollback
 |---|---|---|
 | نفس المفتاح/الحمولة، طلبات متعددة | قفل `idempotency` + قيد فريد `(company_id, scope)` | كل الطلبات تُعيد نفس `EntryID` |
 | نفس المفتاح، حمولة مختلفة | بصمة `PayloadHash` | `ErrIdempotencyPayloadConflict` |
-| عكس نفس الأصل، مفاتيح مختلفة | قفل `original` + فحص حالة الأصل | فائز واحد والباقي `ErrEntryAlreadyReversed` |
-| عكس نفس الأصل، نفس المفتاح | قفل `idempotency` | replay يعيد نفس العكس دون ربط ثانٍ |
+| عكس نفس الأصل، **مفاتيح مختلفة** | قفل `original` + فحص حالة الأصل | فائز واحد والباقي `ErrEntryAlreadyReversed` (ليس `ErrIdempotencyPayloadConflict`) |
+| عكس نفس الأصل، **نفس المفتاح** | قفل `idempotency` + تطابق البصمة | replay يعيد نفس `EntryID` للعكس دون ربط ثانٍ دون خطأ |
 | قيدان على نفس الحساب بمفتاحين مختلفين | قفل `account` | serialized، كلاهما يُرحَّل مرتين مشروعاً |
 
 ## 7. العزل متعدد الشركات
@@ -97,7 +98,9 @@ Commit / Rollback
 
 ### نهائي
 
-`ErrUniqueConstraint`، `ErrEntryAlreadyReversed`، `ErrIdempotencyPayloadConflict`، `ErrScopeViolation`، `ErrAtomicCommitFailed`، `ErrInvalidLockTarget`.
+`ErrEntryAlreadyReversed`، `ErrIdempotencyPayloadConflict`، `ErrScopeViolation`، `ErrAtomicCommitFailed`، `ErrInvalidLockTarget`.
+
+`ErrUniqueConstraint` (SQLSTATE `23505`) يُترجَم عند فشل **حجز idempotency (`Claim`) في محول PostgreSQL** إلى `ErrConcurrentModification` (قابل لإعادة المحاولة بسياسة المضيف)؛ أمّا في المسارات الأخرى حيث تظهر قيمة `23505` خاماً أو خارج `Claim` فتبقى نهائية، ولا تُترجم تلقائياً إلى خطأ قابل لإعادة المحاولة. انظر [عقد منع التكرار](./KERNEL_IDEMPOTENCY_CONTRACT.md#6-التزامن-وفائز-واحد) و[عقد القفل](./KERNEL_LOCKING_CONTRACT.md#7-تصنيف-الأخطاء-وإعادة-المحاولة).
 
 ### سياسة المضيف
 
