@@ -62,6 +62,8 @@ var (
 	ErrImmutableEntry = errors.New("journal entry is immutable")
 	// ErrInvalidReversalLinkage indicates inconsistent reversal/original linkage.
 	ErrInvalidReversalLinkage = errors.New("invalid reversal linkage")
+	// ErrInvalidLineMutation indicates an invalid line addition or removal on an entry aggregate.
+	ErrInvalidLineMutation = errors.New("invalid journal entry line mutation")
 )
 
 // AllowedTransitions returns the lifecycle states reachable from s in one step.
@@ -209,6 +211,110 @@ func (entry JournalEntry) EnsureMutable() error {
 		return fmt.Errorf("%w: status=%s", ErrImmutableEntry, entry.Status)
 	}
 	return nil
+}
+
+// AddLine appends a line to a mutable draft entry while enforcing line identity
+// uniqueness and account presence at the Aggregate Root boundary.
+func (entry *JournalEntry) AddLine(line EntryLine) error {
+	if entry == nil {
+		return fmt.Errorf("%w: journal entry is nil", ErrInvalidLineMutation)
+	}
+	if err := entry.EnsureMutable(); err != nil {
+		return err
+	}
+	if line.ID == (types.JournalEntryLineID{}) {
+		line.ID = types.NewJournalEntryLineID()
+	}
+	if line.AccountID == (types.AccountID{}) {
+		return fmt.Errorf("%w: account id is required", ErrInvalidLineMutation)
+	}
+	for _, existing := range entry.Lines {
+		if existing.ID == line.ID {
+			return fmt.Errorf("%w: duplicate line id %s", ErrInvalidLineMutation, line.ID)
+		}
+	}
+	entry.Lines = append(entry.Lines, cloneLine(line))
+	return nil
+}
+
+// RemoveLine removes a line by ID from a mutable draft entry.
+func (entry *JournalEntry) RemoveLine(lineID types.JournalEntryLineID) error {
+	if entry == nil {
+		return fmt.Errorf("%w: journal entry is nil", ErrInvalidLineMutation)
+	}
+	if err := entry.EnsureMutable(); err != nil {
+		return err
+	}
+	if lineID == (types.JournalEntryLineID{}) {
+		return fmt.Errorf("%w: line id is required", ErrInvalidLineMutation)
+	}
+	for i, existing := range entry.Lines {
+		if existing.ID == lineID {
+			entry.Lines = append(entry.Lines[:i], entry.Lines[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: line id %s not found", ErrInvalidLineMutation, lineID)
+}
+
+// LinesView returns a defensive copy of the entry lines so callers cannot
+// mutate aggregate state through shared slice backing arrays.
+func (entry JournalEntry) LinesView() []EntryLine {
+	if len(entry.Lines) == 0 {
+		return nil
+	}
+	out := make([]EntryLine, len(entry.Lines))
+	for i, line := range entry.Lines {
+		out[i] = cloneLine(line)
+	}
+	return out
+}
+
+// MarkPosted transitions a draft entry to posted with explicit posting metadata.
+func (entry *JournalEntry) MarkPosted(postedBy string, postedAt time.Time, policyFingerprint string) error {
+	if entry == nil {
+		return fmt.Errorf("%w: journal entry is nil", ErrInvalidEntryStatus)
+	}
+	if err := ValidateTransition(entry.Status, EntryPosted); err != nil {
+		return err
+	}
+	ts := postedAt.UTC()
+	entry.Status = EntryPosted
+	entry.PostingDate = ts
+	entry.PostedBy = postedBy
+	entry.PostedAt = &ts
+	entry.PolicyFingerprint = policyFingerprint
+	return nil
+}
+
+// MarkReversed transitions a posted entry to reversed and links the reversing entry ID.
+func (entry *JournalEntry) MarkReversed(reversedByID types.JournalEntryID) error {
+	if entry == nil {
+		return fmt.Errorf("%w: journal entry is nil", ErrInvalidEntryStatus)
+	}
+	if reversedByID == (types.JournalEntryID{}) || reversedByID == entry.ID {
+		return fmt.Errorf("%w: invalid reversed_by id", ErrInvalidReversalLinkage)
+	}
+	if err := ValidateTransition(entry.Status, EntryReversed); err != nil {
+		return err
+	}
+	if entry.ReversedByID != nil && *entry.ReversedByID != reversedByID {
+		return fmt.Errorf("%w: original already linked to a different reversal", ErrInvalidReversalLinkage)
+	}
+	id := reversedByID
+	entry.Status = EntryReversed
+	entry.ReversedByID = &id
+	return nil
+}
+
+func cloneLine(line EntryLine) EntryLine {
+	cloned := line
+	cloned.PartnerID = clonePointer(line.PartnerID)
+	cloned.CostCenterID = clonePointer(line.CostCenterID)
+	cloned.ProjectID = clonePointer(line.ProjectID)
+	cloned.SegmentID = clonePointer(line.SegmentID)
+	cloned.BusinessUnitID = clonePointer(line.BusinessUnitID)
+	return cloned
 }
 
 // ValidateImmutability rejects any difference between a previously posted/reversed

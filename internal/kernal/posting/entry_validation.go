@@ -46,6 +46,8 @@ var (
 	ErrTransactionCurrencyMismatch    = apiTypes.ErrCurrencyMismatch
 	ErrPosterIDRequired               = errors.New("poster actor id is required")
 	ErrInvalidEntryState              = errors.New("invalid journal entry state")
+	ErrSourceTraceabilityRequired     = errors.New("source module or authorized alternative classification is required")
+	ErrSourceReferenceRequired        = errors.New("source reference id is required for external source module")
 )
 
 // ValidateEntryLine validates a single entry line.
@@ -233,6 +235,41 @@ func ValidateEntryClassificationMetadata(entry journal.JournalEntry) error {
 		return ErrInvalidReversal
 	}
 	return nil
+}
+
+// ValidateSourceTraceability enforces ACC-011: entries originating from an
+// external module must carry a non-empty ReferenceID; entries without an
+// external source must declare an authorized manual/adjusting/closing/opening
+// classification with a non-empty reason or description.
+func ValidateSourceTraceability(entry journal.JournalEntry) error {
+	source := strings.TrimSpace(entry.SourceModule)
+	ref := strings.TrimSpace(entry.ReferenceID)
+	if source != "" && !strings.EqualFold(source, "manual") {
+		if ref == "" {
+			return fmt.Errorf("%w: source_module=%s", ErrSourceReferenceRequired, source)
+		}
+		return nil
+	}
+	hasReason := strings.TrimSpace(entry.AdjustmentReason) != "" ||
+		strings.TrimSpace(entry.ReversalReason) != "" ||
+		strings.TrimSpace(entry.Description) != ""
+	switch entry.Classification {
+	case journal.EntryClassAdjusting, journal.EntryClassClosing, journal.EntryClassOpening, journal.EntryClassReversing:
+		if !hasReason {
+			return fmt.Errorf("%w: classification=%s requires reason or description", ErrSourceTraceabilityRequired, entry.Classification)
+		}
+		return nil
+	case journal.EntryClassRegular:
+		if strings.EqualFold(source, "manual") && hasReason {
+			return nil
+		}
+		if ref != "" && source != "" {
+			return nil
+		}
+		return fmt.Errorf("%w: regular entry without external source requires SourceModule='manual' and description", ErrSourceTraceabilityRequired)
+	default:
+		return ErrSourceTraceabilityRequired
+	}
 }
 
 // ValidateEntryIdentity requires a nonzero entry ID and unique, nonzero line IDs.

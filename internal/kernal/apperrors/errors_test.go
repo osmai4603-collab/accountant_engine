@@ -29,3 +29,32 @@ func TestCodedErrorContract(t *testing.T) {
 		t.Fatal("Unwrap without cause must return nil")
 	}
 }
+
+func TestErrorTaxonomyCategoriesAndRetryability(t *testing.T) {
+	domainErr := NewCategorized("ERR_DOMAIN", CategoryDomain, true, "domain invariant violated", nil)
+	if CategoryOf(domainErr) != CategoryDomain {
+		t.Fatalf("expected domain category, got %s", CategoryOf(domainErr))
+	}
+	if IsRetryable(domainErr) {
+		t.Fatal("domain error must never be retryable")
+	}
+
+	valErr := NewCategorized("ERR_VALIDATION", CategoryValidation, true, "invalid input", nil)
+	if CategoryOf(valErr) != CategoryValidation || IsRetryable(valErr) {
+		t.Fatal("validation error must be non-retryable")
+	}
+
+	concErr := NewCategorized("ERR_CONCURRENCY", CategoryConcurrency, true, "serialization conflict", nil)
+	if CategoryOf(concErr) != CategoryConcurrency || !IsRetryable(concErr) {
+		t.Fatal("concurrency error must be retryable when marked")
+	}
+
+	persErr := NewCategorized("ERR_PERSISTENCE", CategoryPersistence, false, "unique constraint", nil)
+	if CategoryOf(persErr) != CategoryPersistence || IsRetryable(persErr) {
+		t.Fatal("non-retryable persistence error must not be retryable")
+	}
+
+	if CategoryOf(errors.New("plain")) != CategoryDomain || IsRetryable(errors.New("plain")) {
+		t.Fatal("plain unclassified error should default to non-retryable domain")
+	}
+}

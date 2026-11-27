@@ -237,6 +237,61 @@ func TestProjectPostedMovementsRejectsOrphanIdentity(t *testing.T) {
 	}
 }
 
+func TestProjectionAndRebuildEdgeCases(t *testing.T) {
+	company := types.NewCompanyID()
+	journalID := types.NewJournalID()
+	periodID := types.NewFiscalPeriodID()
+	a1 := types.NewAccountID()
+	a2 := types.NewAccountID()
+
+	date1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	date2 := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	e1 := postedEntry(company, journalID, periodID, 2, date1, a1, a2, "10.00")
+	e2 := postedEntry(company, journalID, periodID, 1, date1, a1, a2, "20.00")
+	e3 := postedEntry(company, journalID, periodID, 1, date2, a1, a2, "30.00")
+
+	if ComparePostedEntries(e1, e3) >= 0 || ComparePostedEntries(e3, e1) <= 0 {
+		t.Fatal("ComparePostedEntries must order by EffectiveDate first")
+	}
+	if ComparePostedEntries(e2, e1) >= 0 || ComparePostedEntries(e1, e2) <= 0 {
+		t.Fatal("ComparePostedEntries must order by SequenceNumber second")
+	}
+	if ComparePostedEntries(e1, e1) != 0 {
+		t.Fatal("ComparePostedEntries must return 0 for identical entry")
+	}
+	if CompareEntryLines(e1.Lines[0], e1.Lines[0]) != 0 {
+		t.Fatal("CompareEntryLines must return 0 for identical line")
+	}
+
+	// Missing account ID on posted line
+	badAcc := postedEntry(company, journalID, periodID, 3, date1, a1, a2, "5.00")
+	badAcc.Lines[0].AccountID = types.AccountID{}
+	if _, err := ProjectPostedMovements([]journal.JournalEntry{badAcc}); err == nil {
+		t.Fatal("expected error for missing account id")
+	}
+
+	// Missing functional currency on posted line
+	badCur := postedEntry(company, journalID, periodID, 4, date1, a1, a2, "5.00")
+	badCur.Lines[0].FunctionalDebit = types.Money{}
+	badCur.Lines[0].FunctionalCredit = types.Money{}
+	if _, err := ProjectPostedMovements([]journal.JournalEntry{badCur}); err == nil {
+		t.Fatal("expected error for missing functional currency")
+	}
+	if _, err := RebuildAccountBalances([]journal.JournalEntry{badCur}); err == nil {
+		t.Fatal("RebuildAccountBalances must propagate projection errors")
+	}
+
+	// Nil dimensions remain nil after projection
+	mvs, err := ProjectPostedMovements([]journal.JournalEntry{e1})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mvs) != 2 || mvs[0].CostCenterID != nil || mvs[0].ProjectID != nil || mvs[0].SegmentID != nil || mvs[0].BusinessUnitID != nil {
+		t.Fatal("expected nil dimensions to remain nil")
+	}
+}
+
 func mustMoney(amount, currency string) types.Money {
 	m, err := types.NewMoney(decimal.RequireFromString(amount), currency)
 	if err != nil {

@@ -54,17 +54,17 @@
 
 | Test Group | الغرض | متطلبات مرجعية | نوع الاختبار المتوقع | مسار التنفيذ الفعلي | الحالة / آخر تشغيل |
 | --- | --- | --- | --- | --- | --- |
-| Accounting Invariants | إثبات ACC-001–ACC-013 | ACC-* | Unit / Property / Reference | `TBD` | `Not Run` |
-| Domain Invariants | حماية Aggregate boundaries | DOM-001 | Unit / Model-Based | `TBD` | `Not Run` |
-| Transaction Contracts | Atomicity / Rollback / Concurrency | TXN-001, TXN-002 | Integration / Failure Injection / Concurrency | `TBD` | `Not Run` |
-| Monetary & FX | Precision / Rounding / Allocation / Functional Currency | MON-001, ACC-008, ACC-013 | Property / Reference | `TBD` | `Not Run` |
-| Lifecycle & Periods | Posting / Reversal / Close / Reopen | LIFE-001, ACC-004–006 | State / Integration | `TBD` | `Not Run` |
-| Audit & Source | Audit trail / Tamper evidence / Source traceability | AUD-001, ACC-011 | Integration / Negative | `TBD` | `Not Run` |
-| Architecture | Dependency direction / boundary rules | ARC-001 | Static Architecture Tests | `TBD` | `Not Run` |
-| Isolation | Tenant and Ledger isolation | ISO-001, ACC-009–010 | Integration / Security Negative | `TBD` | `Not Run` |
-| Verification Harness | Reference / Property / Failure suites | TEST-001 | Test Harness / Mutation | `TBD` | `Not Run` |
-| Performance | Target SLO / Baseline | PERF-001 | Benchmark / Load | `TBD` | `Not Run` |
-| Operations | Recovery / Migration / Compatibility | OPS-001 | Migration / Restore / Compatibility | `TBD` | `Not Run` |
+| Accounting Invariants | إثبات ACC-001–ACC-013 | ACC-* | Unit / Property / Reference | `internal/kernal/posting/*_test.go`, `internal/kernal/journal/*_test.go` | `Pass (2026-11-27, e3318e4)` |
+| Domain Invariants | حماية Aggregate boundaries | DOM-001 | Unit / Model-Based | `internal/kernal/journal/entry_test.go`, `internal/kernal/journal/state_machine_test.go` | `Pass (2026-11-27, e3318e4)` |
+| Transaction Contracts | Atomicity / Rollback / Concurrency | TXN-001, TXN-002 | Integration / Failure Injection / Concurrency | `test/atomic/...`, `test/concurrency/...`, `test/contract_parity/...` | `Pass (E3, 2026-11-27)` |
+| Monetary & FX | Precision / Rounding / Allocation / Functional Currency | MON-001, ACC-008, ACC-013 | Property / Reference | `internal/kernal/types/*_test.go`, `internal/kernal/valuation/*_test.go`, `internal/kernal/posting/rounding*_test.go` | `Pass (2026-11-27, e3318e4)` |
+| Lifecycle & Periods | Posting / Reversal / Close / Reopen | LIFE-001, ACC-004–006 | State / Integration | `internal/kernal/masterdata/fiscal_calendar*_test.go`, `internal/kernal/posting/*_test.go` | `Pass (2026-11-27, e3318e4)` |
+| Audit & Source | Audit trail / Tamper evidence / Source traceability | AUD-001, ACC-011 | Integration / Negative | `internal/kernal/governance/*_test.go`, `internal/kernal/posting/entry_invariants_test.go` | `Pass (2026-11-27, e3318e4)` |
+| Architecture | Dependency direction / boundary rules | ARC-001 | Static Architecture Tests | `internal/kernal/doc_test.go`, `scripts/verify_architecture.sh` | `Pass (2026-11-27, e3318e4)` |
+| Isolation | Tenant and Ledger isolation | ISO-001, ACC-009–010 | Integration / Security Negative | `internal/kernal/masterdata/masterdata_integrity_test.go`, `test/acid/...` | `Pass (CompanyID E3; LedgerID Out of Scope)` |
+| Verification Harness | Reference / Property / Failure suites | TEST-001 | Test Harness / Mutation | `internal/kernal/doc_test.go` (`TestKernelTraceabilityMatrixCoversAllRulesAndNamedTests`) | `Pass (2026-11-27, e3318e4)` |
+| Performance | Target SLO / Baseline | PERF-001 | Benchmark / Load | `internal/kernal/posting/benchmark_test.go`, `test/benchmark/...` | `E3 Baseline / E4 Not Verified` |
+| Operations | Recovery / Migration / Compatibility | OPS-001 | Migration / Restore / Compatibility | `test/dr/...`, `storage/postgres/migrations*_test.go` | `E4 Not Verified (Host/Storage)` |
 
 ## 5. سجل تشغيل الاختبارات
 
