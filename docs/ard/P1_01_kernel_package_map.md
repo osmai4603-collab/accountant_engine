@@ -3,8 +3,8 @@
 - **الحالة:** مقبول (Accepted) — يُطبَّق بالوثائق وبفحوص النقاء المعماري القائمة.
 - **التاريخ (UTC):** 2026-11-21T21:04:06Z
 - **المالك:** مالك معمارية النواة
-- **المرجع:** [خطة المعالجة، المرحلة 1](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [خط الأساس المرحلة 0](../KERNEL_REMEDIATION_BASELINE.md)، الفجوة `G-003` في [سجل الفجوات](../KERNEL_REMEDIATION_GAP_REGISTER.md)، [ADR P7-01](./P7_01_public_surface_decision.md)
-- **يُحل محل:** القائمة المكوّنة من سبع حزم في [TARGET_ACCOUNTING_KERNAL.md](../TARGET_ACCOUNTING_KERNAL.md) (النسخة 1.0.0).
+- **المرجع:** [خطة المعالجة، المرحلة 1](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [خط الأساس المرحلة 0](../plans/KERNEL_REMEDIATION_BASELINE.md)، الفجوة `G-003` في [سجل الفجوات](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)، [ADR P7-01](./P7_01_public_surface_decision.md)
+- **يُحل محل:** القائمة المكوّنة من سبع حزم في [TARGET_ACCOUNTING_KERNAL.md](../architecture/TARGET_ACCOUNTING_KERNEL.md) (النسخة 1.0.0).
 
 ## السياق
 
@@ -29,7 +29,7 @@
 | 8 | `posting` | نقطة التحقق المركزية: `PostEntry`، التقريب، العكس، ترتيب مفاتيح الأقفال، تفويض الحفظ | `journal`, `masterdata`, `policy`, `types` | `PostingPipeline`, `PostingExecutor`, `PostingReversalExecutor` |
 | 9 | `valuation` | أسعار الصرف، التحويل، إعادة التقييم وتوليد قيد التقييم | `journal`, `posting`, `types` | `RateRegistry`, `RevaluationEngine` |
 
-الوصف التفصيلي لكل حزمة مع ملفاتها وواجهاتها مُثبَّت في [خريطة معمارية المرحلة 1](../KERNEL_ARCHITECTURE_MAP.md).
+الوصف التفصيلي لكل حزمة مع ملفاتها وواجهاتها مُثبَّت في [خريطة معمارية المرحلة 1](../architecture/KERNEL_ARCHITECTURE_MAP.md).
 
 ### 2. مخطط الاعتماد الفعلي (من `go list`)
 

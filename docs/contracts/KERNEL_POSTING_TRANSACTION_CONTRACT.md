@@ -4,8 +4,8 @@
 - **المرحلة:** 7 — المعاملات والذرية ومنع التكرار
 - **التاريخ:** 2026-11-22
 - **خط الأساس المرجعي:** الالتزام `94054d9c9a5f8d8419c9871b2d61b17b44d5b556`
-- **الخطة:** [`KERNEL_REMEDIATION_EXECUTION_PLAN.md`](./KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المهام 1–3 و10–11
-- **الوثائق المرتبطة:** [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، [ذرية العكس](./KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [مجموعة اختبارات العقد](./KERNEL_CONTRACT_TEST_SUITE.md)، [تقرير حقن الأعطال](./reports/fault_injection_report.md)
+- **الخطة:** [`KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المهام 1–3 و10–11
+- **الوثائق المرتبطة:** [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، [ذرية العكس](./KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [مجموعة اختبارات العقد](./KERNEL_CONTRACT_TEST_SUITE.md)، [تقرير حقن الأعطال](../reports/fault_injection_report.md)
 - **القاعدة الحاكمة:** لا يوجد نجاح جزئي. النواة تقرر وتختم، والمحول يملك تنفيذ وحدة العمل ذرياً؛ لا يوجد SQL أو `pgx` أو معرّف جدول داخل `internal/kernal`.
 
 ---
@@ -55,7 +55,7 @@
 7. **إكمال idempotency:** تحديث الحالة إلى `completed` مع `EntryID` والاستجابة المحفوظة قبل Commit، لا بعده.
 8. **Commit:** لا تصبح أي عنصر مرئياً قبل هذه النقطة. بعدها يمثل السجل المكتمل الحقيقة حتى لو ضاعت الاستجابة.
 
-نقاط الحقن المتاحة للاختبارات: `FaultBeforeIdempotencyClaim`، `FaultBeforeAudit`، `FaultBeforeCommit`، `FaultAfterCommit`. الوصف الكامل في [تقرير حقن الأعطال](./reports/fault_injection_report.md).
+نقاط الحقن المتاحة للاختبارات: `FaultBeforeIdempotencyClaim`، `FaultBeforeAudit`، `FaultBeforeCommit`، `FaultAfterCommit`. الوصف الكامل في [تقرير حقن الأعطال](../reports/fault_injection_report.md).
 
 ## 5. الضمانات
 
@@ -97,9 +97,9 @@
 
 - اختبارات النواة: `internal/kernal/posting/transaction_contract_test.go`.
 - مجموعة العقد المحايدة: `test/contract_parity/phase7_transaction_contract_test.go`.
-- نتائج المحولين: [`docs/reports/contract_parity_report.md`](./reports/contract_parity_report.md) و`test/contract_parity/parity_report.md`.
-- حقن الأعطال: [`docs/reports/fault_injection_report.md`](./reports/fault_injection_report.md).
-- القرارات والقيود: [`KERNEL_REMEDIATION_PHASE7_REPORT.md`](./KERNEL_REMEDIATION_PHASE7_REPORT.md).
+- نتائج المحولين: [`docs/reports/contract_parity_report.md`](../reports/contract_parity_report.md) و`test/contract_parity/parity_report.md`.
+- حقن الأعطال: [`docs/reports/fault_injection_report.md`](../reports/fault_injection_report.md).
+- القرارات والقيود: [`KERNEL_REMEDIATION_PHASE7_REPORT.md`](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
 
 ## 9. الحكم
 

@@ -4,7 +4,7 @@
 - **المرحلة:** 7 — المعاملات والذرية ومنع التكرار
 - **التاريخ:** 2026-11-22
 - **خط الأساس المرجعي:** الالتزام `94054d9c9a5f8d8419c9871b2d61b17b44d5b556`
-- **الخطة:** [`KERNEL_REMEDIATION_EXECUTION_PLAN.md`](./KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المهام 10–11 و16
+- **الخطة:** [`KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المهام 10–11 و16
 - **التنفيذ المرجعي:** `storage/postgres/uow.go`، `storage/memory/posting.go`، `storage/postgres/posting.go`
 - **الوثائق المرتبطة:** [عقد معاملة الترحيل](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، [مواصفة التدفق](./KERNEL_POSTING_FLOW_SPECIFICATION.md)
 
@@ -78,4 +78,4 @@
 - المحاولة الثانية تُرفض صراحةً بـ `ErrEntryAlreadyReversed`.
 - لا توجد حالة وسيطة مرئية بين كتابة العكس وتحديث الأصل.
 
-هذا الحكم محايد عن نوع قاعدة البيانات؛ التفاصيل التنفيذية في [تقرير حقن الأعطال](./reports/fault_injection_report.md) وتقرير المرحلة 7.
+هذا الحكم محايد عن نوع قاعدة البيانات؛ التفاصيل التنفيذية في [تقرير حقن الأعطال](../reports/fault_injection_report.md) وتقرير المرحلة 7.

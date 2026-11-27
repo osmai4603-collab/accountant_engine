@@ -3,8 +3,8 @@
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
 - **المالك:** مالك معمارية النواة + مالك `internal/kernal/valuation` + مضيف التخزين
-- **المرجع:** [الخطة، المرحلة 9](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [مصفوفة قواعد التقييم](../KERNEL_VALUATION_RULES_MATRIX.md)
-- **ذو صلة:** [ADR P7-01](./P7_01_public_surface_decision.md)، [عقد idempotency](../KERNEL_IDEMPOTENCY_CONTRACT.md)، [سجل الفجوات](../KERNEL_REMEDIATION_GAP_REGISTER.md)
+- **المرجع:** [الخطة، المرحلة 9](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [مصفوفة قواعد التقييم](../contracts/KERNEL_VALUATION_RULES_MATRIX.md)
+- **ذو صلة:** [ADR P7-01](./P7_01_public_surface_decision.md)، [عقد idempotency](../contracts/KERNEL_IDEMPOTENCY_CONTRACT.md)، [سجل الفجوات](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)
 
 ## السياق
 
@@ -37,7 +37,7 @@
 
 - **النواة:** قواعد اختيار السعر، بصمة نتيجة مستقرة، نطاق idempotency محايد، رفض التعارض، واختبارات وحدة/Fuzz/تزامن قابلة لإعادة التشغيل.
 - **المضيف/المحولات:** تخزين نطاق `revaluation` والبصمة ذرياً مع القيد (`G-024`) عبر `storage.OperationRevaluation`، وترجمة التعارض في SDK، وتوفير `RateProvider` موثوق من خارج النواة.
-- **الوثائق:** [مصفوفة قواعد التقييم](../KERNEL_VALUATION_RULES_MATRIX.md)، [تقرير المرحلة 9](../KERNEL_REMEDIATION_PHASE9_REPORT.md)، وثوابت النواة ومصفوفة التتبع في نفس التغيير.
+- **الوثائق:** [مصفوفة قواعد التقييم](../contracts/KERNEL_VALUATION_RULES_MATRIX.md)، [تقرير المرحلة 9](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، وثوابت النواة ومصفوفة التتبع في نفس التغيير.
 
 ## الأدلة التنفيذية
 

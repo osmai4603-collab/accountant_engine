@@ -5,7 +5,7 @@
 - **التاريخ:** 2026-11-22
 - **المحولات المختبرة:** `storage/memory` و`storage/postgres`
 - **القرار:** [ADR P8-01](../ard/P8_01_locking_and_isolation.md)
-- **العقود:** [قفل](./../KERNEL_LOCKING_CONTRACT.md) · [تزامن](../KERNEL_CONCURRENCY_MODEL.md) · [معاملة](../KERNEL_POSTING_TRANSACTION_CONTRACT.md)
+- **العقود:** [قفل](../contracts/KERNEL_LOCKING_CONTRACT.md) · [تزامن](../contracts/KERNEL_CONCURRENCY_MODEL.md) · [معاملة](../contracts/KERNEL_POSTING_TRANSACTION_CONTRACT.md)
 
 ---
 

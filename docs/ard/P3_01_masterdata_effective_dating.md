@@ -3,7 +3,7 @@
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
 - **المالك:** مالك معمارية النواة + مالك `internal/kernal/masterdata`
-- **المرجع:** [الخطة، المرحلة 3](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [تقرير المرحلة 3](../KERNEL_REMEDIATION_PHASE3_REPORT.md)
+- **المرجع:** [الخطة، المرحلة 3](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [تقرير المرحلة 3](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)
 - **ذو صلة:** [ADR P1-03](./P1_03_reference_model_duality.md)، [قواعد الثوابت 016–020](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
 
 ## السياق

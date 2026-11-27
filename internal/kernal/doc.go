@@ -1,7 +1,7 @@
 // Package kernal: Pure deterministic accounting kernel.
 //
 // This package is a documentation-only marker. The kernel consists of nine
-// implementation packages under internal/kernal/* (see docs/KERNEL_ARCHITECTURE_MAP.md):
+// implementation packages under internal/kernal/* (see docs/architecture/KERNEL_ARCHITECTURE_MAP.md):
 // types, apperrors, journal, ledger, masterdata, governance, policy, posting and
 // valuation. docs/ard/P1_01_kernel_package_map.md records their responsibilities;
 // docs/ard/P1_02_gl_source_of_truth.md records the canonical accounting record.

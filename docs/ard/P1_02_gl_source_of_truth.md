@@ -3,7 +3,7 @@
 - **الحالة:** مقبول (Accepted) — قرار معماري ملزم؛ لا يغيّر قاعدة محاسبية قائمة.
 - **التاريخ (UTC):** 2026-11-21T21:04:06Z
 - **المالك:** مالك معمارية النواة + مالك عقود التخزين
-- **المرجع:** [الخطة، المرحلة 1 مهام 5–8](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [الخطة، المرحلة 4](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، الفجوة `G-004` في [سجل الفجوات](../KERNEL_REMEDIATION_GAP_REGISTER.md)، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
+- **المرجع:** [الخطة، المرحلة 1 مهام 5–8](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [الخطة، المرحلة 4](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، الفجوة `G-004` في [سجل الفجوات](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
 - **ذو صلة:** [ADR P1-01](./P1_01_kernel_package_map.md)، [ADR P1-03](./P1_03_reference_model_duality.md)
 
 ## السياق
@@ -89,7 +89,7 @@ flowchart LR
 4. **الوقت ضمن حدود صريحة:** وصول الشيفرة الإنتاجية في `posting` إلى الساعة الحقيقية يمر فقط عبر `systemClock{}.Now()`؛ الاختبارات والتدفقات الحتمية تستخدم `Clock` أو `BuildReversalEntryAt` / `NewJournalEntryAt`. لا تُقرأ العملة أو السياسة أو الأهلية بوقت مختلف عن تاريخ القيد.
 5. **حد التزام النواة:** الذرية، وتخزين مفتاح منع التكرار، وقفل صف الأصل عند العكس، وسلوك unknown-outcome تبقى مسؤولية Host Executor/Adapter وفق `RULE-KERNEL-027`؛ كانت `G-002` (ترتيب الأقفال الفعلي) متروكة للمرحلة 8 وقد أُغلقت فيها بـ [ADR P8-01](./P8_01_locking_and_isolation.md). لا تُعتبر المرحلة 6 إثباتاً لتلك الضمانات.
 
-المراجع التنفيذية: [Posting Flow Specification](../KERNEL_POSTING_FLOW_SPECIFICATION.md)، [Phase 6 report](../KERNEL_REMEDIATION_PHASE6_REPORT.md).
+المراجع التنفيذية: [Posting Flow Specification](../contracts/KERNEL_POSTING_FLOW_SPECIFICATION.md)، [Phase 6 report](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
 
 ## ملحق المرحلة 7 — وحدة العمل الذرية دون تغيير مصدر الحقيقة (2026-11-22)
 
@@ -101,4 +101,4 @@ flowchart LR
 4. العكس فائز واحد: الأصل يُقفل، والقيد العكسي والرابط وحالة الأصل تُكتب معاً، والمحاولة الثانية مرفوضة صراحةً.
 5. لا يوجد SQL أو `pgx` أو قفل مادي داخل `internal/kernal`. المحول يختار التنفيذ؛ مجموعة العقد المحايدة تحكم النتيجة.
 
-المراجع التنفيذية: [Posting Transaction Contract](../KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [Idempotency Contract](../KERNEL_IDEMPOTENCY_CONTRACT.md)، [Reversal Atomicity Contract](../KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [Phase 7 report](../KERNEL_REMEDIATION_PHASE7_REPORT.md).
+المراجع التنفيذية: [Posting Transaction Contract](../contracts/KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [Idempotency Contract](../contracts/KERNEL_IDEMPOTENCY_CONTRACT.md)، [Reversal Atomicity Contract](../contracts/KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [Phase 7 report](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).

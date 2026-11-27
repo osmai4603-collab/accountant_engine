@@ -3,8 +3,8 @@
 - **رمز الوثيقة:** `AE-POST-FLOW-V12`
 - **المرحلة:** 6 — الترحيل والعكس المحاسبي
 - **النطاق:** `internal/kernal/posting/**` والتفاعل الضروري مع `journal` و`masterdata` و`policy` و`types`
-- **المرجع:** [خطة المعالجة، المرحلة 6](./KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ثوابت النواة](../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)، [مصفوفة التتبع](../internal/kernal/KERNEL_TRACEABILITY_MATRIX.md)
-- **القرار المعماري:** [ADR P1-02](./ard/P1_02_gl_source_of_truth.md) و[ADR P3-01](./ard/P3_01_masterdata_effective_dating.md) و[ADR P5-01](./ard/P5_01_policy_selection_and_historical_interpretation.md)
+- **المرجع:** [خطة المعالجة، المرحلة 6](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)، [مصفوفة التتبع](../../internal/kernal/KERNEL_TRACEABILITY_MATRIX.md)
+- **القرار المعماري:** [ADR P1-02](../ard/P1_02_gl_source_of_truth.md) و[ADR P3-01](../ard/P3_01_masterdata_effective_dating.md) و[ADR P5-01](../ard/P5_01_policy_selection_and_historical_interpretation.md)
 - **قاعدة حاكمة:** هذه مواصفة سلوكية للنواة فقط. لا تحتوي على SQL أو تخزين ملموس أو HTTP/gRPC أو RBAC أو أرصدة مادية أو تقارير.
 
 ---
@@ -147,4 +147,4 @@
 | الفشل بعد Commit | الالتزام دائم؛ الاستعلام بالمفتاح يُعيد النتيجة؛ إعادة الطلب لا تضيف أثراً |
 | العكس | قفل الأصل، فائز واحد، ربط ذري، ورفض صريح للمحاولة الثانية |
 
-الأدلة: [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، [عقد ذرية العكس](./KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [مجموعة اختبارات العقد](./KERNEL_CONTRACT_TEST_SUITE.md)، [تقرير حقن الأعطال](./reports/fault_injection_report.md)، و[تقرير المرحلة 7](./KERNEL_REMEDIATION_PHASE7_REPORT.md). تصنيف `RULE-KERNEL-027` في مصفوفة النواة يبقى `Host Responsibility` لأن الذرية نفسها لا تزال في المحول.
+الأدلة: [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، [عقد ذرية العكس](./KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [مجموعة اختبارات العقد](./KERNEL_CONTRACT_TEST_SUITE.md)، [تقرير حقن الأعطال](../reports/fault_injection_report.md)، و[تقرير المرحلة 7](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md). تصنيف `RULE-KERNEL-027` في مصفوفة النواة يبقى `Host Responsibility` لأن الذرية نفسها لا تزال في المحول.

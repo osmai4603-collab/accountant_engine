@@ -4,9 +4,9 @@
 - **المرحلة:** 7–11 — المعاملات والذرية ومنع التكرار، التزامن والعزل متعدد الشركات، ثم تكافؤ المحولات والعقود
 - **التاريخ:** 2026-11-22
 - **خط الأساس المرجعي:** الالتزام `94054d9c9a5f8d8419c9871b2d61b17b44d5b556`
-- **الخطة:** [`KERNEL_REMEDIATION_EXECUTION_PLAN.md`](./KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المهام 12–15 (المرحلة 7)، 1–15 (المرحلة 8)، و1–17 (المرحلة 11)
+- **الخطة:** [`KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المهام 12–15 (المرحلة 7)، 1–15 (المرحلة 8)، و1–17 (المرحلة 11)
 - **الموقع:** `test/contract_parity/phase7_transaction_contract_test.go`، `test/contract_parity/phase8_concurrency_isolation_test.go`، و`test/contract_parity/phase11_*.go`
-- **الوثائق المرتبطة:** [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، [عقد ذرية العكس](./KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [عقد القفل](./KERNEL_LOCKING_CONTRACT.md)، [نموذج التزامن](./KERNEL_CONCURRENCY_MODEL.md)، [تقرير العزل](./reports/multi_company_isolation_report.md)، [تقرير حقن الأعطال](./reports/fault_injection_report.md)
+- **الوثائق المرتبطة:** [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، [عقد ذرية العكس](./KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)، [عقد القفل](./KERNEL_LOCKING_CONTRACT.md)، [نموذج التزامن](./KERNEL_CONCURRENCY_MODEL.md)، [تقرير العزل](../reports/multi_company_isolation_report.md)، [تقرير حقن الأعطال](../reports/fault_injection_report.md)
 
 ---
 
@@ -154,4 +154,4 @@ go test -race ./... -count=1
 - سجل السياسات غير قابل لإعادة التفسير، و`BalanceReader` متطابق دلالياً بين المحولين، وأي فرق مقصود مُعلَن صراحةً عبر `DeclareSemanticDifference` لا مُخترَع في المولّد.
 - `go test -race ./... -count=1` نظيف، وتقرير التكافؤ المولّد يعيد جميع السيناريوهات المشتركة PASS على المحولين بعد تشغيل كامل مع PostgreSQL فعلي.
 
-النتائج الفعلية لهذه الجلسة في [تقرير التكافؤ](./reports/contract_parity_report.md)، [تقرير حقن الأعطال](./reports/fault_injection_report.md)، [تقرير العزل متعدد الشركات](./reports/multi_company_isolation_report.md)، و[تقرير المرحلة 8](./KERNEL_REMEDIATION_PHASE8_REPORT.md).
+النتائج الفعلية لهذه الجلسة في [تقرير التكافؤ](../reports/contract_parity_report.md)، [تقرير حقن الأعطال](../reports/fault_injection_report.md)، [تقرير العزل متعدد الشركات](../reports/multi_company_isolation_report.md)، و[تقرير المرحلة 8](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).

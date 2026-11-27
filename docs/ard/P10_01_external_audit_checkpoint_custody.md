@@ -3,8 +3,8 @@
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
 - **المالك:** مالك `internal/kernal/governance` + مالكو `storage/memory` و`storage/postgres` + مالك العمليات
-- **المرجع:** [الخطة، المرحلة 10](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [الفجوة G-013](../KERNEL_REMEDIATION_GAP_REGISTER.md)، [الفجوة G-025](../KERNEL_REMEDIATION_GAP_REGISTER.md)
-- **ذو صلة:** [نموذج تهديد التدقيق](../KERNEL_AUDIT_THREAT_MODEL.md)، [عقد مستودع التدقيق](../KERNEL_AUDIT_REPOSITORY_CONTRACT.md)، [تقرير المرحلة 10](../KERNEL_REMEDIATION_PHASE10_REPORT.md)، [ADR P7-01](./P7_01_public_surface_decision.md)
+- **المرجع:** [الخطة، المرحلة 10](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [الفجوة G-013](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)، [الفجوة G-025](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)
+- **ذو صلة:** [نموذج تهديد التدقيق](../contracts/KERNEL_AUDIT_THREAT_MODEL.md)، [عقد مستودع التدقيق](../contracts/KERNEL_AUDIT_REPOSITORY_CONTRACT.md)، [تقرير المرحلة 10](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، [ADR P7-01](./P7_01_public_surface_decision.md)
 
 ## السياق
 
@@ -39,7 +39,7 @@
 - **النواة:** تجزئة canonical لكل الحقول الدلالية، تحقق شكل النقطة، لقطة صارمة، فشل مغلق عند الغياب، واختبارات الحقول/Tampering/الحذف/التزامن داخل `internal/kernal/governance`.
 - **SPI/المحولات:** `AtomicAuditLogRepository` و`AuditVerificationSnapshotRepository` و`SetExternalAuditCheckpoint` مع Company Scope وACID وRLS وWORM وrollback. الذرية بين الترحيل والتدقيق مُثبتة على المحولين.
 - **المضيف/العمليات:** ملكية النقطة وسياسة الاحتفاظ ونسخها إلى مخزن مستقل الأذونات؛ إدراجها في نسخ احتياطي منفصل؛ تحديد مدة الاحتفاظ ووالي الحفظ وفق متطلبات الامتثال. لا تُعرَّف هذه السياسة في النواة.
-- **الوثائق:** [نموذج التهديد](../KERNEL_AUDIT_THREAT_MODEL.md)، [عقد المستودع](../KERNEL_AUDIT_REPOSITORY_CONTRACT.md)، [تقرير المرحلة 10](../KERNEL_REMEDIATION_PHASE10_REPORT.md)، وتحديث القاعدتين `RULE-KERNEL-025/026` في [الثوابت](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md) و[المصفوفة](../../internal/kernal/KERNEL_TRACEABILITY_MATRIX.md).
+- **الوثائق:** [نموذج التهديد](../contracts/KERNEL_AUDIT_THREAT_MODEL.md)، [عقد المستودع](../contracts/KERNEL_AUDIT_REPOSITORY_CONTRACT.md)، [تقرير المرحلة 10](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، وتحديث القاعدتين `RULE-KERNEL-025/026` في [الثوابت](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md) و[المصفوفة](../../internal/kernal/KERNEL_TRACEABILITY_MATRIX.md).
 
 ## سياسة الاحتفاظ (قرار مضيف، وليس قاعدة نواة)
 
@@ -51,4 +51,4 @@
 
 ## الأدلة التنفيذية
 
-`TestCalculateHashProtectsEverySemanticField`، `TestCheckpointVerificationFailsClosedWithoutTrustedCheckpoint`، `TestMemoryAuditTailDeletionIsDetectedByCheckpoint`، `TestMemoryPhase10AuditFailureRollsBackPostingEffect`، `TestPostgresAuditPhase10ConcurrentAppendSequenceAndChain`، `TestPostgresAuditPhase10TamperingIsDetected`، `TestPostgresAuditPhase10TailDeletionFailsClosedWithCheckpoint`، `TestPostgresAuditPhase10CheckpointCannotRegress`، `TestPostgresPhase10BackfillRechainsLegacyRows`، و`TestDRDrill_FullRecovery/05_audit_chain`. تفاصيل الأوامر والمخرجات في [تقرير المرحلة 10](../KERNEL_REMEDIATION_PHASE10_REPORT.md).
+`TestCalculateHashProtectsEverySemanticField`، `TestCheckpointVerificationFailsClosedWithoutTrustedCheckpoint`، `TestMemoryAuditTailDeletionIsDetectedByCheckpoint`، `TestMemoryPhase10AuditFailureRollsBackPostingEffect`، `TestPostgresAuditPhase10ConcurrentAppendSequenceAndChain`، `TestPostgresAuditPhase10TamperingIsDetected`، `TestPostgresAuditPhase10TailDeletionFailsClosedWithCheckpoint`، `TestPostgresAuditPhase10CheckpointCannotRegress`، `TestPostgresPhase10BackfillRechainsLegacyRows`، و`TestDRDrill_FullRecovery/05_audit_chain`. تفاصيل الأوامر والمخرجات في [تقرير المرحلة 10](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).

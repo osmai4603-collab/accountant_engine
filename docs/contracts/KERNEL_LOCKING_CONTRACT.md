@@ -3,9 +3,9 @@
 - **رمز الوثيقة:** `AE-P8-LOCKING-CONTRACT`
 - **المرحلة:** 8 — التزامن والعزل متعدد الشركات
 - **التاريخ:** 2026-11-22
-- **القرار المعتمد:** [ADR P8-01](./ard/P8_01_locking_and_isolation.md)
-- **الخطة:** [المرحلة 8، المهام 1–4 و14–15](./KERNEL_REMEDIATION_EXECUTION_PLAN.md)
-- **الوثائق المرتبطة:** [نموذج التزامن](./KERNEL_CONCURRENCY_MODEL.md)، [تقرير العزل متعدد الشركات](./reports/multi_company_isolation_report.md)، [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)
+- **القرار المعتمد:** [ADR P8-01](../ard/P8_01_locking_and_isolation.md)
+- **الخطة:** [المرحلة 8، المهام 1–4 و14–15](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
+- **الوثائق المرتبطة:** [نموذج التزامن](./KERNEL_CONCURRENCY_MODEL.md)، [تقرير العزل متعدد الشركات](../reports/multi_company_isolation_report.md)، [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)
 
 ---
 
@@ -137,4 +137,4 @@ ExecuteWithRetry(ctx, runner, opts, policy, fn)
 
 ## 9. الحكم
 
-العقد مكتمل: الترتيب حتمي، الحجز فعلي في المحولين، النطاق إلزامي، التحرير مضمون، والتصنيف يمنع إعادة المحاولة على أخطاء نهائية. إغلاق `G-002` مشروط بنجاح هذه الاختبارات مع `go test -race`، وقد تحقق ذلك في [تقرير المرحلة 8](./KERNEL_REMEDIATION_PHASE8_REPORT.md).
+العقد مكتمل: الترتيب حتمي، الحجز فعلي في المحولين، النطاق إلزامي، التحرير مضمون، والتصنيف يمنع إعادة المحاولة على أخطاء نهائية. إغلاق `G-002` مشروط بنجاح هذه الاختبارات مع `go test -race`، وقد تحقق ذلك في [تقرير المرحلة 8](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).

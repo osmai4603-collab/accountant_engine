@@ -4,8 +4,8 @@
 - **الإصدار المستهدف:** Accounting Kernel v1.0.0 (Remediation Plan Final)
 - **تاريخ الفحص:** 2026-11-22
 - **الحالة الإجمالية للبوابات:** **PASS** (استيفاء تام لكافة بوابات الجودة الـ 15)
-- **الخطة المرجعية:** [`docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md`](./KERNEL_REMEDIATION_EXECUTION_PLAN.md)
-- **سجل الفجوات النهائي:** [`docs/KERNEL_REMEDIATION_GAP_REGISTER.md`](./KERNEL_REMEDIATION_GAP_REGISTER.md)
+- **الخطة المرجعية:** [`docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
+- **سجل الفجوات النهائي:** [`docs/KERNEL_REMEDIATION_GAP_REGISTER.md`](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)
 
 ---
 

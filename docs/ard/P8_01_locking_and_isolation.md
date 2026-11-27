@@ -3,8 +3,8 @@
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
 - **المالك:** مالك معمارية النواة + مالك `internal/kernal/posting` + مالكو المحولات
-- **المرجع:** [الخطة، المرحلة 8](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [الفجوة G-002](../KERNEL_REMEDIATION_GAP_REGISTER.md)
-- **ذو صلة:** [ADR P1-02](./P1_02_gl_source_of_truth.md)، [ADR P5-01](./P5_01_policy_selection_and_historical_interpretation.md)، [عقد المعاملة](../KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](../KERNEL_IDEMPOTENCY_CONTRACT.md)
+- **المرجع:** [الخطة، المرحلة 8](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [الفجوة G-002](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)
+- **ذو صلة:** [ADR P1-02](./P1_02_gl_source_of_truth.md)، [ADR P5-01](./P5_01_policy_selection_and_historical_interpretation.md)، [عقد المعاملة](../contracts/KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [عقد idempotency](../contracts/KERNEL_IDEMPOTENCY_CONTRACT.md)
 
 ## السياق
 
@@ -41,7 +41,7 @@
 - **SPI:** عقد قفل محايد ومراقب اختباري و`ErrScopeViolation` وسياسة retry محدودة.
 - **المحولات:** تطبيق الترتيب داخل وحدة العمل، Company Scope في كل منفذ، واختبارات تشغيل العقد نفسها على الذاكرة وPostgreSQL.
 - **المضيف/SDK:** ترجمة الأخطاء، سياسة إعادة محاولة محدودة، واستعلام آمن بالمفتاح عند unknown outcome.
-- **الوثائق:** [Concurrency Model](../KERNEL_CONCURRENCY_MODEL.md)، [Locking Contract](../KERNEL_LOCKING_CONTRACT.md)، وتقرير [العزل متعدد الشركات](../reports/multi_company_isolation_report.md).
+- **الوثائق:** [Concurrency Model](../contracts/KERNEL_CONCURRENCY_MODEL.md)، [Locking Contract](../contracts/KERNEL_LOCKING_CONTRACT.md)، وتقرير [العزل متعدد الشركات](../reports/multi_company_isolation_report.md).
 
 ## الأدلة التنفيذية
 

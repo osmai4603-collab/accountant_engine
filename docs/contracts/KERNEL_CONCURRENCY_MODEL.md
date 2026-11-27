@@ -3,8 +3,8 @@
 - **رمز الوثيقة:** `AE-P8-CONCURRENCY-MODEL`
 - **المرحلة:** 8 — التزامن والعزل متعدد الشركات
 - **التاريخ:** 2026-11-22
-- **القرار المعتمد:** [ADR P8-01](./ard/P8_01_locking_and_isolation.md)
-- **الوثائق المرتبطة:** [عقد القفل](./KERNEL_LOCKING_CONTRACT.md)، [تقرير العزل متعدد الشركات](./reports/multi_company_isolation_report.md)، [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)
+- **القرار المعتمد:** [ADR P8-01](../ard/P8_01_locking_and_isolation.md)
+- **الوثائق المرتبطة:** [عقد القفل](./KERNEL_LOCKING_CONTRACT.md)، [تقرير العزل متعدد الشركات](../reports/multi_company_isolation_report.md)، [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)
 
 ---
 
@@ -123,7 +123,7 @@ ExecuteWithRetry(ctx, runner, opts, policy, fn) respects cancellation
 | Race | `go test -race ./... -count=1` |
 | معمارية | `./scripts/verify_architecture.sh` → 11/11 PASS |
 
-> ملاحظة: أسماء الاختبارات في الجدول أعلاه هي أسماء خارج `internal/kernal`؛ المرجع المُلزم لها هو [مجموعة اختبارات العقد](./KERNEL_CONTRACT_TEST_SUITE.md) وتقرير [المرحلة 8](./KERNEL_REMEDIATION_PHASE8_REPORT.md).
+> ملاحظة: أسماء الاختبارات في الجدول أعلاه هي أسماء خارج `internal/kernal`؛ المرجع المُلزم لها هو [مجموعة اختبارات العقد](./KERNEL_CONTRACT_TEST_SUITE.md) وتقرير [المرحلة 8](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
 
 ## 10. الحدود المتبقية
 

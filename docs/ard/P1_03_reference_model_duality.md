@@ -3,7 +3,7 @@
 - **الحالة:** مقبول (Accepted) — يُثبّت الوضع القائم ويمنع استخدام النماذج المرجعية كبديل عن المصدر المخول.
 - **التاريخ (UTC):** 2026-11-21T21:04:06Z
 - **المالك:** مالك معمارية النواة + مالك السطح العام
-- **المرجع:** [الخطة، المرحلة 1 مهام 9–10](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ADR P1-01](./P1_01_kernel_package_map.md)، [ADR P1-02](./P1_02_gl_source_of_truth.md)، [ADR P7-01](./P7_01_public_surface_decision.md)
+- **المرجع:** [الخطة، المرحلة 1 مهام 9–10](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ADR P1-01](./P1_01_kernel_package_map.md)، [ADR P1-02](./P1_02_gl_source_of_truth.md)، [ADR P7-01](./P7_01_public_surface_decision.md)
 - **ذو صلة:** [قواعد الثوابت 016–020](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
 
 ## السياق

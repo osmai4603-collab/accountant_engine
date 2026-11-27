@@ -11,7 +11,7 @@ technical_terms: "en"
 
 # خريطة معمارية النواة المحاسبية (المرحلة 1)
 
-> هذه الوثيقة هي الخريطة التنفيذية المطابقة للكود، المرجعية لكل من [وثيقة الرؤية المستهدفة](./TARGET_ACCOUNTING_KERNAL.md) و[الخطة](./KERNEL_REMEDIATION_EXECUTION_PLAN.md). تُستمد الحقائق فيها من `go list` وجرد الملفات ومخطط التدفق الفعلي، لا من الادعاءات المحفوظة. القرارات ملحقة في [P1-01](./ard/P1_01_kernel_package_map.md) و[P1-02](./ard/P1_02_gl_source_of_truth.md) و[P1-03](./ard/P1_03_reference_model_duality.md).
+> هذه الوثيقة هي الخريطة التنفيذية المطابقة للكود، المرجعية لكل من [وثيقة الرؤية المستهدفة](TARGET_ACCOUNTING_KERNEL.md) و[الخطة](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md). تُستمد الحقائق فيها من `go list` وجرد الملفات ومخطط التدفق الفعلي، لا من الادعاءات المحفوظة. القرارات ملحقة في [P1-01](../ard/P1_01_kernel_package_map.md) و[P1-02](../ard/P1_02_gl_source_of_truth.md) و[P1-03](../ard/P1_03_reference_model_duality.md).
 
 ## 1. الحزم التسع + حزمة الجذر
 
@@ -38,7 +38,7 @@ technical_terms: "en"
 | `masterdata.JournalRepository` | إلزامي ل`PostEntry` | قراءة اليومية بمعرّف مستقر؛ تُفحص الهوية بـ`ValidateJournalScope`. |
 | `masterdata.CostCenterRepository` / `AnalyticalDimensionRepository` | اختياريان | مطلوبان عند وجود أبعاد على السطر. |
 
-كل مسار يرفض `CompanyID` صفرياً قبل استدعاء أي Reader. انظر [ADR P3-01](./ard/P3_01_masterdata_effective_dating.md).
+كل مسار يرفض `CompanyID` صفرياً قبل استدعاء أي Reader. انظر [ADR P3-01](../ard/P3_01_masterdata_effective_dating.md).
 
 ## 2. مخطط الاعتماد الفعلي
 

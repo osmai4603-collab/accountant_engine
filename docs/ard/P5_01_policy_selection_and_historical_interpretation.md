@@ -3,7 +3,7 @@
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
 - **المالك:** مالك معمارية النواة + مالك `internal/kernal/policy`
-- **المرجع:** [الخطة، المرحلة 5](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [تقرير المرحلة 5](../KERNEL_REMEDIATION_PHASE5_REPORT.md)
+- **المرجع:** [الخطة، المرحلة 5](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [تقرير المرحلة 5](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)
 - **ذو صلة:** [ADR P1-02](./P1_02_gl_source_of_truth.md)، [RULE-KERNEL-010/019](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
 
 ## السياق

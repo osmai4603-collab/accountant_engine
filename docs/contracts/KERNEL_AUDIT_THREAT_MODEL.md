@@ -3,7 +3,7 @@
 - **رمز الوثيقة:** `AE-REMED-P10-THREAT`
 - **المرحلة:** 10 — التدقيق وسلامة الأدلة
 - **التاريخ:** 2026-11-22
-- **المرجع:** [الخطة](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ADR P10-01](./ard/P10_01_external_audit_checkpoint_custody.md)، [عقد المستودع](./KERNEL_AUDIT_REPOSITORY_CONTRACT.md)
+- **المرجع:** [الخطة](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ADR P10-01](../ard/P10_01_external_audit_checkpoint_custody.md)، [عقد المستودع](./KERNEL_AUDIT_REPOSITORY_CONTRACT.md)
 - **القواعد:** `RULE-KERNEL-025` و`RULE-KERNEL-026`
 
 ## الأصول والحدود

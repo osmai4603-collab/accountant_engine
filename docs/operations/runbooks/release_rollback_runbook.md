@@ -3,7 +3,7 @@
 - **المعرّف:** RB-OPS-002 / `P7-03`
 - **الجمهور:** مالك الإصدار + التطبيق المضيف + مسؤول قاعدة البيانات
 - **النطاق:** تراجع مكتبة `pkg/sdk` المدمجة ومخطط PostgreSQL؛ لا يوجد خادم HTTP/gRPC أو بوابة شبكية داخل النواة.
-- **المرجع:** [تعريفات بوابات P7](../../reports/p7_gate_definitions.md)، [قالب قرار الإصدار](../../release_signoff_v1.0.0.md).
+- **المرجع:** [تقرير التحقق النهائي](../../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، [اعتماد الإصدار](../../reports/KERNEL_RELEASE_SIGNOFF.md).
 
 ## 1. متى يُفعّل التراجع
 
@@ -53,8 +53,8 @@ go test -race ./...
 | العزل المعماري | `./scripts/verify_architecture.sh` | PASS |
 | توافق API | `./scripts/check_api_compat.sh` | exit 0 |
 | السباقات | `go test -race ./...` | 0 Data Races |
-| الذرية والتكافؤ | `T3` في [البروتوكول](../../execution_plan_steps/09_PHASE_7_TEST_EXECUTION.md) | 0 Partial Writes |
+| الذرية والتكافؤ | اختبارات التكافؤ في [مجموعة اختبارات العقد](../../contracts/KERNEL_CONTRACT_TEST_SUITE.md) | 0 Partial Writes |
 | التغطية | `scripts/check_coverage.sh coverage.out` | ≥ 80% |
 | الاستعادة | `go test -v ./test/dr` | PASS |
 
-لا يُغلق الحادث حتى توقع البوابات الست في `docs/release_signoff_v1.0.0.md` بحالة `GO` للإصدار المرجعي، أو يُسجَّل قرار `NO-GO` صريح مع موانعه. أرفق الإصدار، الهجرة، القرار، الأثر، ونتائج التحقق في سجل الحادث، وأضف اختبار انحدار يمنع تكرار السبب.
+لا يُغلق الحادث حتى توقع البوابات في [اعتماد الإصدار](../../reports/KERNEL_RELEASE_SIGNOFF.md) بحالة `GO` للإصدار المرجعي، أو يُسجَّل قرار `NO-GO` صريح مع موانعه. أرفق الإصدار، الهجرة، القرار، الأثر، ونتائج التحقق في سجل الحادث، وأضف اختبار انحدار يمنع تكرار السبب.

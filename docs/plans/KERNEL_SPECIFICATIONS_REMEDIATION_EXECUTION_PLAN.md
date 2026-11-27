@@ -1,8 +1,8 @@
 # خطة تنفيذية لمعالجة عيوب وفجوات مواصفات النواة المحاسبية (`docs/specifications/kernal`)
 
 **تاريخ الإنشاء:** 2026-11-27  
-**المرجع التحليلي:** [KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md](./KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md)  
-**المنهجية الحاكمة:** [NORMATIVE_SPECIFICATION_METHODOLOGY.md](./references/NORMATIVE_SPECIFICATION_METHODOLOGY.md) (`NSM-001`)  
+**المرجع التحليلي:** [KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md](../reports/KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md)  
+**المنهجية الحاكمة:** [NORMATIVE_SPECIFICATION_METHODOLOGY.md](../references/NORMATIVE_SPECIFICATION_METHODOLOGY.md) (`NSM-001`)  
 **الهدف:** إغلاق جميع الفجوات والتناقضات والعيوب الهيكلية الـ 27 المرصودة في مواصفات النواة العشر وفي الوثائق المرتبطة بها داخل `docs/`، وصولاً إلى خط أساس معياري متسق وقابل للاعتماد (`Approved Normative Specification`).
 
 ---
@@ -26,8 +26,8 @@
 
 - **الفجوة المغطاة:** `G-IAS21-1`
 - **الملفات المستهدفة:**
-  - [MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md) (`MD-004`)
-  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md) (`VAL-006`)
+  - [MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/MASTERDATA_DOMAIN_SPECIFICATION_v1.2.0.md) (`MD-004`)
+  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.2.0.md) (`VAL-006`)
 - **الإجراء التنفيذي:**
   1. تعريف سمة إلزامية أو صريحة في `MD-004` على مستوى `Account` تحدد طبيعة البند (`IsMonetary` / `MonetaryClassification`) لحسابات `Asset` و`Liability`.
   2. ربط `VAL-006` بهذه السمة كشرط موضوعي لرفض البنود غير النقدية عند التقييم بسعر الإقفال (`IAS 21.23(a)`).
@@ -37,11 +37,11 @@
 
 - **الفجوة المغطاة:** `G-IAS21-2`, `G-IAS21-3`, `G-IAS21-4`
 - **الملفات المستهدفة:**
-  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md) (§1.2، `VAL-001`, `VAL-006`, `REF-001`)
-  - [JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md) (`JRN-004`)
-  - [POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md) (`PST-004`)
-  - [TARGET_ACCOUNTING_KERNAL.md](./TARGET_ACCOUNTING_KERNAL.md) (§3.4)
-  - [ACCOUNTING_BUSINESS_RULES.md](./ACCOUNTING_BUSINESS_RULES.md) (`RULE-ACC-013`)
+  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.2.0.md) (§1.2، `VAL-001`, `VAL-006`, `REF-001`)
+  - [JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.2.0.md) (`JRN-004`)
+  - [POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.2.0.md) (`PST-004`)
+  - [TARGET_ACCOUNTING_KERNAL.md](../architecture/TARGET_ACCOUNTING_KERNEL.md) (§3.4)
+  - [ACCOUNTING_BUSINESS_RULES.md](../rules/ACCOUNTING_BUSINESS_RULES.md) (`RULE-ACC-013`)
 - **الإجراء التنفيذي:**
   1. تحديد قواعد اختيار السعر عند الاعتراف الأولي (`SPOT` بتاريخ المعاملة أو `AVERAGE` المعتمد وفق `IAS 21.21–22`) أو توثيق استبعاد التحقق من نوع السعر عند الترحيل اليومي كقرار مشروع صريح.
   2. توضيح حدود `IAS 21.23(c)` و`IAS 21.30–31` (البنود غير النقدية المقاسة بالقيمة العادلة وفروق `OCI`) في §1.2 من `FX_REVALUATION` بدلاً من الإيحاء بتغطيتها في `VAL-006`.
@@ -52,10 +52,10 @@
 
 - **الفجوة المغطاة:** `G-FIPS-1`
 - **الملفات المستهدفة:**
-  - [GOVERNANCE_AND_AUDIT_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/GOVERNANCE_AND_AUDIT_DOMAIN_SPECIFICATION_v1.0.0.md) (`GOV-003`)
-  - [POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md) (`PST-009`)
-  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md) (`VAL-010`)
-  - [ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md) (`POL-009`)
+  - [GOVERNANCE_AND_AUDIT_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/GOVERNANCE_AND_AUDIT_DOMAIN_SPECIFICATION_v1.2.0.md) (`GOV-003`)
+  - [POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.2.0.md) (`PST-009`)
+  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.2.0.md) (`VAL-010`)
+  - [ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.2.0.md) (`POL-009`)
 - **الإجراء التنفيذي:**
   1. إضافة ملحق معياري أو قسم مخصص للترميز القانوني يحدد: نوع وحجم بادئة الطول (مثلاً `uint32` big-endian)، ترميز `UUID` (نص معياري أم 16 بايت)، صيغة الطابع الزمني (ميكروثانية UTC)، ترتيب الحقول، وصيغة `Payload digest`، مع متجه اختبار ذهبي (`Golden Test Vector`) وفق `NSM-001 §2(5)`.
 - **معيار القبول:** تمكّن طرف ثالث من إعادة إنتاج نفس قيمة `sha256:<hex>` من المتن المعياري وحده دون قراءة شيفرة Go.
@@ -64,7 +64,7 @@
 
 - **الفجوة المغطاة:** تعارض `GOV-003` مع `RULE-ACC-041/042`
 - **الملفات المستهدفة:**
-  - [ACCOUNTING_BUSINESS_RULES.md](./ACCOUNTING_BUSINESS_RULES.md) (`RULE-ACC-041`, `RULE-ACC-042`)
+  - [ACCOUNTING_BUSINESS_RULES.md](../rules/ACCOUNTING_BUSINESS_RULES.md) (`RULE-ACC-041`, `RULE-ACC-042`)
 - **الإجراء التنفيذي:**
   1. تحديث `RULE-ACC-041` لاعتماد التأطير مسبوق الطول (`v2 length-prefixed`) والحقول الـ 11 (بما فيها `Reason` و`CorrelationID`) بدلاً من الفواصل `v1|...`.
   2. تحديث `RULE-ACC-042` لاعتماد دقة الميكروثانية (`TIMESTAMPTZ` UTC) المتوافقة مع `GOV-003` و`KERNEL_AUDIT_THREAT_MODEL.md` (`T-01`).
@@ -74,8 +74,8 @@
 
 - **الفجوة المغطاة:** فجوة `LDG-003` / `LDG-004` لخدمة `FX_REVALUATION`
 - **الملفات المستهدفة:**
-  - [LEDGER_PROJECTION_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/LEDGER_PROJECTION_DOMAIN_SPECIFICATION_v1.0.0.md) (`LDG-003`, `LDG-004`)
-  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md) (§1.2)
+  - [LEDGER_PROJECTION_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/LEDGER_PROJECTION_DOMAIN_SPECIFICATION_v1.2.0.md) (`LDG-003`, `LDG-004`)
+  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.2.0.md) (§1.2)
 - **الإجراء التنفيذي:**
   1. تعريف عقد قراءة/إسقاط صريح يُرجع زوجاً من الأرصدة لكل `(AccountID, TransactionCurrency, Dimensions)`: صافي رصيد المعاملة (`TransactionAmount`) وصافي القيمة الدفترية الوظيفية (`FunctionalDebit - FunctionalCredit`)، مع إبقاء `BalanceReader` التقليدي مخصصاً للقياس الوظيفي وفق `ADR P11-03`.
 - **معيار القبول:** وضوح مسار حصول `FX_REVALUATION` على رصيد العملة الأجنبية دون مخالفة `LDG-004`.
@@ -84,7 +84,7 @@
 
 - **الفجوة المغطاة:** غموض `PST-004` وتوقيت التطبيع مع `MONEY-028`
 - **الملفات المستهدفة:**
-  - [POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md) (`PST-004`, §7)
+  - [POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/POSTING_AND_REVERSAL_DOMAIN_SPECIFICATION_v1.2.0.md) (`PST-004`, §7)
 - **الإجراء التنفيذي:**
   1. تحديد القيمة الرقمية الدقيقة لـ"تسامح التقريب المسموح" (مثلاً نصف أو وحدة صغرى للعملة الوظيفية) والخطأ الحارس المرجع عند تجاوز التسامح أو عكس الإشارة.
   2. النص صراحةً في `PST-004` على أن تطبيع `TransactionAmount` إلى وحدته الصغرى قبل الضرب في `ExchangeRate` هو تقييد ترحيلي خاص يسبق قاعدة `MONEY-028`.
@@ -97,11 +97,11 @@
 ### P2-T1 — توحيد الأخطاء الحارسة (`Sentinels`) وجداول `CodedError`
 
 - **الملفات المستهدفة:**
-  - [IDENTIFIERS_AND_ERRORS_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/IDENTIFIERS_AND_ERRORS_DOMAIN_SPECIFICATION_v1.0.0.md) (§5 `ERR-001`, §6)
-  - [ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md) (`POL-007`, §7)
-  - [MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md) (`MD-007`, §8)
-  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md) (§7)
-  - [KERNEL_IDEMPOTENCY_CONTRACT.md](./KERNEL_IDEMPOTENCY_CONTRACT.md) (§2)
+  - [IDENTIFIERS_AND_ERRORS_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/IDENTIFIERS_AND_ERRORS_DOMAIN_SPECIFICATION_v1.2.0.md) (§5 `ERR-001`, §6)
+  - [ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/ACCOUNTING_POLICY_DOMAIN_SPECIFICATION_v1.2.0.md) (`POL-007`, §7)
+  - [MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/MASTERDATA_DOMAIN_SPECIFICATION_v1.2.0.md) (`MD-007`, §8)
+  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.2.0.md) (§7)
+  - [KERNEL_IDEMPOTENCY_CONTRACT.md](../contracts/KERNEL_IDEMPOTENCY_CONTRACT.md) (§2)
 - **الإجراء التنفيذي:**
   1. حسم التسمية المعتمدة بين `ErrAccountNotEffective` و`ErrAccountNotCurrent` (أو توثيق أحدهما كمرادف في `DEC-*`).
   2. حسم التسمية المعتمدة لمفتاح منع التكرار الفارغ بين `ErrIdempotencyKeyRequired` و`ErrIdempotencyScopeRequired` وتحديث `KERNEL_IDEMPOTENCY_CONTRACT.md` تبعاً لذلك.
@@ -110,8 +110,8 @@
 ### P2-T2 — تعميم قيود رموز `ISO 4217` الخاصة وتوثيق لقطة السجل
 
 - **الملفات المستهدفة:**
-  - [MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md) (`MD-002`, `MD-004`)
-  - [MONEY_DOMAIN_SPECIFICATION_v2.6.1.md](./specifications/kernal/MONEY_DOMAIN_SPECIFICATION_v2.6.1.md) (`MONEY-010`, `MONEY-013`)
+  - [MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/MASTERDATA_DOMAIN_SPECIFICATION_v1.2.0.md) (`MD-002`, `MD-004`)
+  - [MONEY_DOMAIN_SPECIFICATION_v2.6.1.md](../specifications/kernel/MONEY_DOMAIN_SPECIFICATION_v2.6.1.md) (`MONEY-010`, `MONEY-013`)
 - **الإجراء التنفيذي:**
   1. تحديث `MD-002` و`MD-004` لاستثناء جميع الرموز غير القابلة للإنفاق وفق `MONEY-014` (`XXX`, `XTS`, `XAU`, `XAG`, `XDR`) وليس `XXX` فقط.
   2. توثيق رقم إصدار/تاريخ لقطة سجل `ISO 4217` المرجعية في ملحق `MONEY`.
@@ -119,10 +119,10 @@
 ### P2-T3 — حسم تصنيفات القيد (`Standard`/`Regular`، `Adjusting`، `Cancelled`، `Opening`)
 
 - **الملفات المستهدفة:**
-  - [JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md) (`JRN-006`, `JRN-007`)
-  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md) (`VAL-007`)
-  - [TARGET_ACCOUNTING_KERNAL.md](./TARGET_ACCOUNTING_KERNAL.md) (§3.8)
-  - [internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md](../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md) (`RULE-KERNEL-009`)
+  - [JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.2.0.md) (`JRN-006`, `JRN-007`)
+  - [FX_REVALUATION_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/FX_REVALUATION_DOMAIN_SPECIFICATION_v1.2.0.md) (`VAL-007`)
+  - [TARGET_ACCOUNTING_KERNAL.md](../architecture/TARGET_ACCOUNTING_KERNEL.md) (§3.8)
+  - [internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md) (`RULE-KERNEL-009`)
 - **الإجراء التنفيذي:**
   1. توحيد اسم التصنيف الافتراضي (`Standard` أو `Regular`) بين `JRN-006` و`RULE-KERNEL-009`.
   2. تحديد البيانات الوصفية الإلزامية (`AdjustingEntryType`) التي يختمها مولد قيد إعادة التقييم في `VAL-007` ليجتاز `JRN-006`.
@@ -132,8 +132,8 @@
 ### P2-T4 — توحيد `Revenue` مقابل `Income` وفق الإطار المفاهيمي 2018
 
 - **الملفات المستهدفة:**
-  - [MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md) (`MD-004`)
-  - [LEDGER_PROJECTION_DOMAIN_SPECIFICATION_v1.0.0.md](./specifications/kernal/LEDGER_PROJECTION_DOMAIN_SPECIFICATION_v1.0.0.md) (`LDG-005`)
+  - [MASTERDATA_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/MASTERDATA_DOMAIN_SPECIFICATION_v1.2.0.md) (`MD-004`)
+  - [LEDGER_PROJECTION_DOMAIN_SPECIFICATION_v1.0.0.md](../specifications/kernel/LEDGER_PROJECTION_DOMAIN_SPECIFICATION_v1.2.0.md) (`LDG-005`)
 - **الإجراء التنفيذي:**
   1. توثيق الترادف بين `Revenue` و`Income` في `MD-004` و`LDG-005` بما يتوافق مع `Conceptual Framework 2018 Ch. 4` و`TARGET_ACCOUNTING_KERNAL.md` (§3.9).
 
@@ -176,4 +176,4 @@
    - ملفات `docs/specifications/kernal/*` فيما بينها؛
    - `docs/ACCOUNTING_BUSINESS_RULES.md` و`docs/TARGET_ACCOUNTING_KERNAL.md` و`docs/KERNEL_*.md`؛
    - `internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md`.
-3. **إغلاق جميع البنود الـ 27:** تحديث سجل تحليل الفجوات ([KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md](./KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md)) أو إرفاق سجل إغلاق يثبت معالجة كل بند.
+3. **إغلاق جميع البنود الـ 27:** تحديث سجل تحليل الفجوات ([KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md](../reports/KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md)) أو إرفاق سجل إغلاق يثبت معالجة كل بند.

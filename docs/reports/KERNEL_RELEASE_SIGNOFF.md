@@ -7,11 +7,11 @@
 - **شجرة الكود المعتمدة (Commit SHA):** `c28151d0c5f2dd1bd761fb09820b3b99774fa728`
 - **البيئة والمترجم:** Linux x86_64, `go version go1.26.3 linux/amd64`
 - **المراجع الحاكمة:**
-  - خطة المعالجة الشاملة: [docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md](file:///home/osm/StudioProjects/cashflow_system/accountant_engine/docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
-  - تقرير التحقق النهائي (Tasks 1–20): [docs/KERNEL_FINAL_VERIFICATION_REPORT.md](file:///home/osm/StudioProjects/cashflow_system/accountant_engine/docs/KERNEL_FINAL_VERIFICATION_REPORT.md)
-  - تقرير تنفيذ المرحلة 12: [docs/KERNEL_REMEDIATION_PHASE12_REPORT.md](file:///home/osm/StudioProjects/cashflow_system/accountant_engine/docs/KERNEL_REMEDIATION_PHASE12_REPORT.md)
-  - سجل الفجوات المحدث: [docs/KERNEL_REMEDIATION_GAP_REGISTER.md](file:///home/osm/StudioProjects/cashflow_system/accountant_engine/docs/KERNEL_REMEDIATION_GAP_REGISTER.md)
-  - تقارير التكافؤ والطفرات والتغطية: [test/contract_parity/parity_report.md](file:///home/osm/StudioProjects/cashflow_system/accountant_engine/test/contract_parity/parity_report.md), [internal/kernal/KERNEL_MUTATION_REPORT.md](file:///home/osm/StudioProjects/cashflow_system/accountant_engine/internal/kernal/KERNEL_MUTATION_REPORT.md), [internal/kernal/KERNEL_COVERAGE_EXCEPTIONS.md](file:///home/osm/StudioProjects/cashflow_system/accountant_engine/internal/kernal/KERNEL_COVERAGE_EXCEPTIONS.md)
+  - خطة المعالجة الشاملة: [docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
+  - تقرير التحقق النهائي (Tasks 1–20): [docs/KERNEL_FINAL_VERIFICATION_REPORT.md](KERNEL_FINAL_VERIFICATION_REPORT.md)
+  - تقرير تنفيذ المرحلة 12: [docs/KERNEL_REMEDIATION_PHASE12_REPORT.md](KERNEL_FINAL_VERIFICATION_REPORT.md)
+  - سجل الفجوات المحدث: [docs/KERNEL_REMEDIATION_GAP_REGISTER.md](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)
+  - تقارير التكافؤ والطفرات والتغطية: [test/contract_parity/parity_report.md](../../test/contract_parity/parity_report.md), [internal/kernal/KERNEL_MUTATION_REPORT.md](../../internal/kernal/KERNEL_MUTATION_REPORT.md), [internal/kernal/KERNEL_COVERAGE_EXCEPTIONS.md](../../internal/kernal/KERNEL_COVERAGE_EXCEPTIONS.md)
 
 ---
 

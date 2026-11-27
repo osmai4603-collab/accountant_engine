@@ -3,7 +3,7 @@
 - **الحالة:** مقبول (Accepted) — يُطبَّق آلياً بواسطة `scripts/verify_architecture.sh`.
 - **التاريخ (UTC):** 2026-11-21T02:02:11Z
 - **المالك:** مالك العقود العامة / بوابة `P7`
-- **المرجع:** `F-04` في [08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md](../execution_plan_steps/08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md)، وميثاق `ENF-02`، وبوابة `P1` في [00_MASTER_EXECUTION_PLAN.md](../execution_plan_steps/00_MASTER_EXECUTION_PLAN.md).
+- **المرجع:** `F-04` في [08_PHASE_7_TESTING_HARNESS_AND_RELEASE.md](../plans/KERNEL_UNIFIED_MASTER_EXECUTION_PLAN.md)، وميثاق `ENF-02`، وبوابة `P1` في [00_MASTER_EXECUTION_PLAN.md](../plans/KERNEL_UNIFIED_MASTER_EXECUTION_PLAN.md).
 
 ## السياق
 

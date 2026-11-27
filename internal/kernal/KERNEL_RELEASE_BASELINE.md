@@ -6,8 +6,8 @@
 - **تاريخ الاعتماد:** 2026-11-22
 - **بيئة البناء والاعتماد:** `go version go1.26.3 linux/amd64`
 - **النطاق البرمجي الملزم:** `internal/kernal/` بالإضافة إلى عقود SPI ومحولات التخزين لاختبار التكافؤ
-- **الخطة المرجعية:** [`docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../../docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
-- **تقرير التحقق النهائي:** [`docs/KERNEL_FINAL_VERIFICATION_REPORT.md`](../../docs/KERNEL_FINAL_VERIFICATION_REPORT.md)
+- **الخطة المرجعية:** [`docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md`](../../docs/plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)
+- **تقرير التحقق النهائي:** [`docs/KERNEL_FINAL_VERIFICATION_REPORT.md`](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md)
 
 ---
 

@@ -6,7 +6,7 @@
 - **خط الأساس المرجعي:** الالتزام `94054d9c9a5f8d8419c9871b2d61b17b44d5b556`
 - **النطاق:** `pkg/spi/storage/faults.go`، `storage/memory/posting.go`، `storage/postgres/posting.go`، `storage/postgres/uow.go`
 - **الاختبار الحاكم:** `test/contract_parity/phase7_transaction_contract_test.go`
-- **الوثائق المرتبطة:** [عقد المعاملة](../KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [مجموعة اختبارات العقد](../KERNEL_CONTRACT_TEST_SUITE.md)، [تقرير التكافؤ](contract_parity_report.md)
+- **الوثائق المرتبطة:** [عقد المعاملة](../contracts/KERNEL_POSTING_TRANSACTION_CONTRACT.md)، [مجموعة اختبارات العقد](../contracts/KERNEL_CONTRACT_TEST_SUITE.md)، [تقرير التكافؤ](contract_parity_report.md)
 
 ---
 
@@ -75,4 +75,4 @@
 
 ## 7. الحكم
 
-جميع نقاط الحدود الأربع مغطاة بمجموعة العقد المحايدة على المحولين. لا يوجد مسار يُثبت نجاحاً جزئياً، ولا حركة مالية بلا أثر تدقيقي، ولا نتيجة فقدان استجابة بلا استعلام آمن. تفاصيل القرارات والقيود في [`KERNEL_REMEDIATION_PHASE7_REPORT.md`](../KERNEL_REMEDIATION_PHASE7_REPORT.md).
+جميع نقاط الحدود الأربع مغطاة بمجموعة العقد المحايدة على المحولين. لا يوجد مسار يُثبت نجاحاً جزئياً، ولا حركة مالية بلا أثر تدقيقي، ولا نتيجة فقدان استجابة بلا استعلام آمن. تفاصيل القرارات والقيود في [`KERNEL_REMEDIATION_PHASE7_REPORT.md`](KERNEL_FINAL_VERIFICATION_REPORT.md).

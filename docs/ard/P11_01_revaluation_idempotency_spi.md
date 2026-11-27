@@ -3,8 +3,8 @@
 - **الحالة:** مقبول (Accepted) — يغلق `G-024`
 - **التاريخ (UTC):** 2026-11-22
 - **المالك:** مالك معمارية النواة + مالك `internal/kernal/posting` + مالك `internal/kernal/valuation` + مضيف التخزين/SDK
-- **المرجع:** [المرحلة 11](../KERNEL_REMEDIATION_PHASE11_REPORT.md)، [سجل الفجوات](../KERNEL_REMEDIATION_GAP_REGISTER.md)، [عقد idempotency](../KERNEL_IDEMPOTENCY_CONTRACT.md)
-- **ذو صلة:** [ADR P9-01](./P9_01_valuation_idempotency_and_rate_selection.md)، [عقد المعاملات](../KERNEL_POSTING_TRANSACTION_CONTRACT.md)
+- **المرجع:** [المرحلة 11](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، [سجل الفجوات](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)، [عقد idempotency](../contracts/KERNEL_IDEMPOTENCY_CONTRACT.md)
+- **ذو صلة:** [ADR P9-01](./P9_01_valuation_idempotency_and_rate_selection.md)، [عقد المعاملات](../contracts/KERNEL_POSTING_TRANSACTION_CONTRACT.md)
 
 ## السياق
 

@@ -52,7 +52,7 @@
 | `TestKernelFinancialCodeHasNoFloatConversions`, `TestKernelProductionCodeAvoidsLenientCompatibilityAPIs` | بوابة آلية: لا Float ولا واجهات متساهلة في إنتاج النواة | `internal/kernal/doc_test.go` |
 | `TestSameCurrencyConversionKeepsUnitRateExact`, `TestCurrencyConversionIsDeterministic` | سعر العملة لنفسها وتكرار التحويل | `valuation/conversion_precision_test.go` |
 
-القرار المرجعي: [ADR P2-01](../../docs/ard/P2_01_monetary_precision_contract.md)؛ المصفوفة التنفيذية: [KERNEL_MONETARY_PRECISION_MATRIX.md](../../docs/KERNEL_MONETARY_PRECISION_MATRIX.md). المرحلة 2 لم تُضف قاعدة محاسبية جديدة ولم تُغيّر قاعدة قائمة.
+القرار المرجعي: [ADR P2-01](../../docs/ard/P2_01_monetary_precision_contract.md)؛ المصفوفة التنفيذية: [KERNEL_MONETARY_PRECISION_MATRIX.md](../../docs/contracts/KERNEL_MONETARY_PRECISION_MATRIX.md). المرحلة 2 لم تُضف قاعدة محاسبية جديدة ولم تُغيّر قاعدة قائمة.
 
 ### 1.2 ملحق أدلة المرحلة 3 (سلامة البيانات الرئيسية والتقويم)
 
@@ -107,14 +107,14 @@
 
 | المهمة / الضابط | التنفيذ / الدليل | النتيجة |
 |---|---|---|
-| 1. رسم تدفق `PostEntry` وربط كل خطوة بقاعدة واختبار | [KERNEL_POSTING_FLOW_SPECIFICATION.md](../../docs/KERNEL_POSTING_FLOW_SPECIFICATION.md) — 16 خطوة مرتبة، مع الأخطاء والقواعد والأدلة | PASS |
+| 1. رسم تدفق `PostEntry` وربط كل خطوة بقاعدة واختبار | [KERNEL_POSTING_FLOW_SPECIFICATION.md](../../docs/contracts/KERNEL_POSTING_FLOW_SPECIFICATION.md) — 16 خطوة مرتبة، مع الأخطاء والقواعد والأدلة | PASS |
 | 2. ترتيب الهوية/التصنيف/الحالة/الشركة/العملة/اليومية/الفترة/السياسات/الحسابات/الأبعاد/التوازن | الجدول في القسم 3 من المواصفة؛ `TestPostEntryIdentityAndPolicyRejectMatrix`, `TestPostingAdversarialRepositoryFailures` | PASS |
 | 3. عدم استدعاء Executor عند أي فشل | `TestPostEntryExecutorNeverRunsForRejectedInputs`, `TestPostEntryRejectsDraftWithPreexistingReversalLink`, `TestPostEntryStopsWhenAtomicExecutorFails` | PASS |
 | 4. Clone قبل التعديل الداخلي | `TestCloneIsDeepAndCoversPointerFields`, `TestPostEntryExecutesFrozenValidatedSnapshot` | PASS |
 | 5–7. التقريب والتسوية والتوازن وعملات السطور | `TestRoundEntryRoundsSubMinorDifferenceBeforeSettling`, `TestPostEntryRejectsRoundingWithoutPolicySettlement`, `TestPostEntryCompanyCurrencyAndTransactionRejectMatrix` | PASS |
 | 8. التصنيف والفترتان 13/14 | `TestPostingOpeningAndAuditAdjustmentPeriodBranches`, `TestAdjustingEntriesRequireMetadataAtValidation`, `TestPostingResolvesAdjustmentPeriodByAccountingMetadata` | PASS |
 | 9–11. العكس، التواريخ، الأبعاد، وعدم تعديل الأصل | `TestReversalLifecycle`, `TestReversalBuilderLeavesOriginalImmutable`, `TestReversalDraftResolvesDestinationPeriodDuringPosting`, `FuzzReversalNetImpactIsZeroPerAccount` | PASS |
-| 12. TOCTOU لـ Company/Account/Currency/Period | `TestPostEntryExecutesFrozenValidatedSnapshot`, `TestPostEntryUsesEffectiveAccountSnapshotForEligibility`؛ حدود المضيف موثقة في [GAP Register](../../docs/KERNEL_REMEDIATION_GAP_REGISTER.md) | PASS داخل النواة |
+| 12. TOCTOU لـ Company/Account/Currency/Period | `TestPostEntryExecutesFrozenValidatedSnapshot`, `TestPostEntryUsesEffectiveAccountSnapshotForEligibility`؛ حدود المضيف موثقة في [GAP Register](../../docs/plans/KERNEL_REMEDIATION_GAP_REGISTER.md) | PASS داخل النواة |
 | 13. فشل Reader/Policy/Executor بلا أثر مالي | `TestPostingAdversarialRepositoryFailures`, `TestPostEntryFailsClosedWithoutRegisteredPolicies`, `TestPostEntryStopsWhenAtomicExecutorFails` | PASS |
 | 14–15. تغطية القواعد الـ27 وأتمتة المصفوفة | `TestKernelTraceabilityMatrixCoversAllRulesAndNamedTests` في `doc_test.go` يتحقق من وجود القواعد 001–027 في الوثيقتين، ومن وجود دالة مسؤولة واختبار قبول واختبار رفض لكل صف، ومن مطابقة كل مرجع `Test`/`Fuzz` لدالة فعلية | PASS |
 
@@ -127,28 +127,28 @@
 | الضابط | التنفيذ / الدليل | النتيجة |
 |---|---|---|
 | ختم النطاق والبصمات داخل النواة | `posting/transaction.go`: `IdempotencyScope`, `BuildIdempotencyScope`, `FingerprintRequest`, `FingerprintCallerPayload`, `IsRetryable`؛ `posting/pipeline.go` يكتب فوق قيم المتصل قبل التفويض | PASS داخل النواة |
-| وحدة العمل وأثر التدقيق | [عقد معاملة الترحيل](../../docs/KERNEL_POSTING_TRANSACTION_CONTRACT.md)؛ `pkg/spi/storage/ports.go`, `pkg/spi/storage/transaction.go`؛ المحول يضم التدقيق داخل نفس الالتزام | PASS عبر مجموعة العقد |
-| replay وتعارض الحمولة | [عقد idempotency](../../docs/KERNEL_IDEMPOTENCY_CONTRACT.md)؛ `test/contract_parity/phase7_transaction_contract_test.go` سيناريو IdempotentReplayAndPayloadConflict | PASS على المحولين |
+| وحدة العمل وأثر التدقيق | [عقد معاملة الترحيل](../../docs/contracts/KERNEL_POSTING_TRANSACTION_CONTRACT.md)؛ `pkg/spi/storage/ports.go`, `pkg/spi/storage/transaction.go`؛ المحول يضم التدقيق داخل نفس الالتزام | PASS عبر مجموعة العقد |
+| replay وتعارض الحمولة | [عقد idempotency](../../docs/contracts/KERNEL_IDEMPOTENCY_CONTRACT.md)؛ `test/contract_parity/phase7_transaction_contract_test.go` سيناريو IdempotentReplayAndPayloadConflict | PASS على المحولين |
 | فائز واحد عند التزامن وحماية نطاق الشركة | نفس الملف، سيناريوهان ConcurrentReplay وCompanyScopeIsolation | PASS على المحولين |
 | حقن الأعطال قبل Commit وبعده | `pkg/spi/storage/faults.go`؛ [تقرير حقن الأعطال](../../docs/reports/fault_injection_report.md)؛ أربع نقاط مغطاة في سيناريو FaultInjectionAtomicity | PASS على المحولين |
-| ذرية العكس والفائز الواحد | [عقد ذرية العكس](../../docs/KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)؛ سيناريو ReversalAtomicity؛ `storage/postgres/uow.go` و`storage/memory/posting.go` | PASS على المحولين |
+| ذرية العكس والفائز الواحد | [عقد ذرية العكس](../../docs/contracts/KERNEL_REVERSAL_ATOMICITY_CONTRACT.md)؛ سيناريو ReversalAtomicity؛ `storage/postgres/uow.go` و`storage/memory/posting.go` | PASS على المحولين |
 | الحفاظ على طوابع النواة | سيناريو KernelStampedDates يثبت أن `PostingDate` و`PostedAt` لا يستبدلان بوقت الحفظ | PASS على المحولين |
-| إغلاق الفجوات | `G-001` و`G-014` و`G-023` في [سجل الفجوات](../../docs/KERNEL_REMEDIATION_GAP_REGISTER.md)؛ التفاصيل في [تقرير المرحلة 7](../../docs/KERNEL_REMEDIATION_PHASE7_REPORT.md) | مغلق في المرحلة 7 |
+| إغلاق الفجوات | `G-001` و`G-014` و`G-023` في [سجل الفجوات](../../docs/plans/KERNEL_REMEDIATION_GAP_REGISTER.md)؛ التفاصيل في [تقرير المرحلة 7](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md) | مغلق في المرحلة 7 |
 
 ### 1.7 ملحق أدلة المرحلة 8 (التزامن والعزل متعدد الشركات)
 
 | الضابط | التنفيذ / الدليل | النتيجة |
 |---|---|---|
 | ترتيب بلا قفل داخل النواة | `posting/lock_manager.go`: `AccountLockKey` و`OrderedAccountKeys` مع الإبقاء على `ExtractAndSortAccountIDs`؛ اختبارات النواة TestOrderedAccountKeysAreDeterministicAndScoped وTestOrderedAccountKeysHandlesEmptyEntries وTestOrderedAccountKeysAreStatelessUnderConcurrency | PASS |
-| عقد SPI محايد | `pkg/spi/storage/locks.go`: `LockKind` و`LockTarget` و`Canonical` و`OrderLockTargets` و`PostingLockTargets` و`WithOrderedLocks` و`LockObserver` و`ValidateIdempotencyScope`؛ اختبارات `locks_test.go` المذكورة في [مجموعة اختبارات العقد](../../docs/KERNEL_CONTRACT_TEST_SUITE.md) | PASS |
+| عقد SPI محايد | `pkg/spi/storage/locks.go`: `LockKind` و`LockTarget` و`Canonical` و`OrderLockTargets` و`PostingLockTargets` و`WithOrderedLocks` و`LockObserver` و`ValidateIdempotencyScope`؛ اختبارات `locks_test.go` المذكورة في [مجموعة اختبارات العقد](../../docs/contracts/KERNEL_CONTRACT_TEST_SUITE.md) | PASS |
 | حجز فعلي وترتيب عكسي في المحولين | `storage/memory/posting.go` و`storage/postgres/uow.go` يستدعيان `WithOrderedLocks` داخل `CommitPosting`؛ السيناريوهات LockOrderEnforced وCrossAccountReverseOrderNoDeadlock وSameAccountConcurrentPosting مع مراقب مستقل لكل طلب | PASS |
 | لا ترحيل ولا عكس مكرر | السيناريوهات ConcurrentReplayAtScale (16 منافساً) وConcurrentReversalSingleWinner (12 منافساً) على المحولين | PASS |
-| لقطة مجمدة بلا TOCTOU | `FiscalPeriodID` و`PolicyFingerprint` والتواريخ والمبالغ تُجمَّد قبل التفويض؛ السيناريو FrozenSnapshotRemainsStable و[نموذج التزامن](../../docs/KERNEL_CONCURRENCY_MODEL.md)§4 | PASS |
+| لقطة مجمدة بلا TOCTOU | `FiscalPeriodID` و`PolicyFingerprint` والتواريخ والمبالغ تُجمَّد قبل التفويض؛ السيناريو FrozenSnapshotRemainsStable و[نموذج التزامن](../../docs/contracts/KERNEL_CONCURRENCY_MODEL.md)§4 | PASS |
 | عزل الشركات | السيناريوهات InterleavedCompanyIsolation وCompanyScopeOnEveryPort وScopeViolationRejected على المحولين، مع TestPhase8PostgresRLSRuntimeIsolation بدور غير superuser؛ [تقرير العزل](../../docs/reports/multi_company_isolation_report.md) | PASS |
-| تصنيف الأخطاء وسياسة المضيف | `pkg/spi/storage/errors.go` و`transaction.go` (حد أقصى 5، `RetryPolicy.Validate`)؛ ترجمة SDK إلى Forbidden؛ [عقد القفل](../../docs/KERNEL_LOCKING_CONTRACT.md)§7 | PASS |
+| تصنيف الأخطاء وسياسة المضيف | `pkg/spi/storage/errors.go` و`transaction.go` (حد أقصى 5، `RetryPolicy.Validate`)؛ ترجمة SDK إلى Forbidden؛ [عقد القفل](../../docs/contracts/KERNEL_LOCKING_CONTRACT.md)§7 | PASS |
 | بوابات | `go test -race ./... -count=1` PASS؛ `verify_architecture.sh` 11/11 PASS؛ تقرير التكافؤ 42 حالة PASS؛ `G-002` مغلقة في المرحلة 8 | PASS |
 
-> أسماء اختبارات `test/contract_parity` و`storage/postgres` و`pkg/sdk` و`pkg/spi/storage` موثقة في [مجموعة اختبارات العقد](../../docs/KERNEL_CONTRACT_TEST_SUITE.md) ولا تُذكر كمراجع backticked هنا لأن بوابة هذه المصفوفة تحلل الاختبارات داخل `internal/kernal` فقط. القاعدة `RULE-KERNEL-027` تبقى `Host Responsibility` في نطاق النواة؛ التنفيذ الذري والقفل الفعلي مثاله في طبقة التخزين ولا يُنسب إلى النواة.
+> أسماء اختبارات `test/contract_parity` و`storage/postgres` و`pkg/sdk` و`pkg/spi/storage` موثقة في [مجموعة اختبارات العقد](../../docs/contracts/KERNEL_CONTRACT_TEST_SUITE.md) ولا تُذكر كمراجع backticked هنا لأن بوابة هذه المصفوفة تحلل الاختبارات داخل `internal/kernal` فقط. القاعدة `RULE-KERNEL-027` تبقى `Host Responsibility` في نطاق النواة؛ التنفيذ الذري والقفل الفعلي مثاله في طبقة التخزين ولا يُنسب إلى النواة.
 
 ### 1.8 ملحق أدلة المرحلة 9 (التقييم والعملات الأجنبية)
 
@@ -161,7 +161,7 @@
 | 11–12. قيد متوازن غير صفري ومنع تكرار الأثر | `TestRevaluationRegistryRejectsConflictingPayloadForSameKey` يثبت رفض `ErrRevaluationAlreadyApplied` عند اختلاف المرجع أو المبلغ أو البعد أو وقت اليوم أو بصمة السياسة، و`TestRevaluationIdempotencyScopeIsDeterministicAndOperationScoped` يثبت نطاق العملية الثالثة بعملة المعاملة، و`TestTransactionErrorClassification` يصنّف الخطأ غير قابل لإعادة المحاولة | PASS داخل النواة |
 | 13. عكس إعادة التقييم والفترة | `BuildRevaluationReversalAt` يفوّض إلى `posting.BuildReversalEntryAt` ويبقي `FiscalPeriodID` صفراً؛ `TestRevaluationReversalDraftCarriesDateForPeriodResolution` يتحقق من التاريخ والربط، و`TestReversalDraftResolvesDestinationPeriodDuringPosting` يثبت حل الفترة النهائية في `PostEntry` قبل التفويض | PASS |
 | 14. Fuzz وخصائص الحدود | `FuzzRateRegistryEffectiveSelectionNeverPanics` (أنواع الأسعار والتواريخ والأسعار الموجبة) إلى جانب `FuzzFXConversionNeverPanics`؛ Command + PASS هي المعتمدة وعدد التنفيذات متغير | PASS |
-| 15. القواعد 021–024 والوثائق | تحديث صفوف القواعد أعلاه، [مصفوفة التقييم](../../docs/KERNEL_VALUATION_RULES_MATRIX.md)، و[ADR P9-01](../../docs/ard/P9_01_valuation_idempotency_and_rate_selection.md)، و[تقرير المرحلة 9](../../docs/KERNEL_REMEDIATION_PHASE9_REPORT.md)، و[مراجعة الخطة](../../docs/KERNEL_REMEDIATION_PLAN_REVIEW.md) | PASS |
+| 15. القواعد 021–024 والوثائق | تحديث صفوف القواعد أعلاه، [مصفوفة التقييم](../../docs/contracts/KERNEL_VALUATION_RULES_MATRIX.md)، و[ADR P9-01](../../docs/ard/P9_01_valuation_idempotency_and_rate_selection.md)، و[تقرير المرحلة 9](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، و[مراجعة الخطة](../../docs/plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md) | PASS |
 
 > الفجوة `G-024` تبقى مفتوحة خارج النواة: `RevaluationRegistry` ذاكري، و`RevaluationIdempotencyScope` يُنتج كائن نطاق فقط دون توصيله بـ `PostEntry` أو SPI، والضمان الدائم ضد التكرار يتطلب من المضيف تخزينه ذرياً وفق المرحلة 7. لا تُحسب idempotency مكتملة على مستوى Adapter قبل المرحلة 11.
 
@@ -173,10 +173,10 @@
 | 4–6. تسلسل لكل شركة، استدعاء متزامن، وإضافة ذرية فعلية | `Append`/`AppendAt` يفوّضان إلى `AppendAuditLogAtomic`؛ اختبارات المحولين ConcurrentAppendSequenceAndChain على Memory وPostgreSQL (أسماء اختبارات المحولات لا تُذكر داخل backticks هنا لأن بوابة المصفوفة تحلل النواة فقط) | PASS |
 | 7. لقطة متسقة أثناء الإضافات | `GetAuditVerificationSnapshot` مع Repeatable Read في PostgreSQL ونسخة تحت قفل القراءة في Memory؛ اختبارات SnapshotIsStableDuringConcurrentAppends و`TestAuditSnapshotVerificationIsSafeDuringConcurrentAppends` | PASS |
 | 8. كشف التعديل والإعادة والترتيب | `verifyAuditSnapshot` يتحقق من الرابط والتسلسل والهاش وحد اللقطة؛ اختبارات `TestAuditSnapshotVerificationDetectsTampering` واختبار TamperingIsDetected على PostgreSQL | PASS |
-| 9–10. كشف حذف الذيل والفشل المغلق عند غياب النقطة | `TestAuditCheckpointDetectsDeletedTail`، `TestCheckpointVerificationFailsClosedWithoutTrustedCheckpoint`، واختبارات TailDeletion/MissingCheckpoint على المحولين؛ وثيقة [نموذج التهديد](../../docs/KERNEL_AUDIT_THREAT_MODEL.md) تصرّح بعدم اكتشاف الذيل دون نقطة | PASS |
+| 9–10. كشف حذف الذيل والفشل المغلق عند غياب النقطة | `TestAuditCheckpointDetectsDeletedTail`، `TestCheckpointVerificationFailsClosedWithoutTrustedCheckpoint`، واختبارات TailDeletion/MissingCheckpoint على المحولين؛ وثيقة [نموذج التهديد](../../docs/contracts/KERNEL_AUDIT_THREAT_MODEL.md) تصرّح بعدم اكتشاف الذيل دون نقطة | PASS |
 | 11. ذرية الترحيل والتدقيق | `storage/memory/commitPostingLocked` يلحق سجل v2 في نفس وحدة العمل ويعيد الحالة عند الفشل؛ اختبار MemoryPhase10AuditFailureRollsBackPostingEffect يغطي نقطتي `FaultBeforeAudit` و`FaultBeforeCommit`؛ PostgreSQL عبر معاملة `uow.AppendAudit` | PASS |
 | 12. Backup/Restart واستعادة النقطة | تمرين DR ينشئ نقطة قبل `pg_dump` ويجعل مقارنتها بعد `pg_restore` إلزامية في اختبار TestDRDrill_FullRecovery | PASS |
 | 13. سياسة الاحتفاظ خارج النطاق نفسه | [ADR P10-01](../../docs/ard/P10_01_external_audit_checkpoint_custody.md) يحدد الملكية والاحتفاظ وحدود الاستقلال دون فرض مزود أو SIEM أو إدارة مفاتيح | PASS |
-| 14. تحديث القواعد والمصفوفة | تحديث صفّي `RULE-KERNEL-025` و`RULE-KERNEL-026` أعلاه، و[الثوابت](KERNEL_ACCOUNTING_INVARIANTS.md)، و[التقرير](../../docs/KERNEL_REMEDIATION_PHASE10_REPORT.md)، و[سجل الفجوات](../../docs/KERNEL_REMEDIATION_GAP_REGISTER.md) | PASS |
+| 14. تحديث القواعد والمصفوفة | تحديث صفّي `RULE-KERNEL-025` و`RULE-KERNEL-026` أعلاه، و[الثوابت](KERNEL_ACCOUNTING_INVARIANTS.md)، و[التقرير](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، و[سجل الفجوات](../../docs/plans/KERNEL_REMEDIATION_GAP_REGISTER.md) | PASS |
 
-> قواعد `RULE-KERNEL-025/026` تبقى Implemented في النواة، بينما الذرية والحفظ الفعلي للنقطة و`FORCE ROW LEVEL SECURITY` مسؤولية المحولات وفق `RULE-KERNEL-027`. أسماء اختبارات المحولات والـDR موثقة في [عقد مستودع التدقيق](../../docs/KERNEL_AUDIT_REPOSITORY_CONTRACT.md) دون backticks هنا لأن بوابة هذه المصفوفة تحلل الاختبارات داخل `internal/kernal` فقط.
+> قواعد `RULE-KERNEL-025/026` تبقى Implemented في النواة، بينما الذرية والحفظ الفعلي للنقطة و`FORCE ROW LEVEL SECURITY` مسؤولية المحولات وفق `RULE-KERNEL-027`. أسماء اختبارات المحولات والـDR موثقة في [عقد مستودع التدقيق](../../docs/contracts/KERNEL_AUDIT_REPOSITORY_CONTRACT.md) دون backticks هنا لأن بوابة هذه المصفوفة تحلل الاختبارات داخل `internal/kernal` فقط.

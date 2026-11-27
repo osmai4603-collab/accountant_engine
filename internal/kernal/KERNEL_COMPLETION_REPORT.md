@@ -1,6 +1,6 @@
 # تقرير إنجاز استكمال النواة المحاسبية — Kernel Completion Report v12
 
-> **Superseded (متجاوز):** هذا التقرير سجل تاريخي لنتائج v12، وليس دليلاً معاد تشغيله للحالة الحالية ولا مصدراً لقرار بوابة المرحلة 1. المرجع الحالي: [خطة المعالجة](../../docs/KERNEL_REMEDIATION_EXECUTION_PLAN.md) و[تقرير المرحلة 1](../../docs/KERNEL_REMEDIATION_PHASE1_REPORT.md).
+> **Superseded (متجاوز):** هذا التقرير سجل تاريخي لنتائج v12، وليس دليلاً معاد تشغيله للحالة الحالية ولا مصدراً لقرار بوابة المرحلة 1. المرجع الحالي: [خطة المعالجة](../../docs/plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md) و[تقرير المرحلة 1](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
 
 - **رمز التقرير:** `AE-REP-KERNEL-V12-FINAL`
 - **وثيقة الخطة:** `AE-PLAN-KERNEL-V12-FINAL-STABILIZATION`

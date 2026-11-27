@@ -3,7 +3,7 @@
 - **الحالة:** مقبول (Accepted) — تثبيت وتوثيق لسلوك قائم؛ **لا تغيير في أي قاعدة محاسبية أو توقيع عام**.
 - **التاريخ (UTC):** 2026-11-22
 - **المالك:** مالك نواة `types` + مالك بوابة جودة النواة
-- **المرجع:** [الخطة، المرحلة 2](../KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [مصفوفة الدقة المالية](../KERNEL_MONETARY_PRECISION_MATRIX.md)، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)، [سجل الفجوات](../KERNEL_REMEDIATION_GAP_REGISTER.md)
+- **المرجع:** [الخطة، المرحلة 2](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [مصفوفة الدقة المالية](../contracts/KERNEL_MONETARY_PRECISION_MATRIX.md)، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)، [سجل الفجوات](../plans/KERNEL_REMEDIATION_GAP_REGISTER.md)
 - **ذو صلة:** [ADR P1-01](./P1_01_kernel_package_map.md)، [ADR P1-02](./P1_02_gl_source_of_truth.md)
 
 ## السياق

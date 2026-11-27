@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Reproducible Phase 0 baseline run for the accounting kernel remediation plan.
 #
-# Runs the fixed evidence-commands from docs/KERNEL_REMEDIATION_BASELINE.md:
+# Runs the fixed evidence-commands from docs/plans/KERNEL_REMEDIATION_BASELINE.md:
 #   environment fingerprint, formatting, kernel unit tests, kernel race tests,
 #   full repository tests, architecture gate, external-consumer module tests,
 #   fuzz smoke tests (9 targets), and a fresh kernel coverage profile.

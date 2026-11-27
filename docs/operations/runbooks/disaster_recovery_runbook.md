@@ -3,7 +3,7 @@
 - **المعرّف:** RB-OPS-001 / `P7-03` → `T7`
 - **الجمهور:** مهندسو العمليات والموثوقية ومسؤولو قواعد البيانات
 - **النطاق:** النواة المدمجة (`pkg/sdk`) مع PostgreSQL فقط؛ لا يوجد في هذا المشروع خادم HTTP أو gRPC ولا منفذ `/readyz`.
-- **المراجع:** [تعريفات بوابات P7](../../reports/p7_gate_definitions.md)، [بروتوكول T7](../../execution_plan_steps/09_PHASE_7_TEST_EXECUTION.md)، [سياسة النسخ والاستعادة](../backup_and_recovery_policy.md).
+- **المراجع:** [تقرير التحقق النهائي](../../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، [اعتماد الإصدار](../../reports/KERNEL_RELEASE_SIGNOFF.md)، [عقد مستودع التدقيق](../../contracts/KERNEL_AUDIT_REPOSITORY_CONTRACT.md).
 
 ## 1. شروط ما قبل البدء
 
