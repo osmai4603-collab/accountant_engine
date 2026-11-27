@@ -200,7 +200,7 @@
 
 ### REF-003 — عقود مستودع التدقيق ونموذج التهديد في Accountant Engine
 
-- **المصادر الداخلية:** `docs/KERNEL_AUDIT_REPOSITORY_CONTRACT.md`، `docs/KERNEL_AUDIT_THREAT_MODEL.md`، `docs/ard/P10_01_external_audit_checkpoint_custody.md`، `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNAL-10`).
+- **المصادر الداخلية:** `docs/KERNEL_AUDIT_REPOSITORY_CONTRACT.md`، `docs/KERNEL_AUDIT_THREAT_MODEL.md`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p10-01`، `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNAL-10`).
 - **مستخدم في:** تأطير `v2 length-prefixed`، دقة الميكروثانية، حقول `Reason` و`CorrelationID`، الدفاع ضد بتر الذيل، وحفظ نقاط التحقق الخارجية (`GOV-001–007`).
 
 ### فهرس ربط المراجع بالقواعد

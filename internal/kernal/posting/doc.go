@@ -4,7 +4,7 @@
 // journal entry as posted, then delegates atomic persistence to the host-provided
 // PostingExecutor / PostingReversalExecutor. The posted entry with its lines is
 // the canonical accounting fact; no separate ledger movement or stored balance is
-// created by the kernel. See docs/ard/P1_02_gl_source_of_truth.md.
+// created by the kernel. See docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md.
 // ExtractAndSortAccountIDs only produces a deterministic key order for the host
 // adapter to lock; it does not acquire a lock itself. IdempotencyKey is an
 // execution-control input whose uniqueness scope and payload fingerprints are

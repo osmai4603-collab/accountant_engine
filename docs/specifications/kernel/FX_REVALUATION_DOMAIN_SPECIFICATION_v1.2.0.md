@@ -224,7 +224,7 @@
 
 ### REF-003 — مصفوفة قواعد التقييم وقرارات الهندسة في Accountant Engine
 
-- **المصادر الداخلية:** `docs/KERNEL_VALUATION_RULES_MATRIX.md`، `docs/ard/P9_01_valuation_idempotency_and_rate_selection.md`، `docs/ard/P11_01_revaluation_idempotency_spi.md`، `docs/KERNEL_IDEMPOTENCY_CONTRACT.md` (§12).
+- **المصادر الداخلية:** `docs/KERNEL_VALUATION_RULES_MATRIX.md`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p9-01`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-01`، `docs/KERNEL_IDEMPOTENCY_CONTRACT.md` (§12).
 - **مستخدم في:** قواعد تعارض وبحث سجل الأسعار، فصل `RateDate`، اتجاه الأصول/الالتزامات، وبصمة v2 ومنع تكرار إعادة التقييم (`VAL-001–010`).
 
 ### فهرس ربط المراجع بالقواعد

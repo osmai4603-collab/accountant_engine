@@ -202,7 +202,7 @@
 
 ### REF-002 — قرارات الهندسة المعمارية وقواعد السياسات في Accountant Engine
 
-- **المصادر الداخلية:** `docs/ard/P5_01_policy_selection_and_historical_interpretation.md`، `docs/ard/P11_04_versioned_policy_store.md`، `docs/ACCOUNTING_BUSINESS_RULES.md` (§5)، `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` (§3).
+- **المصادر الداخلية:** `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p5-01`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-04`، `docs/ACCOUNTING_BUSINESS_RULES.md` (§5)، `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` (§3).
 - **مستخدم في:** نوافذ النفاذ نصف المفتوحة، رفض التداخل، الحل الفاشل مغلقاً، مصفوفة الأهلية، وبصمة السياسة القانونية (`POL-001–009`).
 
 ### فهرس ربط المراجع بالقواعد

@@ -2,7 +2,7 @@
 
 - **رمز الوثيقة:** `AE-REMED-P2-MATRIX`
 - **المرحلة:** 2 — سلامة الأنواع والقيم المالية
-- **القرار المرجعي:** [ADR P2-01](../ard/P2_01_monetary_precision_contract.md)
+- **القرار المرجعي:** [ADR P2-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p2-01)
 - **الخطة:** [KERNEL_REMEDIATION_EXECUTION_PLAN.md](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، المرحلة 2 مهمة 1
 - **النطاق:** `internal/kernal/types` ونقاط استخدام `Money` في `journal` و`posting` و`valuation`
 - **الحالة:** مصفوفة تنفيذية مُثبتة بالاختبارات؛ لا تغيير في السلوك المالي القائم

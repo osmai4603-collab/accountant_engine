@@ -3,7 +3,7 @@
 - **رمز الوثيقة:** `AE-REMED-P10-AUDIT-CONTRACT`
 - **المرحلة:** 10 — التدقيق وسلامة الأدلة
 - **التاريخ:** 2026-11-22
-- **المرجع:** [الخطة](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ADR P10-01](../ard/P10_01_external_audit_checkpoint_custody.md)، [نموذج التهديد](./KERNEL_AUDIT_THREAT_MODEL.md)
+- **المرجع:** [الخطة](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ADR P10-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p10-01)، [نموذج التهديد](./KERNEL_AUDIT_THREAT_MODEL.md)
 - **القواعد:** `RULE-KERNEL-025`، `RULE-KERNEL-026`، `RULE-KERNEL-027`
 
 ## 1. المنافذ

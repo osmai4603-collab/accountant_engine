@@ -291,7 +291,7 @@
 
 ### REF-003 — قواعد العمل والمعمارية في Accountant Engine
 
-- **المصادر الداخلية:** `docs/ACCOUNTING_BUSINESS_RULES.md` (§§5–6)، `docs/KERNEL_ARCHITECTURE_MAP.md`، `docs/ard/P3_01_masterdata_effective_dating.md`، `docs/ard/P1_03_reference_model_duality.md`، `docs/ard/P11_02_effective_account_and_dimensions.md`.
+- **المصادر الداخلية:** `docs/ACCOUNTING_BUSINESS_RULES.md` (§§5–6)، `docs/KERNEL_ARCHITECTURE_MAP.md`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p3-01`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-03`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-02`.
 - **مستخدم في:** نطاق الشركة، تسلسل COA الهرمي، منافذ التأريخ بالنفاذ وتطبيع أيام UTC، التقويم المالي، وثوابت فترات التسوية (`MD-001–015`).
 
 ### فهرس ربط المراجع بالقواعد

@@ -3,7 +3,7 @@
 - **رمز الوثيقة:** `AE-REMED-P9-MATRIX`
 - **المرحلة:** 9 — التقييم والعملات الأجنبية
 - **النطاق:** `internal/kernal/valuation`، والتكامل مع `types` و`journal` و`posting`
-- **القرار المرجعي:** [ADR P9-01](../ard/P9_01_valuation_idempotency_and_rate_selection.md)
+- **القرار المرجعي:** [ADR P9-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p9-01)
 - **تقرير المرحلة:** [KERNEL_REMEDIATION_PHASE9_REPORT.md](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)
 
 | البند | القاعدة | التنفيذ | دليل الاختبار | الحالة |
@@ -25,5 +25,5 @@
 ## حدود النطاق
 
 - لا مزود أسعار خارجي ولا اتصال شبكي داخل النواة؛ `RateProvider` يُحقن من المضيف.
-- `RevaluationRegistry` ذاكري ويحمي عملية واحدة فقط؛ أما الضمان الدائم ضد التكرار عبر إعادة التشغيل وانقطاع الاتصال فقد أُغلق (`G-024`) في المرحلة 11 عبر توصيل `storage.OperationRevaluation` وبصمة `fx-revaluation-payload-v2|` وفق [ADR P11-01](../ard/P11_01_revaluation_idempotency_spi.md).
+- `RevaluationRegistry` ذاكري ويحمي عملية واحدة فقط؛ أما الضمان الدائم ضد التكرار عبر إعادة التشغيل وانقطاع الاتصال فقد أُغلق (`G-024`) في المرحلة 11 عبر توصيل `storage.OperationRevaluation` وبصمة `fx-revaluation-payload-v2|` وفق [ADR P11-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-01).
 - النواة لا تحسب أرباحاً أو خسائر محققة عند تسوية المركز؛ هذا قرار ترحيل للمضيف خارج هذه المرحلة.

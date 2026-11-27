@@ -141,4 +141,4 @@ type PostingIdempotency struct {
 - `storage.OperationRevaluation` هو الثابت العام الوحيد المضاف؛ لم تتوسّع `PostEntry` ولا `PostingCommit`.
 - `internal/kernal/valuation.RevaluationPayloadFingerprint` يوفّر بصمة v2 المستقرة للمضيف، دون تغيير خوارزمية البصمة.
 - `TestPhase11_Revaluation*` يغطي على Memory وPostgreSQL: replay، تعارض الحمولة، فائزاً واحداً تحت التزامن، unknown outcome، فصل النطاق عن `post`/`reverse`، عزل الشركة، و`Action=revaluation` في التدقيق.
-- قرار التصميم في [ADR P11-01](../ard/P11_01_revaluation_idempotency_spi.md).
+- قرار التصميم في [ADR P11-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-01).

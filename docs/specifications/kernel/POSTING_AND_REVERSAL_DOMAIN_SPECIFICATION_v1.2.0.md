@@ -230,7 +230,7 @@
 
 ### REF-002 — عقود الترحيل والتزامن في Accountant Engine
 
-- **المصادر الداخلية:** `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md`، `docs/KERNEL_POSTING_TRANSACTION_CONTRACT.md`، `docs/KERNEL_REVERSAL_ATOMICITY_CONTRACT.md`، `docs/KERNEL_IDEMPOTENCY_CONTRACT.md`، `docs/KERNEL_LOCKING_CONTRACT.md`، `docs/ACCOUNTING_BUSINESS_RULES.md` (§§1, 3, 8)، `docs/ard/P11_01_revaluation_idempotency_spi.md`.
+- **المصادر الداخلية:** `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md`، `docs/KERNEL_POSTING_TRANSACTION_CONTRACT.md`، `docs/KERNEL_REVERSAL_ATOMICITY_CONTRACT.md`، `docs/KERNEL_IDEMPOTENCY_CONTRACT.md`، `docs/KERNEL_LOCKING_CONTRACT.md`، `docs/ACCOUNTING_BUSINESS_RULES.md` (§§1, 3, 8)، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-01`.
 - **مستخدم في:** ترتيب الأنبوب، تسوية التقريب، بناء العكس، الحماية من `TOCTOU`، نطاق/بصمات منع التكرار، وترتيب مفاتيح القفل (`PST-001–011`).
 
 ### فهرس ربط المراجع بالقواعد

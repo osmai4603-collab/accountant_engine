@@ -18,7 +18,7 @@
 //     entity (generation, contiguity, containment, close states). ledger.Account,
 //     ledger.FiscalYear and ledger.FiscalPeriod are compatibility DTOs for public
 //     API shapes — never use them for posting eligibility or fiscal validation.
-//     Conversion rules are recorded in docs/ard/P1_03_reference_model_duality.md.
+//     Conversion rules are recorded in docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md.
 //
 //  3. Scope keys. All ledger models and projections carry CompanyID. There is no
 //     BookID or LedgerID in the kernel posting contract; multi-book scope keys

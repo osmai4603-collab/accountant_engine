@@ -43,7 +43,7 @@
 ### 1.1 ملحق أدلة المرحلة 2 (سلامة الأنواع والقيم المالية)
 
 | الأداة | الغرض | الملف |
-|---|---|---|
+| --- | --- | --- |
 | `TestMonetaryPrecisionContractConstants`, `TestNewMoneyPrecisionBoundaryMatrix` | تثبيت الثوابت وحدود 28 والأسس والمدخلات النصية | `types/money_integrity_test.go` |
 | `TestMinorUnitsContractAcrossRegistry`, `TestBankersRoundingTieToEvenProperty` | تغطية فئات 0/2/3/4 وحدات صغرى وخاصية نصف إلى زوجي | `types/money_integrity_test.go` |
 | `TestSequentialOperationsAreDeterministicAndBounded` | تراكم الفروق وحتمية الترتيب داخل `InternalScale` | `types/money_integrity_test.go` |
@@ -52,12 +52,12 @@
 | `TestKernelFinancialCodeHasNoFloatConversions`, `TestKernelProductionCodeAvoidsLenientCompatibilityAPIs` | بوابة آلية: لا Float ولا واجهات متساهلة في إنتاج النواة | `internal/kernal/doc_test.go` |
 | `TestSameCurrencyConversionKeepsUnitRateExact`, `TestCurrencyConversionIsDeterministic` | سعر العملة لنفسها وتكرار التحويل | `valuation/conversion_precision_test.go` |
 
-القرار المرجعي: [ADR P2-01](../../docs/ard/P2_01_monetary_precision_contract.md)؛ المصفوفة التنفيذية: [KERNEL_MONETARY_PRECISION_MATRIX.md](../../docs/contracts/KERNEL_MONETARY_PRECISION_MATRIX.md). المرحلة 2 لم تُضف قاعدة محاسبية جديدة ولم تُغيّر قاعدة قائمة.
+القرار المرجعي: [ADR P2-01](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p2-01)؛ المصفوفة التنفيذية: [KERNEL_MONETARY_PRECISION_MATRIX.md](../../docs/contracts/KERNEL_MONETARY_PRECISION_MATRIX.md). المرحلة 2 لم تُضف قاعدة محاسبية جديدة ولم تُغيّر قاعدة قائمة.
 
 ### 1.2 ملحق أدلة المرحلة 3 (سلامة البيانات الرئيسية والتقويم)
 
 | الأداة | الغرض | الملف |
-|---|---|---|
+| --- | --- | --- |
 | `TestCompanyScopeFailsClosedWithoutRepositoryAccess` | إثبات رفض النطاق الصفري قبل أي وصول إلى Reader | `masterdata/masterdata_integrity_test.go` |
 | `TestAccountHierarchyRejectsCrossCompanyLinks` | منع الأبوية عبر الشركات ومزج الشركات في لقطة COA | `masterdata/masterdata_integrity_test.go` |
 | `TestJournalReaderScopeIsValidated` | فحص هوية اليومية ونطاقها قبل الوثوق بسياساتها | `masterdata/masterdata_integrity_test.go` |
@@ -67,7 +67,7 @@
 | `TestReferenceModelsDoNotDriftSilently` | أتمتة انحراف الحقول بين `masterdata` وDTOs في `ledger` (G-016) | `masterdata/masterdata_integrity_test.go` |
 | `TestMasterDataAdversarialInputsFailClosed` | مدخلات متعارضة/ناقصة ومحاولة الوصول لحساب شركة أخرى | `masterdata/masterdata_integrity_test.go` |
 
-القرار المرجعي: [ADR P3-01](../../docs/ard/P3_01_masterdata_effective_dating.md). المرحلة 3 لم تُضف قاعدة محاسبية جديدة؛ وسّعت الأدلة التنفيذية للقواعد 016–020.
+القرار المرجعي: [ADR P3-01](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p3-01). المرحلة 3 لم تُضف قاعدة محاسبية جديدة؛ وسّعت الأدلة التنفيذية للقواعد 016–020.
 
 ---
 
@@ -79,7 +79,7 @@
 ### 1.3 ملحق أدلة المرحلة 4 (القيد ودفتر الأستاذ ومصدر الحقيقة)
 
 | الأداة | الغرض | الملف |
-|---|---|---|
+| --- | --- | --- |
 | `TestEntryStatusStateMachine`, `TestEntryStatusTransitions`, `TestAllowedTransitions` | آلة حالات القيد الرسمية والتحولات المسموحة/الممنوعة | `journal/state_machine_test.go` |
 | `TestJournalEntryEnsureMutable`, `TestValidateImmutabilityRejectsPostedChanges`, `TestValidateImmutabilityDetectsLineChanges` | منع تعديل القيود المرحلة على مستوى المجال | `journal/state_machine_test.go` |
 | `TestCloneIsDeepAndCoversPointerFields` | نسخ دفاعي كامل لشرائح ومؤشرات القيد والأسطر | `journal/state_machine_test.go` |
@@ -90,23 +90,23 @@
 | `TestRebuildIncludesReversedEntriesAndReversalNetImpact` | إدراج القيود المعكوسة والعكسية كحقائق مرحلة وأثر صافٍ صفري | `ledger/projection_test.go` |
 | `TestAccountTypeRevenueCompatibilityAlias` | توافق الاسم المستعار `AccountTypeRevenue` | `ledger/projection_test.go` |
 
-القرارات المرجعية: [ADR P1-02](../../docs/ard/P1_02_gl_source_of_truth.md) (وملحق المرحلة 4)، [ADR P1-01](../../docs/ard/P1_01_kernel_package_map.md). المرحلة 4 لم تُضف قاعدة محاسبية جديدة ولم تُدخل رصيداً مادياً أو تقارير إلى النواة.
+القرارات المرجعية: [ADR P1-02](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02) (وملحق المرحلة 4)، [ADR P1-01](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-01). المرحلة 4 لم تُضف قاعدة محاسبية جديدة ولم تُدخل رصيداً مادياً أو تقارير إلى النواة.
 
 ### 1.4 ملحق أدلة المرحلة 5 (السياسات وأهلية المحاسبة)
 
 | المهمة / الضابط | الدليل الأساسي | النتيجة |
-|---|---|---|
+| --- | --- | --- |
 | 1–3. جرد السياسات ونطاق الإصدارات وحدود النفاذ و الانتقاء الحتمي | `TestPolicyEffectiveDateBoundaryMatrix`, `TestPolicyEngineRejectsUnresolvedOverlaps`, `TestPolicySelectionIsScopedAndFailsClosed`, `TestSelectedPostingPolicyControlsSoftCloseOnly` في `policy/policy_integrity_test.go` | PASS |
 | 4–6. الإقفال Soft/Hard، والعملة الوظيفية/المسموحة، والدقة والتقريب، وأهلية الحساب/الأبعاد/مركز التكلفة | `TestCurrencyPolicyValidationAndRoundingAudit`, `TestAccountEligibilityDecisionMatrix`, `posting/pipeline_test.go`, `masterdata/chart_of_accounts_test.go` | PASS |
 | 7–9. النسخ الدفاعي، والبصمة القانونية، وعدم إعادة تفسير التاريخ | `TestStoredPoliciesAreIsolatedFromSharedSlicesAndPointers`, `TestPolicyFingerprintIsCanonicalAndContentBound`, `TestPostEntryStampsPolicyFingerprintAndKeepsHistoryStable`, `policy/fingerprint.go`, `posting/pipeline.go` | PASS |
-| 10–13. التزامن، وقرار التصميم، وتحديث الثوابت والمصفوفة | `TestPolicyEngineConcurrentResolveAndVersionUpdate`, `TestConcurrentRegistrationOfSameEffectiveStartHasOneWinner`, [ADR P5-01](../../docs/ard/P5_01_policy_selection_and_historical_interpretation.md), `KERNEL_ACCOUNTING_INVARIANTS.md` قسم توضيحات المرحلة 5، هذا الملحق | PASS |
+| 10–13. التزامن، وقرار التصميم، وتحديث الثوابت والمصفوفة | `TestPolicyEngineConcurrentResolveAndVersionUpdate`, `TestConcurrentRegistrationOfSameEffectiveStartHasOneWinner`, [ADR P5-01](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p5-01), `KERNEL_ACCOUNTING_INVARIANTS.md` قسم توضيحات المرحلة 5، هذا الملحق | PASS |
 
-أوامر التحقق: `gofmt -l internal/kernal/` (بلا إخراج)، `go test ./internal/kernal/... -count=1` (10/10 حزم ok)، `go test -race ./internal/kernal/policy ./internal/kernal/posting -count=1` (ok)، `./scripts/verify_architecture.sh` (PASS، 11/11)، و`go test ./... -count=1` (المستودع كاملاً PASS). القرار المرجعي: [ADR P5-01](../../docs/ard/P5_01_policy_selection_and_historical_interpretation.md). لم تُضف قاعدة محاسبية جديدة؛ تم توثيق وتثبيت السلوك القائم وتقوية الحتمية والفشل المغلق.
+أوامر التحقق: `gofmt -l internal/kernal/` (بلا إخراج)، `go test ./internal/kernal/... -count=1` (10/10 حزم ok)، `go test -race ./internal/kernal/policy ./internal/kernal/posting -count=1` (ok)، `./scripts/verify_architecture.sh` (PASS، 11/11)، و`go test ./... -count=1` (المستودع كاملاً PASS). القرار المرجعي: [ADR P5-01](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p5-01). لم تُضف قاعدة محاسبية جديدة؛ تم توثيق وتثبيت السلوك القائم وتقوية الحتمية والفشل المغلق.
 
 ### 1.5 ملحق أدلة المرحلة 6 (الترحيل والعكس المحاسبي)
 
 | المهمة / الضابط | التنفيذ / الدليل | النتيجة |
-|---|---|---|
+| --- | --- | --- |
 | 1. رسم تدفق `PostEntry` وربط كل خطوة بقاعدة واختبار | [KERNEL_POSTING_FLOW_SPECIFICATION.md](../../docs/contracts/KERNEL_POSTING_FLOW_SPECIFICATION.md) — 16 خطوة مرتبة، مع الأخطاء والقواعد والأدلة | PASS |
 | 2. ترتيب الهوية/التصنيف/الحالة/الشركة/العملة/اليومية/الفترة/السياسات/الحسابات/الأبعاد/التوازن | الجدول في القسم 3 من المواصفة؛ `TestPostEntryIdentityAndPolicyRejectMatrix`, `TestPostingAdversarialRepositoryFailures` | PASS |
 | 3. عدم استدعاء Executor عند أي فشل | `TestPostEntryExecutorNeverRunsForRejectedInputs`, `TestPostEntryRejectsDraftWithPreexistingReversalLink`, `TestPostEntryStopsWhenAtomicExecutorFails` | PASS |
@@ -120,12 +120,12 @@
 
 > الأتمتة الجديدة تفحص التغطية الاسمية/المرجعية فقط؛ جودة الـ assertions الدلالية تظل مراجعة بشرية موثقة، ولذلك تُغلق `G-012` جزئياً في المرحلة 6 ولا يُدعى إغلاق كامل.
 
-القرارات المرجعية: [ADR P1-02](../../docs/ard/P1_02_gl_source_of_truth.md) (ملحق المرحلة 6)، [ADR P3-01](../../docs/ard/P3_01_masterdata_effective_dating.md)، [ADR P5-01](../../docs/ard/P5_01_policy_selection_and_historical_interpretation.md). لم تُضف قاعدة محاسبية جديدة؛ القواعد المتأثرة هي 001–017 و027 من ناحية الأدلة التنفيذية فقط.
+القرارات المرجعية: [ADR P1-02](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02) (ملحق المرحلة 6)، [ADR P3-01](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p3-01)، [ADR P5-01](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p5-01). لم تُضف قاعدة محاسبية جديدة؛ القواعد المتأثرة هي 001–017 و027 من ناحية الأدلة التنفيذية فقط.
 
 ### 1.6 ملحق أدلة المرحلة 7 (المعاملات والذرية ومنع التكرار)
 
 | الضابط | التنفيذ / الدليل | النتيجة |
-|---|---|---|
+| --- | --- | --- |
 | ختم النطاق والبصمات داخل النواة | `posting/transaction.go`: `IdempotencyScope`, `BuildIdempotencyScope`, `FingerprintRequest`, `FingerprintCallerPayload`, `IsRetryable`؛ `posting/pipeline.go` يكتب فوق قيم المتصل قبل التفويض | PASS داخل النواة |
 | وحدة العمل وأثر التدقيق | [عقد معاملة الترحيل](../../docs/contracts/KERNEL_POSTING_TRANSACTION_CONTRACT.md)؛ `pkg/spi/storage/ports.go`, `pkg/spi/storage/transaction.go`؛ المحول يضم التدقيق داخل نفس الالتزام | PASS عبر مجموعة العقد |
 | replay وتعارض الحمولة | [عقد idempotency](../../docs/contracts/KERNEL_IDEMPOTENCY_CONTRACT.md)؛ `test/contract_parity/phase7_transaction_contract_test.go` سيناريو IdempotentReplayAndPayloadConflict | PASS على المحولين |
@@ -138,7 +138,7 @@
 ### 1.7 ملحق أدلة المرحلة 8 (التزامن والعزل متعدد الشركات)
 
 | الضابط | التنفيذ / الدليل | النتيجة |
-|---|---|---|
+| --- | --- | --- |
 | ترتيب بلا قفل داخل النواة | `posting/lock_manager.go`: `AccountLockKey` و`OrderedAccountKeys` مع الإبقاء على `ExtractAndSortAccountIDs`؛ اختبارات النواة TestOrderedAccountKeysAreDeterministicAndScoped وTestOrderedAccountKeysHandlesEmptyEntries وTestOrderedAccountKeysAreStatelessUnderConcurrency | PASS |
 | عقد SPI محايد | `pkg/spi/storage/locks.go`: `LockKind` و`LockTarget` و`Canonical` و`OrderLockTargets` و`PostingLockTargets` و`WithOrderedLocks` و`LockObserver` و`ValidateIdempotencyScope`؛ اختبارات `locks_test.go` المذكورة في [مجموعة اختبارات العقد](../../docs/contracts/KERNEL_CONTRACT_TEST_SUITE.md) | PASS |
 | حجز فعلي وترتيب عكسي في المحولين | `storage/memory/posting.go` و`storage/postgres/uow.go` يستدعيان `WithOrderedLocks` داخل `CommitPosting`؛ السيناريوهات LockOrderEnforced وCrossAccountReverseOrderNoDeadlock وSameAccountConcurrentPosting مع مراقب مستقل لكل طلب | PASS |
@@ -153,7 +153,7 @@
 ### 1.8 ملحق أدلة المرحلة 9 (التقييم والعملات الأجنبية)
 
 | المهمة / الضابط | التنفيذ / الدليل | النتيجة |
-|---|---|---|
+| --- | --- | --- |
 | 1–5. أنواع الأسعار وصلاحيتها ومنع التعارض واختيار أحدث سعر نافذ | `valuation/exchange_rate.go`: `Validate`, `RegisterRate`, `findEffectiveRate`؛ `TestRateRegistrySelectsLatestEffectiveRateAndRejectsFuture` يثبت سعر 3.70 بين التاريخين وسعر 3.75 في يومه ورفض ما قبل أول سعر | PASS |
 | 6–7. التحويل decimal-only وسعر العملة لنفسها = 1 | `Convert` و`ConvertForDate`؛ الأدلة في الملحق 1.2 وصف 022 أعلاه | PASS |
 | 8. تاريخ السعر منفصل عن تاريخ التقييم | `FXResult.RateDate` و`GenerateRevaluationEntryAt`؛ `TestIAS21ExchangeRateAndRevaluation` | PASS |
@@ -161,14 +161,14 @@
 | 11–12. قيد متوازن غير صفري ومنع تكرار الأثر | `TestRevaluationRegistryRejectsConflictingPayloadForSameKey` يثبت رفض `ErrRevaluationAlreadyApplied` عند اختلاف المرجع أو المبلغ أو البعد أو وقت اليوم أو بصمة السياسة، و`TestRevaluationIdempotencyScopeIsDeterministicAndOperationScoped` يثبت نطاق العملية الثالثة بعملة المعاملة، و`TestTransactionErrorClassification` يصنّف الخطأ غير قابل لإعادة المحاولة | PASS داخل النواة |
 | 13. عكس إعادة التقييم والفترة | `BuildRevaluationReversalAt` يفوّض إلى `posting.BuildReversalEntryAt` ويبقي `FiscalPeriodID` صفراً؛ `TestRevaluationReversalDraftCarriesDateForPeriodResolution` يتحقق من التاريخ والربط، و`TestReversalDraftResolvesDestinationPeriodDuringPosting` يثبت حل الفترة النهائية في `PostEntry` قبل التفويض | PASS |
 | 14. Fuzz وخصائص الحدود | `FuzzRateRegistryEffectiveSelectionNeverPanics` (أنواع الأسعار والتواريخ والأسعار الموجبة) إلى جانب `FuzzFXConversionNeverPanics`؛ Command + PASS هي المعتمدة وعدد التنفيذات متغير | PASS |
-| 15. القواعد 021–024 والوثائق | تحديث صفوف القواعد أعلاه، [مصفوفة التقييم](../../docs/contracts/KERNEL_VALUATION_RULES_MATRIX.md)، و[ADR P9-01](../../docs/ard/P9_01_valuation_idempotency_and_rate_selection.md)، و[تقرير المرحلة 9](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، و[مراجعة الخطة](../../docs/plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md) | PASS |
+| 15. القواعد 021–024 والوثائق | تحديث صفوف القواعد أعلاه، [مصفوفة التقييم](../../docs/contracts/KERNEL_VALUATION_RULES_MATRIX.md)، و[ADR P9-01](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p9-01)، و[تقرير المرحلة 9](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، و[مراجعة الخطة](../../docs/plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md) | PASS |
 
 > الفجوة `G-024` تبقى مفتوحة خارج النواة: `RevaluationRegistry` ذاكري، و`RevaluationIdempotencyScope` يُنتج كائن نطاق فقط دون توصيله بـ `PostEntry` أو SPI، والضمان الدائم ضد التكرار يتطلب من المضيف تخزينه ذرياً وفق المرحلة 7. لا تُحسب idempotency مكتملة على مستوى Adapter قبل المرحلة 11.
 
 ### 1.9 ملحق أدلة المرحلة 10 (التدقيق وسلامة الأدلة)
 
 | المهمة / الضابط | التنفيذ / الدليل | النتيجة |
-|---|---|---|
+| --- | --- | --- |
 | 1–3. جرد الحقول الدلالية وحمايتها وتثبيت التوحيد (canonicalization) | `CalculateHash` يستخدم length-prefix لكل حقل، digest للحمولة الخام، وطابعاً زمنياً مقيّداً للميكروثانية؛ اختبارات النواة `TestCalculateHashGoldenVector` و`TestCalculateHashProtectsEverySemanticField` و`TestCalculateHashCanonicalizesTimestampToStoragePrecision` | PASS |
 | 4–6. تسلسل لكل شركة، استدعاء متزامن، وإضافة ذرية فعلية | `Append`/`AppendAt` يفوّضان إلى `AppendAuditLogAtomic`؛ اختبارات المحولين ConcurrentAppendSequenceAndChain على Memory وPostgreSQL (أسماء اختبارات المحولات لا تُذكر داخل backticks هنا لأن بوابة المصفوفة تحلل النواة فقط) | PASS |
 | 7. لقطة متسقة أثناء الإضافات | `GetAuditVerificationSnapshot` مع Repeatable Read في PostgreSQL ونسخة تحت قفل القراءة في Memory؛ اختبارات SnapshotIsStableDuringConcurrentAppends و`TestAuditSnapshotVerificationIsSafeDuringConcurrentAppends` | PASS |
@@ -176,7 +176,7 @@
 | 9–10. كشف حذف الذيل والفشل المغلق عند غياب النقطة | `TestAuditCheckpointDetectsDeletedTail`، `TestCheckpointVerificationFailsClosedWithoutTrustedCheckpoint`، واختبارات TailDeletion/MissingCheckpoint على المحولين؛ وثيقة [نموذج التهديد](../../docs/contracts/KERNEL_AUDIT_THREAT_MODEL.md) تصرّح بعدم اكتشاف الذيل دون نقطة | PASS |
 | 11. ذرية الترحيل والتدقيق | `storage/memory/commitPostingLocked` يلحق سجل v2 في نفس وحدة العمل ويعيد الحالة عند الفشل؛ اختبار MemoryPhase10AuditFailureRollsBackPostingEffect يغطي نقطتي `FaultBeforeAudit` و`FaultBeforeCommit`؛ PostgreSQL عبر معاملة `uow.AppendAudit` | PASS |
 | 12. Backup/Restart واستعادة النقطة | تمرين DR ينشئ نقطة قبل `pg_dump` ويجعل مقارنتها بعد `pg_restore` إلزامية في اختبار TestDRDrill_FullRecovery | PASS |
-| 13. سياسة الاحتفاظ خارج النطاق نفسه | [ADR P10-01](../../docs/ard/P10_01_external_audit_checkpoint_custody.md) يحدد الملكية والاحتفاظ وحدود الاستقلال دون فرض مزود أو SIEM أو إدارة مفاتيح | PASS |
+| 13. سياسة الاحتفاظ خارج النطاق نفسه | [ADR P10-01](../../docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p10-01) يحدد الملكية والاحتفاظ وحدود الاستقلال دون فرض مزود أو SIEM أو إدارة مفاتيح | PASS |
 | 14. تحديث القواعد والمصفوفة | تحديث صفّي `RULE-KERNEL-025` و`RULE-KERNEL-026` أعلاه، و[الثوابت](KERNEL_ACCOUNTING_INVARIANTS.md)، و[التقرير](../../docs/reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، و[سجل الفجوات](../../docs/plans/KERNEL_REMEDIATION_GAP_REGISTER.md) | PASS |
 
 > قواعد `RULE-KERNEL-025/026` تبقى Implemented في النواة، بينما الذرية والحفظ الفعلي للنقطة و`FORCE ROW LEVEL SECURITY` مسؤولية المحولات وفق `RULE-KERNEL-027`. أسماء اختبارات المحولات والـDR موثقة في [عقد مستودع التدقيق](../../docs/contracts/KERNEL_AUDIT_REPOSITORY_CONTRACT.md) دون backticks هنا لأن بوابة هذه المصفوفة تحلل الاختبارات داخل `internal/kernal` فقط.

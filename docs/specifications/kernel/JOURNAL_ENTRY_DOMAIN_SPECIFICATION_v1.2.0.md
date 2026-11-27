@@ -208,7 +208,7 @@
 
 ### REF-002 — معمارية وقواعد عمل Accountant Engine
 
-- **المصادر الداخلية:** `docs/ACCOUNTING_BUSINESS_RULES.md` (§§1–2, §4, §7, §8)، `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` (§§3–5)، `docs/ard/P1_02_gl_source_of_truth.md`، `docs/ard/P5_01_policy_selection_and_historical_interpretation.md`.
+- **المصادر الداخلية:** `docs/ACCOUNTING_BUSINESS_RULES.md` (§§1–2, §4, §7, §8)، `docs/KERNEL_POSTING_FLOW_SPECIFICATION.md` (§§3–5)، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p5-01`.
 - **مستخدم في:** حقيقة الأستاذ العام القانونية، ثوابت الأسطر، قواعد سعر الصرف، آلة حالات دورة الحياة، الاستنساخ الدفاعي، وعدم القابلية للتعديل (`JRN-001–009`).
 
 ### فهرس ربط المراجع بالقواعد

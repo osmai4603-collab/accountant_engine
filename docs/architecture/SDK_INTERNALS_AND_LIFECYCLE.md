@@ -56,7 +56,7 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
 
 هذا المسار **للتوافق فقط** عندما لا يوفّر المضيف مخزن سياسات، أو عندما يكون المخزن موجوداً بصفر نسخة لهذه الشركة (أي أنها لم تشترك بعد في السياسات المؤرخة). أخطاء `SetCurrencyPolicy` / `SetPolicy` **تُعاد ولا تُبتلع** بعد المرحلة 11 (`G-021`). بمجرد إلحاق أول نسخة يصبح المخزن مصدر الحقيقة ولا يعود المسار القدامي متاحاً؛ تُمسَح السياسات الاصطناعية المسجَّلة سابقاً لهذه الشركة قبل تسجيل النسخ المخزَّنة، حتى لا تُجيب التواريخ غير المغطاة ولا يتعارض أول إصدار يبدأ عند 2000-01-01. التحميل محمي بقفل لكل شركة لمنع التسجيل المزدوج عند التزامن.
 
-عند وجود `ports.Private[storage.PolicyStoreExtensionKey]` (`G-020`) تُحمَّل كل نسخ الشركة مرة واحدة (`loadVersionedPolicies`) وتُسجَّل بنوافذها الأصلية؛ لا تُشتق سياسة اصطناعية، والغياب عن تاريخ القيد يُفشل مغلقاً (`ensureVersionedPoliciesIsEffective`). تعارض الإصدارات يُترجم إلى `ErrConflict` وغياب النسخة إلى `ErrNotFound`. التفاصيل في [ADR P11-04](../ard/P11_04_versioned_policy_store.md).
+عند وجود `ports.Private[storage.PolicyStoreExtensionKey]` (`G-020`) تُحمَّل كل نسخ الشركة مرة واحدة (`loadVersionedPolicies`) وتُسجَّل بنوافذها الأصلية؛ لا تُشتق سياسة اصطناعية، والغياب عن تاريخ القيد يُفشل مغلقاً (`ensureVersionedPoliciesIsEffective`). تعارض الإصدارات يُترجم إلى `ErrConflict` وغياب النسخة إلى `ErrNotFound`. التفاصيل في [ADR P11-04](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-04).
 
 ### 7.4.1 منافذ master data الاختيارية (المرحلة 11، `G-019`/`G-022`)
 

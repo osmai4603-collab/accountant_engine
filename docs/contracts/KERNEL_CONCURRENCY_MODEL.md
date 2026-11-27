@@ -3,7 +3,7 @@
 - **رمز الوثيقة:** `AE-P8-CONCURRENCY-MODEL`
 - **المرحلة:** 8 — التزامن والعزل متعدد الشركات
 - **التاريخ:** 2026-11-22
-- **القرار المعتمد:** [ADR P8-01](../ard/P8_01_locking_and_isolation.md)
+- **القرار المعتمد:** [ADR P8-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p8-01)
 - **الوثائق المرتبطة:** [عقد القفل](./KERNEL_LOCKING_CONTRACT.md)، [تقرير العزل متعدد الشركات](../reports/multi_company_isolation_report.md)، [عقد المعاملة](./KERNEL_POSTING_TRANSACTION_CONTRACT.md)
 
 ---

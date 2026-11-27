@@ -3,8 +3,8 @@
 // This package is a documentation-only marker. The kernel consists of nine
 // implementation packages under internal/kernal/* (see docs/architecture/KERNEL_ARCHITECTURE_MAP.md):
 // types, apperrors, journal, ledger, masterdata, governance, policy, posting and
-// valuation. docs/ard/P1_01_kernel_package_map.md records their responsibilities;
-// docs/ard/P1_02_gl_source_of_truth.md records the canonical accounting record.
+// valuation. docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md records their responsibilities;
+// docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md records the canonical accounting record.
 //
 // Import charter: kernel modules may import only the Go standard library,
 // github.com/google/uuid, github.com/shopspring/decimal, and sibling kernel

@@ -4,7 +4,7 @@
 - **المرحلة:** 6 — الترحيل والعكس المحاسبي
 - **النطاق:** `internal/kernal/posting/**` والتفاعل الضروري مع `journal` و`masterdata` و`policy` و`types`
 - **المرجع:** [خطة المعالجة، المرحلة 6](../plans/KERNEL_REMEDIATION_EXECUTION_PLAN.md)، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)، [مصفوفة التتبع](../../internal/kernal/KERNEL_TRACEABILITY_MATRIX.md)
-- **القرار المعماري:** [ADR P1-02](../ard/P1_02_gl_source_of_truth.md) و[ADR P3-01](../ard/P3_01_masterdata_effective_dating.md) و[ADR P5-01](../ard/P5_01_policy_selection_and_historical_interpretation.md)
+- **القرار المعماري:** [ADR P1-02](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02) و[ADR P3-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p3-01) و[ADR P5-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p5-01)
 - **قاعدة حاكمة:** هذه مواصفة سلوكية للنواة فقط. لا تحتوي على SQL أو تخزين ملموس أو HTTP/gRPC أو RBAC أو أرصدة مادية أو تقارير.
 
 ---

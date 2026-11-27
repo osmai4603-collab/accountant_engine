@@ -207,7 +207,7 @@
 
 ### REF-003 — معمارية وعقود نواة Accountant Engine
 
-- **المصادر الداخلية:** `docs/KERNEL_ARCHITECTURE_MAP.md`، `docs/KERNEL_IDEMPOTENCY_CONTRACT.md`، `docs/KERNEL_LOCKING_CONTRACT.md`، `docs/KERNEL_MONETARY_PRECISION_MATRIX.md`، `docs/ard/P3_01_masterdata_effective_dating.md`.
+- **المصادر الداخلية:** `docs/KERNEL_ARCHITECTURE_MAP.md`، `docs/KERNEL_IDEMPOTENCY_CONTRACT.md`، `docs/KERNEL_LOCKING_CONTRACT.md`، `docs/KERNEL_MONETARY_PRECISION_MATRIX.md`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p3-01`.
 - **مستخدم في:** نطاق الشركة، حد إسناد الفاعل، حدود `int64`، وتصنيف القابلية لإعادة المحاولة (`ID-001–006`, `ERR-001–004`).
 
 ### فهرس ربط المراجع بالقواعد

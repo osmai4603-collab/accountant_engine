@@ -5,7 +5,7 @@
 - **Toolchain:** `go version go1.26.3 linux/amd64`
 - **Command:** `./scripts/verify_architecture.sh`
 - **Result:** `PASS - clean architectural base` (0 violations, 11 rules checked)
-- **Decision record:** [P7_01_public_surface_decision.md](../ard/P7_01_public_surface_decision.md)
+- **Decision record:** [P7_01_public_surface_decision.md](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p7-01)
 
 ## Rule results
 

@@ -158,7 +158,7 @@
 
 ### REF-002 — قرارات مصدر حقيقة GL والأرصدة في Accountant Engine
 
-- **المصادر الداخلية:** `docs/ard/P1_02_gl_source_of_truth.md`، `docs/ard/P1_03_reference_model_duality.md`، `docs/ard/P11_03_balance_reader_semantics.md`، `docs/KERNEL_ARCHITECTURE_MAP.md` (§3)، `docs/ACCOUNTING_BUSINESS_RULES.md` (§10)، `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNAL-07`).
+- **المصادر الداخلية:** `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-03`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-03`، `docs/KERNEL_ARCHITECTURE_MAP.md` (§3)، `docs/ACCOUNTING_BUSINESS_RULES.md` (§10)، `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNAL-07`).
 - **مستخدم في:** مصدر حقيقة GL، الإسقاط بالترتيب الكلي، تكافؤ `BalanceReader`، وحدود إقفال نهاية السنة (`LDG-001–006`).
 
 ### فهرس ربط المراجع بالقواعد

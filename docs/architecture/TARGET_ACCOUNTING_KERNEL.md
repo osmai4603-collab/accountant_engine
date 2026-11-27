@@ -13,7 +13,7 @@ technical_terms: "en"
 
 # النواة المحاسبية للرؤية المستهدفة (Target Accounting Kernal Kernel)
 
-> **تحديث المرحلة 1 (2026-11-21):** النسخة 1.1.0 تطابق التنفيذ الفعلي: تسع حزم نواة + حزمة جذر، وتضيف `journal` و`ledger` إلى قائمة المكونات، وتحسم مصدر الحقيقة المحاسبي. انظر [خريطة المعمارية](./KERNEL_ARCHITECTURE_MAP.md) و[ADR P1-01](../ard/P1_01_kernel_package_map.md) و[ADR P1-02](../ard/P1_02_gl_source_of_truth.md) و[ADR P1-03](../ard/P1_03_reference_model_duality.md). القائمة "السبع حزم" في النسخة 1.0.0 **متجاوزة (Superseded)**.
+> **تحديث المرحلة 1 (2026-11-21):** النسخة 1.1.0 تطابق التنفيذ الفعلي: تسع حزم نواة + حزمة جذر، وتضيف `journal` و`ledger` إلى قائمة المكونات، وتحسم مصدر الحقيقة المحاسبي. انظر [خريطة المعمارية](./KERNEL_ARCHITECTURE_MAP.md) و[ADR P1-01](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-01) و[ADR P1-02](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02) و[ADR P1-03](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-03). القائمة "السبع حزم" في النسخة 1.0.0 **متجاوزة (Superseded)**.
 >
 > **بيان الرؤية والمعمارية:**  
 > تُحدد هذه الوثيقة الهيكل المفاهيمي والحزمي الدقيق لـ **النواة المحاسبية الصرفة (Kernal Accounting Kernel)** في الرؤية المستهدفة لمشروع `accounting_engine`، مع حصر مكوناتها وحزمها الجوهرية وفصلها فصلاً تاماً عن المكونات المدارية، ومحولات التخزين، وطبقات النقل والمصادقة، لتعمل بوصفها **نواة محاسبية موثوقة وعالية الأداء وقابلة للتضمين (Embeddable Kernal Engine)** فقط.

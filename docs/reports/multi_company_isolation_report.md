@@ -4,7 +4,7 @@
 - **المرحلة:** 8 — التزامن والعزل متعدد الشركات
 - **التاريخ:** 2026-11-22
 - **المحولات المختبرة:** `storage/memory` و`storage/postgres`
-- **القرار:** [ADR P8-01](../ard/P8_01_locking_and_isolation.md)
+- **القرار:** [ADR P8-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p8-01)
 - **العقود:** [قفل](../contracts/KERNEL_LOCKING_CONTRACT.md) · [تزامن](../contracts/KERNEL_CONCURRENCY_MODEL.md) · [معاملة](../contracts/KERNEL_POSTING_TRANSACTION_CONTRACT.md)
 
 ---
