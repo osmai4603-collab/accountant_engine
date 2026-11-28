@@ -1,7 +1,7 @@
 # وثيقة قرار الإصدار — `2026-11-27` *(مسودة قرار: `NO-GO` — غير موقّعة)*
 
 - **القرار الساري:** **`NO-GO`**. لا يوجد إذن نشر أو إصدار مستقر، ولا توقيع اعتماد سارٍ.
-- **الغرض:** وثيقة قرار جديدة بديلة عن [وثيقة الاعتماد الملغاة](KERNEL_RELEASE_SIGNOFF.md) بعد تصحيح تضاربات [`KERNAL_VS_DOCS_COMPARISON.md`](../analysis/KERNAL_VS_DOCS_COMPARISON.md). هذه الوثيقة **تسجّل الحالة** ولا تمنح اعتماداً.
+- **الغرض:** وثيقة قرار جديدة بديلة عن [وثيقة الاعتماد الملغاة رسمياً (`SUPERSEDED`)](KERNEL_RELEASE_SIGNOFF.md) بعد تصحيح تضاربات [`KERNAL_VS_DOCS_COMPARISON.md`](../analysis/KERNAL_VS_DOCS_COMPARISON.md). هذه الوثيقة **تسجّل الحالة** ولا تمنح اعتماداً. (`KERNEL_RELEASE_SIGNOFF.md` ملغاة رسمياً ولا تُعد إذن نشر).
 - **المرجع الحاكم للبوابات:** [مواصفة بوابات الجودة](../quality/QUALITY_GATES_SPECIFICATION.md) — `G01–G11`. أنظمة `G1–G15` و`A–O` تاريخية؛ راجع [جدول الربط](../quality/QUALITY_GATES_CROSSWALK.md).
 - **المرجع الحاكم للأدلة:** [دليل الأدلة والتقييم](../quality/EVIDENCE_AND_SCORING_GUIDE.md) و[فهرس اختبارات المطابقة](../quality/COMPLIANCE_TEST_SUITE_INDEX.md).
 

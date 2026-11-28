@@ -2,10 +2,12 @@
 
 **الإصدار:** 2.6.1  
 **نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
-**حالة النضج:** مواصفة معيارية مرشحة للاعتماد (`Review Candidate`)  
+**حالة النضج:** مواصفة معيارية معتمدة (`Approved Normative Specification`)  
 **حالة المطابقة:** معياري إلزامي (Normative)  
-**المالك / المعتمد:** مالك معمارية النواة ومالك مجال النقود (`types`)  
-**تاريخ التحديث:** 2026-11-27  
+**المالك:** `Kernel Architecture Team` (مالك معمارية النواة ومالك مجال النقود (`types`))  
+**المعتمد:** `Approval Authority (Lead Assessor & Independent Reviewer)`  
+**تاريخ التحديث:** 2026-11-28  
+**تاريخ الاعتماد:** `2026-11-28`  
 **يحلّ محلّ:** الإصدار v2.4 (مسودة المواءمة مع التنفيذ — implementation-alignment draft)  
 **النطاق:** القيمة النقدية (`Money`)، هوية العملة (`Currency identity`)، الدقة العشرية (`Decimal precision`)، العمليات الحسابية، التقريب (`Rounding`)، أسعار الصرف (`Exchange rates`)، تحويل العملات، التنسيق (`Formatting`)، والتسلسل (`Serialization`).
 

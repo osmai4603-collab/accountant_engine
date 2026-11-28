@@ -1,7 +1,10 @@
+> [!CAUTION]
+> هذه الوثيقة **مُلغاة (`SUPERSEDED`)** بتاريخ 2026-11-27. القرار الساري في [`KERNEL_RELEASE_DECISION_2026-11-27.md`](KERNEL_RELEASE_DECISION_2026-11-27.md). ادعاءات Multi-Ledger و IFRS في هذه الوثيقة **غير مُثبتة** ولا تعكس حالة المشروع.
+
 # وثيقة الاعتماد والتوقيع النهائي للإصدار (Release Sign-off) — `v1.1.0-enterprise`
 
 - **تاريخ الاعتماد:** 2026-11-28
-- **الحالة النهائية:** **`GO` — معتمد للجاهزية المؤسسية** (يحل محل الإصدار السابق `v1.0.0` الذي كان بحالة `SUPERSEDED`)
+- **الحالة النهائية:** **`SUPERSEDED — ملغاة`** (حلت محلها [`KERNEL_RELEASE_DECISION_2026-11-27.md`](KERNEL_RELEASE_DECISION_2026-11-27.md))
 - **النطاق المعتمد:** النواة المحاسبية (`internal/kernal`), العقود العامة (`pkg/api`, `pkg/spi`, `pkg/sdk`), محولا التخزين (`storage/memory`, `storage/postgres`), المدارات المنشورة (`consolidation`, `reconciliation`, `reporting`, `subledgers`, `events`), ومعايير التقارير (`IFRS 9`, `IFRS 15`, `IFRS 16`, `IAS 12`).
 
 ---
@@ -38,4 +41,4 @@
 
 ## 3. قرار الإصدار
 
-- **القرار الساري:** **`GO`** — جميع الفجوات المحاسبية والتكاملية والمعيارية والتشغيلية المحددة في `ENTERPRISE_GAP_REMEDIATION_EXECUTION_PLAN.md` قد أُغلقت وتم التحقق منها باختبارات حية قابلة لإعادة الإنتاج.
+- **القرار الساري:** **`SUPERSEDED — ملغاة`** — تم إلغاء هذه الوثيقة رسمياً بتاريخ 2026-11-27؛ راجع [`KERNEL_RELEASE_DECISION_2026-11-27.md`](KERNEL_RELEASE_DECISION_2026-11-27.md).

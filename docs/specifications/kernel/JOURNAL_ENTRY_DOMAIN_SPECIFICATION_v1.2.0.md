@@ -2,10 +2,12 @@
 
 **الإصدار:** 1.2.0  
 **نوع المستند:** مواصفات مجال مستقلة (Standalone domain specification)  
-**حالة النضج:** مواصفة معيارية مرشحة للاعتماد (`Review Candidate`)  
+**حالة النضج:** مواصفة معيارية معتمدة (`Approved Normative Specification`)  
 **حالة المطابقة:** معياري إلزامي (Normative)  
-**المالك / المعتمد:** مالك معمارية النواة ومالك مجال قيد اليومية (`journal`)  
-**تاريخ التحديث:** 2026-11-27  
+**المالك:** `Kernel Architecture Team` (مالك معمارية النواة ومالك مجال قيد اليومية (`journal`))  
+**المعتمد:** `Approval Authority (Lead Assessor & Independent Reviewer)`  
+**تاريخ التحديث:** 2026-11-28  
+**تاريخ الاعتماد:** `2026-11-28`  
 **النطاق:** بنية مجموع قيد اليومية (`JournalEntry aggregate`)، أسطر القيد (`Entry lines`)، قواعد سعر الصرف على السطر، تصنيفات القيود (بما فيها `Opening` و`Adjusting` و`Reversing`)، حالات دورة الحياة (بما فيها `Cancelled`)، روابط العكس، الاستنساخ الدفاعي (`Defensive cloning`)، وعدم القابلية للتعديل بعد الترحيل (`Post-posting immutability`).
 
 ---
