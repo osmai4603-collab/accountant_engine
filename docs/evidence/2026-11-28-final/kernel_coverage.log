@@ -1,0 +1,10 @@
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal	0.269s	coverage: [no statements]
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/apperrors	0.006s	coverage: 90.9% of statements
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/governance	0.025s	coverage: 98.5% of statements
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/journal	0.010s	coverage: 95.3% of statements
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/ledger	0.013s	coverage: 94.4% of statements
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata	0.011s	coverage: 92.1% of statements
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/policy	0.012s	coverage: 94.5% of statements
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/posting	0.036s	coverage: 89.9% of statements
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/types	0.019s	coverage: 89.6% of statements
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation	0.008s	coverage: 92.7% of statements

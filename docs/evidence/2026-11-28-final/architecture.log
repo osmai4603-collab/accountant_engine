@@ -1,0 +1,16 @@
+Architecture verification (module: github.com/osmai4603-collab/accounting_engine)
+-------------------------------------------------------------
+  [OK]   R1: internal/* free of net/http, grpc and protobuf
+  [OK]   R2a: pkg/spi/* free of internal/* imports
+  [OK]   R2b: pkg/api/* internal imports limited to internal/kernal/*
+  [OK]   R2c: exported API free of unbridged internal/* type exposure
+  [OK]   R3a: internal/kernal/* free of internal/orbitals/* imports
+  [OK]   R3b: internal/kernal/* free of pkg/* imports
+  [OK]   R3c: internal/kernal/* free of concrete storage/* imports
+  [OK]   R3d: internal/kernal/* free of database/sql and pgx
+  [OK]   R3e: storage/* free of internal/* imports
+  [OK]   R4: no cmd/ or proto/ directories
+  [OK]   R5: go.mod free of grpc, protobuf, aws-sdk and net/http
+  [OK]   R6: package graph resolves without import cycles
+-------------------------------------------------------------
+RESULT: PASS - clean architectural base

@@ -1,0 +1,6 @@
+internal/kernal/journal/errors.go
+internal/kernal/masterdata/errors.go
+internal/kernal/posting/errors.go
+internal/kernal/posting/valuation_adapter.go
+internal/kernal/types/idempotency.go
+internal/kernal/valuation/errors.go

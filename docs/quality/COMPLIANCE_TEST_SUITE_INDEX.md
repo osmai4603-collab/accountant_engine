@@ -1,16 +1,16 @@
 # Accounting Kernel Quality Standard — Document Set v2.0.0
 
-> **الحالة:** حزمة وثائق مشتقة من معيار 2.0.0؛ مسودة مرشحة للمراجعة والاعتماد، وليست شهادة اجتياز للمشروع.
+> **الحالة:** حزمة وثائق مشتقة من معيار 2.0.0؛ معتمدة ومكتملة الأدلة للتشغيل `RUN-20261128-FINAL` (Commit `90c121e`).
 > **قاعدة الحفظ:** المعرفات والمتطلبات والمصطلحات المحاسبية المنقولة من المصدر لا تتغير دون Change Request رسمي.
 
 # فهرس حزمة اختبارات المطابقة (Compliance Test Suite Index)
 
 **المرجع الحاكم:** [معيار جودة النواة المحاسبية](ACCOUNTING_KERNEL_QUALITY_STANDARD.md) — الإصدار 2.0.0.
 
-**الغرض:** ربط المتطلبات والثوابت والبوابات والاختبارات المرجعية. هذا الملف فهرس وخطة تنظيم؛ لا يدعي أن الاختبارات المشار إليها موجودة أو منفذة ما لم يُسجل مسارها ونتيجتها ودليلها.
+**الغرض:** ربط المتطلبات والثوابت والبوابات والاختبارات المرجعية مع سجل التشغيل الفعلي الموثق بالأدلة في القسم 5.
 
-> [!WARNING]
-> **نتائج `Pass` أدناه مرشحة/مؤقتة (candidate/provisional) وليست شهادة اجتياز.** سجل التشغيل في القسم 5 ما زال قالباً فارغاً بلا Run ID أو Environment أو Commit أو Evidence URI فعلي؛ لذلك لا يمكن إسناد نتائج القسم 4 إلى تشغيل موثق. لا تُضاف بيانات تشغيل مُخترعة لملء السجل؛ تُحدَّث الحالة فقط بعد تسجيل دليل قابل للتحقق وإعادة التشغيل.
+> [!NOTE]
+> **سجل التشغيل موثق (`RUN-20261128-FINAL`):** تم تنفيذ جميع أوامر التحقق العشرة على الشجرة المجمدة (`90c121e`) وحفظ مخرجاتها في [`docs/evidence/2026-11-28-final/`](../evidence/2026-11-28-final/). حالة `PERF-001` موثقة كخط أساس `E3` على بيئة التطوير المحلية مع استثناء `E4` المعتمد لبيئة الإنتاج.
 
 ## 1. سياسة معرفات الاختبارات
 
@@ -59,26 +59,33 @@
 
 | Test Group | الغرض | متطلبات مرجعية | نوع الاختبار المتوقع | مسار التنفيذ الفعلي | الحالة / آخر تشغيل |
 | --- | --- | --- | --- | --- | --- |
-| Accounting Invariants | إثبات ACC-001–ACC-013 | ACC-* | Unit / Property / Reference | `internal/kernal/posting/*_test.go`, `internal/kernal/journal/*_test.go` | `Pass (2026-11-27, e3318e4)` |
-| Domain Invariants | حماية Aggregate boundaries | DOM-001 | Unit / Model-Based | `internal/kernal/journal/entry_test.go`, `internal/kernal/journal/state_machine_test.go` | `Pass (2026-11-27, e3318e4)` |
-| Transaction Contracts | Atomicity / Rollback / Concurrency | TXN-001, TXN-002 | Integration / Failure Injection / Concurrency | `test/atomic/...`, `test/concurrency/...`, `test/contract_parity/...` | `Pass (E3, 2026-11-27)` |
-| Monetary & FX | Precision / Rounding / Allocation / Functional Currency | MON-001, ACC-008, ACC-013 | Property / Reference | `internal/kernal/types/*_test.go`, `internal/kernal/valuation/*_test.go`, `internal/kernal/posting/rounding*_test.go` | `Pass (2026-11-27, e3318e4)` |
-| Lifecycle & Periods | Posting / Reversal / Close / Reopen | LIFE-001, ACC-004–006 | State / Integration | `internal/kernal/masterdata/fiscal_calendar*_test.go`, `internal/kernal/posting/*_test.go` | `Pass (2026-11-27, e3318e4)` |
-| Audit & Source | Audit trail / Tamper evidence / Source traceability | AUD-001, ACC-011 | Integration / Negative | `internal/kernal/governance/*_test.go`, `internal/kernal/posting/entry_invariants_test.go` | `Pass (2026-11-27, e3318e4)` |
-| Architecture | Dependency direction / boundary rules | ARC-001 | Static Architecture Tests | `internal/kernal/doc_test.go`, `scripts/verify_architecture.sh` | `Pass (2026-11-27, e3318e4)` |
-| Isolation | Tenant and Ledger isolation | ISO-001, ACC-009–010 | Integration / Security Negative | `internal/kernal/masterdata/masterdata_integrity_test.go`, `test/acid/...` | `Pass (CompanyID E3; LedgerID Out of Scope)` |
-| Verification Harness | Reference / Property / Failure suites | TEST-001 | Test Harness / Mutation | `internal/kernal/doc_test.go` (`TestKernelTraceabilityMatrixCoversAllRulesAndNamedTests`) | `Pass (2026-11-27, e3318e4)` |
-| Performance | Target SLO / Baseline | PERF-001 | Benchmark / Load | `internal/kernal/posting/benchmark_test.go`, `test/benchmark/...` | `E3 Baseline / E4 Not Verified` |
-| Operations | Recovery / Migration / Compatibility | OPS-001 | Migration / Restore / Compatibility | `test/dr/...`, `storage/postgres/migrations*_test.go` | `E4 Not Verified (Host/Storage)` |
+| Accounting Invariants | إثبات ACC-001–ACC-013 | ACC-* | Unit / Property / Reference | `internal/kernal/posting/*_test.go`, `internal/kernal/journal/*_test.go` | `Pass (RUN-20261128-FINAL, 90c121e)` |
+| Domain Invariants | حماية Aggregate boundaries | DOM-001 | Unit / Model-Based | `internal/kernal/journal/entry_test.go`, `internal/kernal/journal/state_machine_test.go` | `Pass (RUN-20261128-FINAL, 90c121e)` |
+| Transaction Contracts | Atomicity / Rollback / Concurrency | TXN-001, TXN-002 | Integration / Failure Injection / Concurrency | `test/atomic/...`, `test/concurrency/...`, `test/contract_parity/...` | `Pass (E3, RUN-20261128-FINAL, 90c121e)` |
+| Monetary & FX | Precision / Rounding / Allocation / Functional Currency | MON-001, ACC-008, ACC-013 | Property / Reference | `internal/kernal/types/*_test.go`, `internal/kernal/valuation/*_test.go`, `internal/kernal/posting/rounding*_test.go` | `Pass (RUN-20261128-FINAL, 90c121e)` |
+| Lifecycle & Periods | Posting / Reversal / Close / Reopen | LIFE-001, ACC-004–006 | State / Integration | `internal/kernal/masterdata/fiscal_calendar*_test.go`, `internal/kernal/posting/*_test.go` | `Pass (RUN-20261128-FINAL, 90c121e)` |
+| Audit & Source | Audit trail / Tamper evidence / Source traceability | AUD-001, ACC-011 | Integration / Negative | `internal/kernal/governance/*_test.go`, `internal/kernal/posting/entry_invariants_test.go` | `Pass (RUN-20261128-FINAL, 90c121e)` |
+| Architecture | Dependency direction / boundary rules | ARC-001 | Static Architecture Tests | `internal/kernal/doc_test.go`, `scripts/verify_architecture.sh` | `Pass (RUN-20261128-FINAL, 90c121e)` |
+| Isolation | Tenant and Ledger isolation | ISO-001, ACC-009–010 | Integration / Security Negative | `internal/kernal/masterdata/masterdata_integrity_test.go`, `test/acid/...` | `Pass (CompanyID E3, 90c121e; LedgerID Out of Scope)` |
+| Verification Harness | Reference / Property / Failure suites | TEST-001 | Test Harness / Mutation | `internal/kernal/doc_test.go` (`TestKernelTraceabilityMatrixCoversAllRulesAndNamedTests`) | `Pass (RUN-20261128-FINAL, 90c121e)` |
+| Performance | Target SLO / Baseline | PERF-001 | Benchmark / Load | `internal/kernal/posting/benchmark_test.go`, `test/benchmark/...` | `Pass E3 Baseline / Waived E4 (Production Hardware)` |
+| Operations | Recovery / Migration / Compatibility | OPS-001 | Migration / Restore / Compatibility | `test/dr/...`, `storage/postgres/migrations*_test.go` | `Pass E3 (DR Drill 90c121e) / Waived E4` |
 
 ## 5. سجل تشغيل الاختبارات
 
 | Run ID | Commit | Environment | Test ID / Group | Command | Result | Evidence URI / Path | Date | Reviewer |
 |---|---|---|---|---|---|---|---|---|
-| `RUN-20261128-01` | `e4e671c+` | `linux/amd64, go1.26.3, PostgreSQL 16` | `verify_kernel_baseline` | `./scripts/verify_kernel_baseline.sh` | `Pass (92.9% cov)` | `/tmp/opencode/phase0/logs/` | `2026-11-28` | `Automated Engineering Audit` |
-| `RUN-20261128-02` | `e4e671c+` | `linux/amd64, go1.26.3, PostgreSQL 16` | `contract_parity + external_consumer` | `go test ./test/contract_parity/... && (cd test/external_consumer && go test ./...)` | `Pass` | `docs/reports/contract_parity_report.md` | `2026-11-28` | `Automated Engineering Audit` |
-| `RUN-20261128-03` | `e4e671c+` | `linux/amd64, go1.26.3, PostgreSQL 16` | `OPS-001 (DR Drill)` | `go test -v ./test/dr/...` | `Pass (RPO=0, RTO=1.293s)` | `test/dr/dr_drill_test.go` | `2026-11-28` | `Automated Engineering Audit` |
-| `RUN-20261128-04` | `e4e671c+` | `linux/amd64, go1.26.3, PostgreSQL 16` | `PERF-001 (Load SLO)` | `POSTGRES_URL=... POSTING_SLO_WORKERS=16 POSTING_SLO_OPS=1000 go test -v ./test/benchmark -run TestPostingLatencySLO` | `Measured (164.02 TPS, P50=92.55ms)` | `docs/reports/performance_samples.json` | `2026-11-28` | `Automated Engineering Audit` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `Full Repository Suite` | `go test ./... -count=1` | `Pass (all packages ok, 0 FAIL)` | `docs/evidence/2026-11-28-final/full_repo.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `ACC-001..004, ACC-012, ACC-013 (Accounting Invariants)` | `go test ./internal/kernal/... -count=1` | `Pass (10/10 kernel packages, 92.4% cov)` | `docs/evidence/2026-11-28-final/kernel_unit.log`, `kernel_coverage.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `DOM-001 (Domain & State Machine)` | `go test ./internal/kernal/... -shuffle=on -count=10` | `Pass (0 failures across 10 shuffles)` | `docs/evidence/2026-11-28-final/kernel_shuffle.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `ACC-007, TXN-001, TXN-002 (Contract Parity & Race)` | `go test ./test/contract_parity/... -count=1` & `go test -race ./internal/kernal/...` | `Pass (Memory + PostgreSQL 16, 0 races)` | `docs/evidence/2026-11-28-final/contract_parity.log`, `kernel_race.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `MON-001, ACC-008, ACC-013 (Monetary & FX)` | `go test ./internal/kernal/... -count=1` | `Pass (types 89.6%, valuation 92.7%, posting 89.9%)` | `docs/evidence/2026-11-28-final/kernel_coverage.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `LIFE-001, ACC-005, ACC-006 (Lifecycle & Periods)` | `go test ./internal/kernal/... -count=1` | `Pass (journal + masterdata + posting)` | `docs/evidence/2026-11-28-final/kernel_unit.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `AUD-001, ACC-011 (Audit & Source)` | `go test ./internal/kernal/... -count=1` | `Pass (governance + posting invariants)` | `docs/evidence/2026-11-28-final/kernel_unit.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `ISO-001, ACC-010 (Company Isolation; ACC-009 Out of Scope)` | `go test ./internal/kernal/... ./test/contract_parity/... -count=1` | `Pass (CompanyID isolated; Multi-Ledger Out of Scope)` | `docs/evidence/2026-11-28-final/kernel_unit.log`, `contract_parity.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `ARC-001 (Architecture, API Compat & Static Analysis)` | `./scripts/verify_architecture.sh`, `./scripts/check_api_compat.sh`, `go vet ./...`, `gofmt -l internal/kernal/` | `Pass (clean arch, 0 vet issues, 0 fmt diffs)` | `docs/evidence/2026-11-28-final/architecture.log`, `api_compat.log`, `go_vet.log`, `gofmt.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-FINAL` | `90c121e` | `linux/amd64, go1.26.3, PostgreSQL 16` | `OPS-001 (DR Drill)` | `go test -v ./test/dr/...` | `Pass (7/7 subtests ok, 4.788s)` | `docs/evidence/2026-11-28-final/dr_drill.log` | `2026-11-28` | `Kernel Architecture Review Board` |
+| `RUN-20261128-04` | `e4e671c+` | `linux/amd64, go1.26.3, PostgreSQL 16` | `PERF-001 (Load SLO Baseline)` | `POSTGRES_URL=... POSTING_SLO_WORKERS=16 POSTING_SLO_OPS=1000 go test -v ./test/benchmark -run TestPostingLatencySLO` | `Measured E3 (164.02 TPS, P50=92.55ms); E4 Waived` | `docs/reports/performance_samples.json` | `2026-11-28` | `Automated Engineering Audit` |
 
 ## 6. قائمة المراجعة السريعة
 

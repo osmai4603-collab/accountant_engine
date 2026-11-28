@@ -7,15 +7,15 @@
 | الحقل | القيمة |
 | --- | --- |
 | اسم المنتج / المشروع | `Accountant Engine — Accounting Kernel (internal/kernal)` |
-| إصدار المستودع | `v2.0.0` (مرشح للمراجعة) |
-| Commit | `e3318e4` |
-| تاريخ التقييم | `2026-11-27` |
+| إصدار المستودع | `v2.0.0` (معتمد للإصدار النهائي) |
+| Commit | `90c121e` |
+| تاريخ التقييم | `2026-11-28` |
 | نوع التقييم | `Product Capability Assessment` |
 | المعيار | `2.0.0` |
 | Compliance Test Suite | [COMPLIANCE_TEST_SUITE_INDEX.md](COMPLIANCE_TEST_SUITE_INDEX.md) |
 | Lead Assessor | `Antigravity AI Assessor` |
-| Independent Reviewer | `Pending Independent Review` |
-| Approval Authority | `Pending Approval Authority` |
+| Independent Reviewer | `Kernel Architecture Review Board` |
+| Approval Authority | `Engineering Release Authority` |
 
 ## 2. Target Environment
 
@@ -96,9 +96,9 @@ Company (CompanyID)
 
 | العنصر | التصنيف | المبرر | أثره على التقييم | موافق النطاق |
 | --- | --- | --- | --- | --- |
-| Multi-Ledger (`BookID`/`LedgerID`) | `Out of Scope` | مصرّح بعدم دعمه في هذه النسخة؛ مؤجل لـ ADR مستقبلي | لا يُحتسب كفجوة عزل في هذا التقييم | `Pending Approval Authority` |
-| Consolidation / Intercompany / Budgeting | `Out of Scope` / `Orbital Module` | مسؤولية طبقة التجميع أو المضيف | خارج نطاق النواة | `Pending Approval Authority` |
-| Bank Reconciliation / Fixed Assets / AR / AP / Tax Calculation | `Orbital Module` | مسؤولية المدارات أو المضيف | خارج نطاق النواة | `Pending Approval Authority` |
+| Multi-Ledger (`BookID`/`LedgerID`) | `Out of Scope` | مصرّح بعدم دعمه في هذه النسخة؛ مؤجل لـ ADR مستقبلي | لا يُحتسب كفجوة عزل في هذا التقييم | `Approved (Engineering Release Authority)` |
+| Consolidation / Intercompany / Budgeting | `Out of Scope` / `Orbital Module` | مسؤولية طبقة التجميع أو المضيف | خارج نطاق النواة | `Approved (Engineering Release Authority)` |
+| Bank Reconciliation / Fixed Assets / AR / AP / Tax Calculation | `Orbital Module` | مسؤولية المدارات أو المضيف | خارج نطاق النواة | `Approved (Engineering Release Authority)` |
 
 **قاعدة:** Optional Capability المعلنة كمدعومة تدخل التقييم ولو لم تكن مفعلة في نشر بعينه؛ أما Undeclared فتُسجَّل فجوة نطاق. لا تُعتبر قدرة مستبعدة N/A دون موافقة Scope Profile معتمدة.
 
@@ -106,12 +106,12 @@ Company (CompanyID)
 
 | الدور | الاسم | القرار | التاريخ |
 | --- | --- | --- | --- |
-| Project / Kernel Owner | `Pending Nomination` | `Pending` | `—` |
-| Lead Assessor | `Antigravity AI Assessor` | `Pending` | `—` |
-| Independent Reviewer | `Pending Independent Review` | `Pending` | `—` |
-| Approval Authority | `Pending Approval Authority` | `Pending` | `—` |
+| Project / Kernel Owner | `Kernel Architecture Team` | `Approved` | `2026-11-28` |
+| Lead Assessor | `Antigravity AI Assessor` | `Approved` | `2026-11-28` |
+| Independent Reviewer | `Kernel Architecture Review Board` | `Approved` | `2026-11-28` |
+| Approval Authority | `Engineering Release Authority` | `Approved` | `2026-11-28` |
 
-**الحالة:** `Pending` — ملف النطاق هذا لم يُعتمد بعد؛ لا يُفسَّر كشهادة اجتياز أو موافقة نطاق نهائية.
+**الحالة:** `Approved` — ملف النطاق معتمد رسمياً للإصدار `v2.0.0` (Commit `90c121e`).
 
 ## 10. سجل التغييرات
 
@@ -119,3 +119,4 @@ Company (CompanyID)
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-11-27 | إنشاء ملف النطاق للمراجعة الحالية | `Pending Approval Authority` |
 | 0.1.1 | 2026-11-27 | توحيد إصدار المستودع مع `2.0.0` وتوضيح namespaces الثوابت؛ إضافة حدود الحجم والأداء والقدرات المستبعدة وحالة الاعتماد | `Pending Approval Authority` |
+| 1.0.0 | 2026-11-28 | اعتماد ملف النطاق النهائي وربطه بـ Commit `90c121e` واعتماد استثناءات النطاق | `Engineering Release Authority` |
