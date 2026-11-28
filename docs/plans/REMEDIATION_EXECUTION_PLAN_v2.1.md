@@ -382,4 +382,4 @@
 | الاختبارات + السباقات | `go test -race ./... -count=1` | `PASS` | `PASS` ✅ | `PASS` |
 | التغطية الكلية للمستودع | `./scripts/check_coverage.sh coverage.out` | `52.5% (FAIL)` | `86.5% (PASS)` ✅ | `>= 80.0% (PASS)` |
 | الأداء الإنتاجي (`E4`) | `TestPostingLatencySLO` | `164 TPS / P50=92.5ms` | `~92-238 TPS / P50=64-159ms` ⚠️ (استثناء بيئي) | `1000 TPS / P50<=15ms` |
-| نظافة شجرة Git | `git status --short` | `2 modified` | `~10 modified` (تغييرات غير مؤكدة) | `clean` |
+| نظافة شجرة Git | `git status --short` | `2 modified` | `clean` ✅ (Commit `2ccade9`) | `clean` |
