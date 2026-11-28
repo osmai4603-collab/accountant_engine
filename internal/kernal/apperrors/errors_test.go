@@ -3,6 +3,9 @@ package apperrors
 import (
 	"errors"
 	"testing"
+
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
 )
 
 func TestCodedErrorContract(t *testing.T) {
@@ -56,5 +59,14 @@ func TestErrorTaxonomyCategoriesAndRetryability(t *testing.T) {
 
 	if CategoryOf(errors.New("plain")) != CategoryDomain || IsRetryable(errors.New("plain")) {
 		t.Fatal("plain unclassified error should default to non-retryable domain")
+	}
+}
+
+func TestCodedDomainErrorsWrapCanonicalSentinels(t *testing.T) {
+	if !errors.Is(ErrUnbalancedEntry, posting.ErrUnbalancedMove) {
+		t.Fatal("ErrUnbalancedEntry must wrap posting.ErrUnbalancedMove")
+	}
+	if !errors.Is(ErrPeriodClosed, masterdata.ErrFiscalPeriodClosed) {
+		t.Fatal("ErrPeriodClosed must wrap masterdata.ErrFiscalPeriodClosed")
 	}
 }

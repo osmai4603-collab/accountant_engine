@@ -3,7 +3,6 @@ package valuation
 import (
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -12,16 +11,9 @@ import (
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	"github.com/shopspring/decimal"
-)
-
-var (
-	ErrInvalidPosition           = errors.New("invalid monetary position")
-	ErrInvalidAccountType        = masterdata.ErrInvalidAccountType
-	ErrZeroRevaluationDifference = errors.New("fx revaluation difference cannot be zero")
 )
 
 type PositionType string
@@ -85,14 +77,33 @@ type RateProvider interface {
 	GetRate(ctx context.Context, rateType RateType, from, to string, asOf time.Time) (decimal.Decimal, ExchangeRate, bool, error)
 }
 
-type RevaluationEngine struct {
-	provider RateProvider
+// EntryValidator optionally validates a generated revaluation entry before
+// returning it to the caller.
+type EntryValidator interface {
+	ValidateDoubleEntry(entry *journal.JournalEntry) error
 }
 
-// ErrRevaluationAlreadyApplied is the valuation-facing alias of the phase-7
-// error catalog entry; a conflicting revaluation payload is terminal, not
-// retryable. Keeping one sentinel preserves errors.Is across both packages.
-var ErrRevaluationAlreadyApplied = posting.ErrRevaluationAlreadyApplied
+// ReversalBuilder constructs a reversing draft entry for a posted revaluation
+// entry without coupling valuation directly to posting.
+type ReversalBuilder interface {
+	BuildReversalAt(original journal.JournalEntry, date time.Time, actor, reason string, now time.Time) (journal.JournalEntry, error)
+}
+
+type RevaluationEngine struct {
+	provider        RateProvider
+	validator       EntryValidator
+	reversalBuilder ReversalBuilder
+}
+
+// NewRevaluationEngineWithDeps constructs a RevaluationEngine with optional
+// injected validation and reversal-building adapters.
+func NewRevaluationEngineWithDeps(provider RateProvider, validator EntryValidator, reversalBuilder ReversalBuilder) *RevaluationEngine {
+	return &RevaluationEngine{
+		provider:        provider,
+		validator:       validator,
+		reversalBuilder: reversalBuilder,
+	}
+}
 
 type revaluationRecord struct {
 	entry   journal.JournalEntry
@@ -153,7 +164,7 @@ func RevaluationOperationKeyWithDimensions(
 // BuildIdempotencyScope and the durable storage SPI (G-024); the host stamps
 // RevaluationPayloadFingerprint as the payload hash. PostEntry itself is not
 // extended with a revaluation-specific parameter.
-func RevaluationIdempotencyScope(company apiTypes.CompanyID, account apiTypes.AccountID, currency string, date time.Time) (posting.IdempotencyScope, error) {
+func RevaluationIdempotencyScope(company apiTypes.CompanyID, account apiTypes.AccountID, currency string, date time.Time) (types.IdempotencyScope, error) {
 	return RevaluationIdempotencyScopeWithDimensions(company, account, currency, date, RevaluationDimensions{})
 }
 
@@ -165,18 +176,18 @@ func RevaluationIdempotencyScopeWithDimensions(
 	currency string,
 	date time.Time,
 	dims RevaluationDimensions,
-) (posting.IdempotencyScope, error) {
+) (types.IdempotencyScope, error) {
 	key, err := RevaluationOperationKeyWithDimensions(company, account, currency, date, dims)
 	if err != nil {
-		return posting.IdempotencyScope{}, err
+		return types.IdempotencyScope{}, err
 	}
-	scope := posting.IdempotencyScope{
+	scope := types.IdempotencyScope{
 		CompanyID: company,
-		Operation: posting.IdempotencyRevaluation,
+		Operation: types.IdempotencyRevaluation,
 		Key:       key,
 	}
 	if err := scope.Validate(); err != nil {
-		return posting.IdempotencyScope{}, err
+		return types.IdempotencyScope{}, err
 	}
 	return scope, nil
 }
@@ -561,7 +572,7 @@ func GenerateRevaluationEntryAtWithOptions(
 	case journal.AdjustingEntryAudit, journal.AdjustingEntryAuditLegacy:
 		targetPeriod = 14
 	default:
-		return journal.JournalEntry{}, posting.ErrInvalidAdjustingEntryMetadata
+		return journal.JournalEntry{}, ErrInvalidAdjustingEntryMetadata
 	}
 	createdBy := strings.TrimSpace(opts.CreatedBy)
 	if createdBy == "" {
@@ -661,10 +672,6 @@ func GenerateRevaluationEntryAtWithOptions(
 
 	entry.Lines = []journal.EntryLine{positionLine, pnlLine}
 
-	if err := posting.ValidateEntryDoubleEntry(&entry, nil); err != nil {
-		return journal.JournalEntry{}, err
-	}
-
 	return entry, nil
 }
 
@@ -676,13 +683,31 @@ func cloneDimPtr[T any](v *T) *T {
 	return &copied
 }
 
-// BuildRevaluationReversalAt creates the exact reversal of a posted revaluation
-// entry and assigns it to the caller's explicit reversal date.
-func BuildRevaluationReversalAt(
+// BuildRevaluationReversalWith creates the exact reversal of a posted revaluation
+// entry using the injected ReversalBuilder and assigns it to the caller's explicit reversal date.
+func BuildRevaluationReversalWith(
+	builder ReversalBuilder,
 	original journal.JournalEntry,
 	reversalDate time.Time,
 	actorID, reason string,
 	now time.Time,
 ) (journal.JournalEntry, error) {
-	return posting.BuildReversalEntryAt(original, reversalDate, actorID, reason, now)
+	if builder == nil {
+		return journal.JournalEntry{}, ErrReversalBuilderRequired
+	}
+	return builder.BuildReversalAt(original, reversalDate, actorID, reason, now)
+}
+
+// BuildRevaluationReversalAt creates the exact reversal of a posted revaluation
+// entry using the engine's configured ReversalBuilder.
+func (e *RevaluationEngine) BuildRevaluationReversalAt(
+	original journal.JournalEntry,
+	reversalDate time.Time,
+	actorID, reason string,
+	now time.Time,
+) (journal.JournalEntry, error) {
+	if e == nil {
+		return journal.JournalEntry{}, ErrReversalBuilderRequired
+	}
+	return BuildRevaluationReversalWith(e.reversalBuilder, original, reversalDate, actorID, reason, now)
 }

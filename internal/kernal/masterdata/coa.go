@@ -10,16 +10,14 @@ import (
 )
 
 var (
-	ErrHeaderAccountPosting      = types.ErrCannotPostToParentAccount
-	ErrClosedPeriod              = types.ErrFiscalPeriodClosed
-	ErrAccountNotFound           = types.ErrAccountNotFound
-	ErrAccountCycle              = errors.New("account hierarchy contains a cycle")
-	ErrDuplicateAccountID        = errors.New("account hierarchy contains a duplicate account id")
-	ErrInvalidParent             = errors.New("invalid parent account")
-	ErrAccountNotCurrent         = errors.New("account is not valid on the posting date")
-	ErrAccountIdentityMismatch   = errors.New("account repository returned a different account or company")
-	ErrCannotPostToParentAccount = types.ErrCannotPostToParentAccount
-	ErrClockRequired             = errors.New("clock is required for current-date master data validation")
+	ErrHeaderAccountPosting    = ErrCannotPostToParentAccount
+	ErrClosedPeriod            = ErrFiscalPeriodClosed
+	ErrAccountCycle            = errors.New("account hierarchy contains a cycle")
+	ErrDuplicateAccountID      = errors.New("account hierarchy contains a duplicate account id")
+	ErrInvalidParent           = errors.New("invalid parent account")
+	ErrAccountNotCurrent       = errors.New("account is not valid on the posting date")
+	ErrAccountIdentityMismatch = errors.New("account repository returned a different account or company")
+	ErrClockRequired           = errors.New("clock is required for current-date master data validation")
 )
 
 // HierarchyNode represents an account node in the COA tree.

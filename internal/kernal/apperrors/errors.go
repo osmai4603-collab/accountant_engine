@@ -3,6 +3,9 @@ package apperrors
 import (
 	"errors"
 	"fmt"
+
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
 )
 
 // ErrorCategory classifies kernel errors into the standard operational taxonomy
@@ -67,8 +70,8 @@ func NewCategorized(code string, category ErrorCategory, retryable bool, message
 }
 
 var (
-	ErrUnbalancedEntry = NewCategorized("ERR_UNBALANCED_ENTRY", CategoryDomain, false, "journal entry is unbalanced", nil)
-	ErrPeriodClosed    = NewCategorized("ERR_PERIOD_CLOSED", CategoryDomain, false, "fiscal period is closed", nil)
+	ErrUnbalancedEntry = NewCategorized("ERR_UNBALANCED_ENTRY", CategoryDomain, false, "journal entry is unbalanced", posting.ErrUnbalancedMove)
+	ErrPeriodClosed    = NewCategorized("ERR_PERIOD_CLOSED", CategoryDomain, false, "fiscal period is closed", masterdata.ErrFiscalPeriodClosed)
 )
 
 func IsCode(err error, code string) bool {

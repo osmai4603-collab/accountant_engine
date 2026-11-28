@@ -41,7 +41,7 @@ func (r overrideFiscalReader) GetPeriodByNumber(
 ) (FiscalPeriod, error) {
 	period, ok := r.adjustments[number]
 	if !ok {
-		return FiscalPeriod{}, types.ErrFiscalPeriodNotFound
+		return FiscalPeriod{}, ErrFiscalPeriodNotFound
 	}
 	return period, nil
 }
@@ -67,7 +67,7 @@ func (m *mockMasterDataReader) GetCompany(ctx context.Context, companyID types.C
 func (m *mockMasterDataReader) GetAccount(ctx context.Context, companyID types.CompanyID, accountID types.AccountID) (Account, error) {
 	a, ok := m.accounts[accountID]
 	if !ok || a.CompanyID != companyID {
-		return Account{}, types.ErrAccountNotFound
+		return Account{}, ErrAccountNotFound
 	}
 	return a, nil
 }
@@ -78,7 +78,7 @@ func (m *mockMasterDataReader) GetAccountByCode(ctx context.Context, companyID t
 			return a, nil
 		}
 	}
-	return Account{}, types.ErrAccountNotFound
+	return Account{}, ErrAccountNotFound
 }
 
 func (m *mockMasterDataReader) GetJournalByCode(ctx context.Context, companyID types.CompanyID, code string) (Journal, error) {
@@ -103,7 +103,7 @@ func (m *mockMasterDataReader) GetPeriodForDate(ctx context.Context, companyID t
 			return p, nil
 		}
 	}
-	return FiscalPeriod{}, types.ErrFiscalPeriodNotFound
+	return FiscalPeriod{}, ErrFiscalPeriodNotFound
 }
 
 func TestCOAAndPostingValidation(t *testing.T) {
@@ -210,7 +210,7 @@ func TestFiscalCalendarAndPeriodValidation(t *testing.T) {
 	// Date outside fiscal year
 	outDate := time.Date(2027, 5, 1, 0, 0, 0, 0, time.UTC)
 	_, err = ValidatePeriodForPosting(ctx, reader, compID, outDate)
-	if !errors.Is(err, types.ErrFiscalPeriodNotFound) {
+	if !errors.Is(err, ErrFiscalPeriodNotFound) {
 		t.Fatalf("expected ErrFiscalPeriodNotFound, got %v", err)
 	}
 }
@@ -372,7 +372,7 @@ func TestMasterDataEdgeCases(t *testing.T) {
 	// Account not found check
 	nonExistentAccID := types.NewAccountID()
 	err = ValidateCanPostToAccount(ctx, reader, compID, nonExistentAccID)
-	if !errors.Is(err, types.ErrAccountNotFound) {
+	if !errors.Is(err, ErrAccountNotFound) {
 		t.Fatalf("expected ErrAccountNotFound, got %v", err)
 	}
 

@@ -46,7 +46,7 @@ func (r adjustmentPeriodReader) GetPeriodByNumber(
 ) (masterdata.FiscalPeriod, error) {
 	period, ok := r.adjustments[number]
 	if !ok {
-		return masterdata.FiscalPeriod{}, types.ErrFiscalPeriodNotFound
+		return masterdata.FiscalPeriod{}, masterdata.ErrFiscalPeriodNotFound
 	}
 	return period, nil
 }

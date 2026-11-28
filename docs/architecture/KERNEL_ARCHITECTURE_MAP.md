@@ -18,15 +18,15 @@ technical_terms: "en"
 | الحزمة | الملفات غير الاختبارية | المسؤولية | لا يملك |
 | --- | --- | --- | --- |
 | `internal/kernal` | `doc.go` (+ `doc_test.go`) | charter الاستيراد والفحوص المعمارية | أي منطق مجال |
-| `internal/kernal/types` | `money.go`, `currency.go`, `errors.go`, `identifiers.go`, `rounding.go`, `doc.go` | Money/double-entry primitives، ISO 4217، المعرفات، التقريب | تحقق القيد أو حفظ |
-| `internal/kernal/apperrors` | `errors.go`, `doc.go` | `CodedError`, `IsCode` للتوافق العام | استخداماً داخل النواة حالياً |
-| `internal/kernal/journal` | `entry.go`, `doc.go` | aggregate القيد: الحقول/الحالات/الروابط/`Clone` | التوازن، انتقال الحالة، الحفظ |
+| `internal/kernal/types` | `money.go`, `currency.go`, `errors.go`, `identifiers.go`, `idempotency.go`, `rounding.go`, `doc.go` | Money/double-entry primitives، ISO 4217، المعرفات، عقود Idempotency، التقريب | تحقق القيد أو حفظ |
+| `internal/kernal/apperrors` | `errors.go`, `doc.go` | `CodedError`, `IsCode` وتغليف أخطاء المجال القانونية | استخداماً داخل النواة حالياً |
+| `internal/kernal/journal` | `entry.go`, `errors.go`, `doc.go` | aggregate القيد: الحقول/الحالات/الروابط/`Clone`/أخطاء دورة الحياة | التوازن، الحفظ |
 | `internal/kernal/ledger` | `account.go`, `period.go`, `projection.go`, `doc.go` | DTO مرجعي لـ `pkg/api/v1/ledger` + إسقاطات قراءة حتمية مُشتقة من القيود المرحلة | تخزين حركة/رصيد مادي، تقارير، تحقق أهلية |
-| `internal/kernal/masterdata` | `types.go`, `account.go`, `coa.go`, `company_scope.go`, `cost_center.go`, `dimension.go`, `fiscal_calendar.go`, `journal.go`, `ports.go`, `doc.go` | الحقيقة المخولة لـ Company/COA/Journal/Calendar/Dimensions + Reader ports | حفظ ملموس أو تقارير |
+| `internal/kernal/masterdata` | `types.go`, `account.go`, `coa.go`, `company_scope.go`, `cost_center.go`, `dimension.go`, `errors.go`, `fiscal_calendar.go`, `journal.go`, `ports.go`, `doc.go` | الحقيقة المخولة لـ Company/COA/Journal/Calendar/Dimensions + Reader ports + أخطاء المجال | حفظ ملموس أو تقارير |
 | `internal/kernal/governance` | `audit_chain.go`, `verifier.go`, `doc.go` | سلسلة تدقيق ذرية ولقطة تحقق/checkpoint خارجي | أرصدة أو قيود |
 | `internal/kernal/policy` | `eligibility.go`, `posting_rules.go`, `doc.go` | سياسات نافذة زمنياً ومحصورة بالشركة، أهلية الحساب/الأبعاد | موافقات مستخدمين أو RBAC |
-| `internal/kernal/posting` | `entry_validation.go`, `pipeline.go`, `rounding.go`, `reversal.go`, `adjusting.go`, `lock_manager.go`, `doc.go` | `PostEntry` كنقطة تحقق مركزية، التقريب، العكس، ترتيب المفاتيح، تفويض الحفظ | SQL/أقفال فعلية/تخزين رصيد |
-| `internal/kernal/valuation` | `exchange_rate.go`, `conversion.go`, `revaluation.go`, `doc.go` | أسعار صرف وتحويل وإعادة تقييم وتوليد قيد | مزود أسعار خارجي أو شبكة |
+| `internal/kernal/posting` | `entry_validation.go`, `errors.go`, `pipeline.go`, `rounding.go`, `reversal.go`, `adjusting.go`, `lock_manager.go`, `valuation_adapter.go`, `doc.go` | `PostEntry` كنقطة تحقق مركزية، التقريب، العكس، ترتيب المفاتيح، تفويض الحفظ، محولات `valuation` | SQL/أقفال فعلية/تخزين رصيد |
+| `internal/kernal/valuation` | `exchange_rate.go`, `conversion.go`, `errors.go`, `revaluation.go`, `doc.go` | أسعار صرف وتحويل وإعادة تقييم وتوليد قيد (معزولة عن `posting` عبر واجهات) | مزود أسعار خارجي أو شبكة |
 
 ### 1.1 عقود Reader بعد المرحلة 3
 
@@ -58,20 +58,21 @@ flowchart BT
     M --> PO
     P --> PO
     T --> PO
-    J --> V["valuation"]
-    PO --> V
-    T --> V
-    AE["apperrors (isolated)"]
+    T --> V["valuation"]
+    J --> V
+    M --> V
+    PO --> AE["apperrors"]
+    M --> AE
     ROOT["kernal root (doc-only)"]
 ```
 
 | الطبقة | الحزم | قاعدة الاعتماد |
 | --- | --- | --- |
-| L0 | `types`, `apperrors` | بلا اعتماد على حزم kernel أخرى |
+| L0 | `types` | بلا اعتماد على حزم kernel أخرى |
 | L1 | `journal`, `masterdata`, `governance` | تعتمد على `types` فقط |
-| L2 | `ledger`, `policy` | `ledger→{journal,types}` كإسقاط قراءة حتمي؛ `policy→{journal,masterdata,types}` |
+| L2 | `ledger`, `policy`, `valuation` | `ledger→{journal,types}`؛ `policy→{journal,masterdata,types}`؛ `valuation→{types,journal,masterdata}` (بلا `posting`) |
 | L3 | `posting` | `journal` + `masterdata` + `policy` + `types` |
-| L4 | `valuation` | `journal` + `posting` + `types` |
+| L4 | `apperrors` | تغلّف أخطاء المجال (`posting`, `masterdata`) دون أن تستوردها أي حزمة نواة أخرى |
 
 الاعتماد الخارجي المسموح: `github.com/google/uuid` و`github.com/shopspring/decimal` plus package القياسية. أي استيراد لـ `pkg/*` أو `storage/*` أو `orbitals/*` أو `modules/*` أو `database/sql`/`pgx` أو شبكة مخالفة (`R1`, `R3a–R3d`).
 

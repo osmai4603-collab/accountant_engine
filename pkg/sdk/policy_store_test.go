@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/policy"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	publicmasterdata "github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
@@ -375,7 +376,7 @@ func TestPhase11PolicyAndRevaluationErrorsAreClassified(t *testing.T) {
 	}{
 		{name: "policy version conflict", err: storage.ErrPolicyVersionConflict, want: publicapplication.ErrConflict},
 		{name: "policy overlap", err: policy.ErrPolicyOverlap, want: publicapplication.ErrConflict},
-		{name: "revaluation already applied", err: posting.ErrRevaluationAlreadyApplied, want: publicapplication.ErrConflict},
+		{name: "revaluation already applied", err: valuation.ErrRevaluationAlreadyApplied, want: publicapplication.ErrConflict},
 		{name: "policy version missing", err: storage.ErrPolicyVersionNotFound, want: publicapplication.ErrNotFound},
 		{name: "policy not effective", err: policy.ErrPolicyNotEffective, want: publicapplication.ErrNotFound},
 	}

@@ -13,47 +13,29 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 )
 
-// IdempotencyOperation is the kernel-level kind of an atomic operation. It is
-// part of the uniqueness scope: a posting key and a reversal key with the same
-// text are different operations (RULE-KERNEL-027).
-type IdempotencyOperation string
+// IdempotencyOperation is the kernel-level kind of an atomic operation.
+// Canonical definition lives in types.IdempotencyOperation.
+type IdempotencyOperation = types.IdempotencyOperation
 
 const (
-	IdempotencyPosting     IdempotencyOperation = "post"
-	IdempotencyReversal    IdempotencyOperation = "reverse"
-	IdempotencyRevaluation IdempotencyOperation = "revaluation"
+	IdempotencyPosting     = types.IdempotencyPosting
+	IdempotencyReversal    = types.IdempotencyReversal
+	IdempotencyRevaluation = types.IdempotencyRevaluation
 )
 
-func (operation IdempotencyOperation) Valid() bool {
-	switch operation {
-	case IdempotencyPosting, IdempotencyReversal, IdempotencyRevaluation:
-		return true
-	default:
-		return false
-	}
-}
-
 // IdempotencyScope is the complete uniqueness scope of one posting request.
-// The host executor must treat the triple, not the bare key, as unique.
-type IdempotencyScope struct {
-	CompanyID types.CompanyID
-	Operation IdempotencyOperation
-	Key       string
-}
+// Canonical definition lives in types.IdempotencyScope.
+type IdempotencyScope = types.IdempotencyScope
 
 var (
-	ErrIdempotencyScopeRequired      = errors.New("complete idempotency scope is required")
+	ErrIdempotencyScopeRequired      = types.ErrIdempotencyScopeRequired
 	ErrIdempotencyConflict           = errors.New("idempotency key was reused with a different payload")
 	ErrIdempotencyInProgress         = errors.New("idempotency operation is still in progress")
 	ErrIdempotencyStorageUnavailable = errors.New("idempotency storage is unavailable")
 	ErrConcurrencyConflict           = errors.New("concurrent modification conflict")
 	ErrReversalAlreadyApplied        = errors.New("entry has already been reversed")
-	// ErrRevaluationAlreadyApplied is an operation-level payload conflict: the
-	// revaluation key was reused with a different stable result. Retrying cannot
-	// change that outcome, so it is non-retryable like ErrIdempotencyConflict.
-	ErrRevaluationAlreadyApplied = errors.New("revaluation has already been applied")
-	ErrAtomicityViolation        = errors.New("atomic posting contract was violated")
-	ErrUnknownOperationOutcome   = errors.New("operation outcome is unknown; query by idempotency key")
+	ErrAtomicityViolation            = errors.New("atomic posting contract was violated")
+	ErrUnknownOperationOutcome       = errors.New("operation outcome is unknown; query by idempotency key")
 )
 
 // RetryableError marks an error whose operation may be retried safely because
@@ -102,21 +84,6 @@ func IsRetryable(err error) bool {
 		errors.Is(err, ErrIdempotencyStorageUnavailable) ||
 		errors.Is(err, ErrConcurrencyConflict) ||
 		errors.Is(err, context.DeadlineExceeded)
-}
-
-func (scope IdempotencyScope) Validate() error {
-	if scope.CompanyID == (types.CompanyID{}) ||
-		!scope.Operation.Valid() ||
-		strings.TrimSpace(scope.Key) == "" {
-		return ErrIdempotencyScopeRequired
-	}
-	return nil
-}
-
-// String is the canonical, log-safe representation of the uniqueness scope.
-func (scope IdempotencyScope) String() string {
-	return fmt.Sprintf("company=%s|operation=%s|key=%s",
-		scope.CompanyID.String(), scope.Operation, strings.TrimSpace(scope.Key))
 }
 
 // BuildIdempotencyScope derives the kernel-authoritative scope from the entry

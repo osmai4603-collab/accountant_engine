@@ -196,8 +196,8 @@ func TestRevaluationIdempotencyScopeIsDeterministicAndOperationScoped(t *testing
 	if scope != again {
 		t.Fatalf("scope is not deterministic: %s vs %s", scope, again)
 	}
-	if scope.CompanyID != company || scope.Operation != posting.IdempotencyRevaluation {
-		t.Fatalf("scope = %s, want company %s and operation %s", scope, company, posting.IdempotencyRevaluation)
+	if scope.CompanyID != company || scope.Operation != types.IdempotencyRevaluation {
+		t.Fatalf("scope = %s, want company %s and operation %s", scope, company, types.IdempotencyRevaluation)
 	}
 	if err := scope.Validate(); err != nil {
 		t.Fatalf("scope must satisfy the neutral contract: %v", err)
@@ -431,9 +431,6 @@ func TestRevaluationRegistryRejectsConflictingPayloadForSameKey(t *testing.T) {
 	if !replay || !errors.Is(err, ErrRevaluationAlreadyApplied) {
 		t.Fatalf("conflicting registration: replay=%v err=%v, want already-applied", replay, err)
 	}
-	if !errors.Is(err, posting.ErrRevaluationAlreadyApplied) {
-		t.Fatalf("conflict must use the phase-7 catalog sentinel: %v", err)
-	}
 	if posting.IsRetryable(err) {
 		t.Fatalf("revaluation payload conflict must be non-retryable: %v", err)
 	}
@@ -559,7 +556,7 @@ func TestRevaluationReversalDraftCarriesDateForPeriodResolution(t *testing.T) {
 	originalPeriod := types.NewFiscalPeriodID()
 	entry.FiscalPeriodID = originalPeriod
 
-	reversal, err := BuildRevaluationReversalAt(entry, reversalDate, "system-valuation", "correct FX revaluation", date.Add(2*time.Hour))
+	reversal, err := BuildRevaluationReversalWith(posting.ReversalBuilderAdapter{}, entry, reversalDate, "system-valuation", "correct FX revaluation", date.Add(2*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

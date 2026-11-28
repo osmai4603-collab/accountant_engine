@@ -326,7 +326,7 @@ func (entry *JournalEntry) Cancel(actorID, reason string, cancelledAt time.Time)
 		return fmt.Errorf("%w: journal entry is nil", ErrInvalidEntryStatus)
 	}
 	if entry.Status == EntryPosted || entry.Status == EntryReversed {
-		return fmt.Errorf("%w: %w: %s -> %s", types.ErrCannotModifyPostedMove, ErrInvalidStatusTransition, entry.Status, EntryCancelled)
+		return fmt.Errorf("%w: %w: %s -> %s", ErrCannotModifyPostedMove, ErrInvalidStatusTransition, entry.Status, EntryCancelled)
 	}
 	if err := ValidateTransition(entry.Status, EntryCancelled); err != nil {
 		return err

@@ -112,8 +112,7 @@ language: "ar"
 - قواعد التقريب الحسابي الأساسية.
 - التحقق من صلاحية القيمة من منظور تمثيلها.
 - أخطاء sentinel الأساسية المتعلقة بالتمثيل المالي والعملات (`ErrCurrencyMismatch`، `ErrInvalidCurrency`، `ErrInvalidAmount`، `ErrAmountExceedsPrecision`، `ErrSubMinorUnitAmount`، `ErrNegativeAmountProhibited`).
-
-> **ملاحظة حالة حالية — أخطاء مجال مستضافة مؤقتاً:** يحتوي `types/errors.go` حالياً على أخطاء sentinel تخص مجالات أخرى (مثل `ErrFiscalPeriodClosed`، `ErrCannotPostToParentAccount`، `ErrAccountNotFound`، `ErrUnbalancedMove`، `ErrMoveAlreadyPosted`، `ErrCannotModifyPostedMove`). هذه الأخطاء مستضافة مؤقتاً ومُعاد تصديرها (alias) في الحزم المالكة لها (`masterdata`، `posting`، `journal`). يجب نقلها إلى الحزم المالكة ضمن خطة إصلاح حدود المسؤوليات؛ راجع `docs/plans/KERNEL_DDD_BOUNDARY_REMEDIATION_PLAN.md`.
+- عقود نطاق Idempotency المشتركة (`IdempotencyOperation`، `IdempotencyScope`).
 
 **خارج النطاق:**
 
@@ -444,9 +443,7 @@ language: "ar"
 7. يمر القيد الناتج عبر `posting`.
 8. لا يعدل التقييم قيداً مرحّلاً سابقاً.
 
-**التعاون:** يعتمد التنفيذ الحالي على `types` و`journal` و`masterdata` و`posting`؛ ويستقبل أسعار الصرف عبر عقد مزود مجرد (`RateProviderSPI`) يمرر إليه. الاعتماد على `posting` يشمل استخدام `posting.IdempotencyScope` و`posting.IdempotencyRevaluation` و`posting.ValidateEntryDoubleEntry` و`posting.BuildReversalEntryAt` وأخطاء `posting` مباشرة. لا يعني ذلك أن `valuation` يملك مزود الأسعار أو يملك سياسة العملة العامة.
-
-> **ملاحظة حالة حالية — اقتران مباشر بـ`posting`:** اعتماد `valuation` على أنواع `posting` ودوالها يتجاوز التعاون الدلالي المتوقع (تمرير قيد عبر مسار الترحيل). يجب فحص إمكانية عزل عقود idempotency والتحقق في واجهات مجردة ضمن خطة إصلاح حدود المسؤوليات.
+**التعاون:** تعتمد `valuation` على `types` و`journal` و`masterdata` فقط، وتستقبل قدرات التحقق وعكس القيود وأسعار الصرف عبر واجهات مجردة (`RateProvider`، `EntryValidator`، `ReversalBuilder`) دون أي استيراد مباشر لحزمة `posting`. لا يعني ذلك أن `valuation` يملك مزود الأسعار أو يملك سياسة العملة العامة.
 
 **مصدر الحقيقة:** نتائج التقييم ومدخلات العملية المثبتة، لا مصدر أسعار خارجي ولا القيود المرحلة.
 

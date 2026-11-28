@@ -210,7 +210,7 @@ func (r *versionedAccountReader) GetAccountAsOf(
 			return version, nil
 		}
 	}
-	return Account{}, types.ErrAccountNotFound
+	return Account{}, ErrAccountNotFound
 }
 
 func TestEffectiveDatingUsesInjectedClockAndVersionedReader(t *testing.T) {
@@ -252,7 +252,7 @@ func TestEffectiveDatingUsesInjectedClockAndVersionedReader(t *testing.T) {
 		t.Fatal("posting before the first effective version must be rejected")
 	}
 	after := fixedClock{at: effectiveTo.Add(time.Nanosecond)}
-	if err := ValidateCanPostToAccountWithClock(ctx, reader, companyID, accountID, after); !errors.Is(err, types.ErrAccountNotFound) {
+	if err := ValidateCanPostToAccountWithClock(ctx, reader, companyID, accountID, after); !errors.Is(err, ErrAccountNotFound) {
 		t.Fatalf("after effective-to error = %v, want account-not-found from versioned reader", err)
 	}
 
@@ -508,7 +508,7 @@ func TestMasterDataAdversarialInputsFailClosed(t *testing.T) {
 	accountID := types.NewAccountID()
 	reader.accounts[accountID] = Account{ID: accountID, CompanyID: types.NewCompanyID(), IsActive: true}
 	postingDate := time.Date(2026, time.March, 15, 0, 0, 0, 0, time.UTC)
-	if err := ValidateCanPostToAccountAsOf(ctx, reader, companyID, accountID, postingDate); !errors.Is(err, types.ErrAccountNotFound) {
+	if err := ValidateCanPostToAccountAsOf(ctx, reader, companyID, accountID, postingDate); !errors.Is(err, ErrAccountNotFound) {
 		t.Fatalf("foreign-company account must not be reachable: %v", err)
 	}
 }

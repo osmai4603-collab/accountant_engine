@@ -75,7 +75,7 @@ func TestDoubleEntryMathematicalValidation(t *testing.T) {
 	zeroLine := balanced
 	zeroLine.Lines[0].TransactionAmount = makeMoney(t, "0.00", "USD")
 	zeroLine.Lines[0].FunctionalDebit = makeMoney(t, "0.00", "USD")
-	if err := ValidateEntryDoubleEntry(&zeroLine, nil); !errors.Is(err, types.ErrZeroAmountLine) {
+	if err := ValidateEntryDoubleEntry(&zeroLine, nil); !errors.Is(err, ErrZeroAmountLine) {
 		t.Fatalf("expected ErrZeroAmountLine, got %v", err)
 	}
 
@@ -644,10 +644,10 @@ func TestPostingPipelineEndToEnd(t *testing.T) {
 
 func TestAdjustingEntriesAndImmutabilityCoverage(t *testing.T) {
 	// EnsureImmutable tests
-	if err := EnsureImmutable(journal.EntryPosted); !errors.Is(err, types.ErrCannotModifyPostedMove) {
+	if err := EnsureImmutable(journal.EntryPosted); !errors.Is(err, ErrCannotModifyPostedMove) {
 		t.Fatalf("expected ErrCannotModifyPostedMove, got %v", err)
 	}
-	if err := EnsureImmutable(journal.EntryReversed); !errors.Is(err, types.ErrCannotModifyPostedMove) {
+	if err := EnsureImmutable(journal.EntryReversed); !errors.Is(err, ErrCannotModifyPostedMove) {
 		t.Fatalf("expected ErrCannotModifyPostedMove, got %v", err)
 	}
 	if err := EnsureImmutable(journal.EntryCancelled); !errors.Is(err, ErrInvalidEntryState) {

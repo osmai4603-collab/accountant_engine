@@ -204,7 +204,7 @@ func TestJournalEntryCancelAndBranchCoverage(t *testing.T) {
 	if err := ValidateImmutability(posted, reconciledTamper); !errors.Is(err, ErrImmutableEntry) {
 		t.Fatalf("mutated ReconciledAmount must violate immutability: %v", err)
 	}
-	if err := posted.Cancel("actor-1", "cannot cancel posted", now); !errors.Is(err, types.ErrCannotModifyPostedMove) || !errors.Is(err, ErrInvalidStatusTransition) {
+	if err := posted.Cancel("actor-1", "cannot cancel posted", now); !errors.Is(err, ErrCannotModifyPostedMove) || !errors.Is(err, ErrInvalidStatusTransition) {
 		t.Fatalf("posted Cancel = %v, want ErrCannotModifyPostedMove & ErrInvalidStatusTransition", err)
 	}
 	if err := posted.MarkReversed(types.JournalEntryID{}); !errors.Is(err, ErrInvalidReversalLinkage) {
@@ -217,7 +217,7 @@ func TestJournalEntryCancelAndBranchCoverage(t *testing.T) {
 		t.Fatalf("different reversedBy MarkReversed = %v", err)
 	}
 	posted.Status = EntryReversed
-	if err := posted.Cancel("actor-1", "cannot cancel reversed", now); !errors.Is(err, types.ErrCannotModifyPostedMove) {
+	if err := posted.Cancel("actor-1", "cannot cancel reversed", now); !errors.Is(err, ErrCannotModifyPostedMove) {
 		t.Fatalf("reversed Cancel = %v, want ErrCannotModifyPostedMove", err)
 	}
 

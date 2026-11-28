@@ -225,7 +225,6 @@ func TestTransactionErrorClassification(t *testing.T) {
 	nonRetryable := []error{
 		ErrIdempotencyConflict,
 		ErrReversalAlreadyApplied,
-		ErrRevaluationAlreadyApplied,
 		ErrAtomicityViolation,
 	}
 	for _, err := range nonRetryable {

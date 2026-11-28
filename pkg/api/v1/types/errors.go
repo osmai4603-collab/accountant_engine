@@ -3,6 +3,9 @@ package types
 import (
 	"errors"
 
+	kernalJournal "github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
+	kernalMasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
+	kernalPosting "github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
 	kernalTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 )
 
@@ -13,16 +16,16 @@ var (
 	ErrAmountExceedsPrecision    = kernalTypes.ErrAmountExceedsPrecision
 	ErrSubMinorUnitAmount        = kernalTypes.ErrSubMinorUnitAmount
 	ErrNegativeAmountProhibited  = kernalTypes.ErrNegativeAmountProhibited
-	ErrZeroAmountLine            = kernalTypes.ErrZeroAmountLine
-	ErrUnbalancedMove            = kernalTypes.ErrUnbalancedMove
-	ErrFiscalPeriodClosed        = kernalTypes.ErrFiscalPeriodClosed
-	ErrFiscalPeriodNotFound      = kernalTypes.ErrFiscalPeriodNotFound
-	ErrInvalidPeriodTransition   = kernalTypes.ErrInvalidPeriodTransition
-	ErrCannotPostToParentAccount = kernalTypes.ErrCannotPostToParentAccount
-	ErrAccountNotFound           = kernalTypes.ErrAccountNotFound
-	ErrDuplicateAccountCode      = kernalTypes.ErrDuplicateAccountCode
-	ErrMoveAlreadyPosted         = kernalTypes.ErrMoveAlreadyPosted
-	ErrCannotModifyPostedMove    = kernalTypes.ErrCannotModifyPostedMove
+	ErrZeroAmountLine            = kernalPosting.ErrZeroAmountLine
+	ErrUnbalancedMove            = kernalPosting.ErrUnbalancedMove
+	ErrFiscalPeriodClosed        = kernalMasterdata.ErrFiscalPeriodClosed
+	ErrFiscalPeriodNotFound      = kernalMasterdata.ErrFiscalPeriodNotFound
+	ErrInvalidPeriodTransition   = kernalMasterdata.ErrInvalidPeriodTransition
+	ErrCannotPostToParentAccount = kernalMasterdata.ErrCannotPostToParentAccount
+	ErrAccountNotFound           = kernalMasterdata.ErrAccountNotFound
+	ErrDuplicateAccountCode      = kernalMasterdata.ErrDuplicateAccountCode
+	ErrMoveAlreadyPosted         = kernalJournal.ErrMoveAlreadyPosted
+	ErrCannotModifyPostedMove    = kernalJournal.ErrCannotModifyPostedMove
 	ErrMakerCheckerViolation     = errors.New("maker-checker violation")
 	ErrCapabilityNotImplemented  = errors.New("capability not implemented")
 )

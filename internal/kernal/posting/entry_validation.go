@@ -17,7 +17,6 @@ var (
 	ErrUnbalancedEntry                = errors.New("unbalanced journal entry: debits do not equal credits")
 	ErrMinimumLines                   = errors.New("journal entry must contain at least two lines")
 	ErrLineMustHaveOneSide            = errors.New("journal entry line cannot have debit and credit amounts")
-	ErrZeroAmountLine                 = apiTypes.ErrZeroAmountLine
 	ErrNegativeAmountProhibited       = apiTypes.ErrNegativeAmountProhibited
 	ErrMissingJournalID               = errors.New("journal id is required")
 	ErrMissingEntryID                 = errors.New("journal entry id is required")
@@ -36,7 +35,7 @@ var (
 	ErrReversalExecutorRequired       = errors.New("atomic reversal executor is required")
 	ErrEntryNotPosted                 = errors.New("journal entry is not posted")
 	ErrEntryNotDraft                  = errors.New("journal entry is not a draft")
-	ErrCannotModifyPostedMove         = apiTypes.ErrCannotModifyPostedMove
+	ErrCannotModifyPostedMove         = journal.ErrCannotModifyPostedMove
 	ErrReversalDateBeforeOriginal     = errors.New("reversal effective date is before the original entry effective date")
 	ErrReversalActorRequired          = errors.New("reversal actor is required")
 	ErrReversalReasonRequired         = errors.New("reversal reason is required")

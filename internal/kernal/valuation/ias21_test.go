@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
 	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	apiTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
 	"github.com/shopspring/decimal"
@@ -390,7 +391,7 @@ func TestRevaluationReverseKeepsReversalDateAndPeriod(t *testing.T) {
 	}
 	entry.Status = journal.EntryPosted
 
-	reversal, err := BuildRevaluationReversalAt(entry, reversalDate, "system-valuation", "correct FX revaluation", now)
+	reversal, err := BuildRevaluationReversalWith(posting.ReversalBuilderAdapter{}, entry, reversalDate, "system-valuation", "correct FX revaluation", now)
 	if err != nil {
 		t.Fatal(err)
 	}

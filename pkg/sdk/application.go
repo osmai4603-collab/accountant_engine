@@ -884,8 +884,6 @@ func classifyError(err error) error {
 		errors.Is(err, kernalmasterdata.ErrJournalNotFound) ||
 		errors.Is(err, kernalmasterdata.ErrAccountNotFound) ||
 		errors.Is(err, kernalmasterdata.ErrFiscalPeriodNotFound) ||
-		errors.Is(err, types.ErrAccountNotFound) ||
-		errors.Is(err, types.ErrFiscalPeriodNotFound) ||
 		errors.Is(err, valuation.ErrRateNotFound) ||
 		errors.Is(err, storage.ErrEntryNotFound) ||
 		errors.Is(err, storage.ErrPolicyVersionNotFound) ||
@@ -898,11 +896,9 @@ func classifyError(err error) error {
 		errors.Is(err, publicmasterdata.ErrPeriodNotFound) {
 		return publicapplication.NewError(publicapplication.ErrNotFound, err.Error(), err)
 	}
-	if errors.Is(err, types.ErrFiscalPeriodClosed) ||
-		errors.Is(err, kernalmasterdata.ErrFiscalPeriodClosed) ||
+	if errors.Is(err, kernalmasterdata.ErrFiscalPeriodClosed) ||
 		errors.Is(err, kernalmasterdata.ErrClosedFiscalYear) ||
-		errors.Is(err, kernalmasterdata.ErrClosedPeriod) ||
-		errors.Is(err, apperrors.ErrPeriodClosed) {
+		errors.Is(err, kernalmasterdata.ErrClosedPeriod) {
 		return publicapplication.NewError(publicapplication.ErrPeriodClosed, err.Error(), err)
 	}
 	if errors.Is(err, posting.ErrUnbalancedEntry) ||
@@ -920,6 +916,7 @@ func classifyError(err error) error {
 		errors.Is(err, posting.ErrInvalidExchangeRate) ||
 		errors.Is(err, posting.ErrFunctionalBalanceMismatch) ||
 		errors.Is(err, posting.ErrInvalidAdjustingEntryMetadata) ||
+		errors.Is(err, valuation.ErrInvalidAdjustingEntryMetadata) ||
 		errors.Is(err, posting.ErrAdjustingEntryMetadataRequired) ||
 		errors.Is(err, posting.ErrInvalidAdjustingEntryPeriod) ||
 		errors.Is(err, posting.ErrInvalidReversal) ||
@@ -939,11 +936,11 @@ func classifyError(err error) error {
 		errors.Is(err, types.ErrAmountExceedsPrecision) ||
 		errors.Is(err, types.ErrSubMinorUnitAmount) ||
 		errors.Is(err, types.ErrNegativeAmountProhibited) ||
-		errors.Is(err, types.ErrZeroAmountLine) ||
-		errors.Is(err, types.ErrUnbalancedMove) ||
+		errors.Is(err, posting.ErrZeroAmountLine) ||
+		errors.Is(err, posting.ErrUnbalancedMove) ||
 		errors.Is(err, types.ErrCurrencyMismatch) ||
 		errors.Is(err, types.ErrInvalidCurrency) ||
-		errors.Is(err, types.ErrCannotPostToParentAccount) ||
+		errors.Is(err, kernalmasterdata.ErrCannotPostToParentAccount) ||
 		errors.Is(err, types.ErrZeroDenominator) ||
 		errors.Is(err, kernalmasterdata.ErrHeaderAccountPosting) ||
 		errors.Is(err, kernalmasterdata.ErrAccountCycle) ||
@@ -987,8 +984,7 @@ func classifyError(err error) error {
 		errors.Is(err, journal.ErrInvalidCancellation) ||
 		errors.Is(err, governance.ErrInvalidAuditCompany) ||
 		errors.Is(err, governance.ErrInvalidAuditCheckpoint) ||
-		errors.Is(err, governance.ErrInvalidAuditSnapshot) ||
-		errors.Is(err, apperrors.ErrUnbalancedEntry) {
+		errors.Is(err, governance.ErrInvalidAuditSnapshot) {
 		return publicapplication.NewError(publicapplication.ErrValidation, err.Error(), err)
 	}
 	if errors.Is(err, storage.ErrIdempotencyPayloadConflict) ||
@@ -997,7 +993,7 @@ func classifyError(err error) error {
 		errors.Is(err, storage.ErrConcurrentModification) ||
 		errors.Is(err, storage.ErrPolicyVersionConflict) ||
 		errors.Is(err, policy.ErrPolicyOverlap) ||
-		errors.Is(err, posting.ErrRevaluationAlreadyApplied) ||
+		errors.Is(err, valuation.ErrRevaluationAlreadyApplied) ||
 		errors.Is(err, posting.ErrIdempotencyConflict) ||
 		errors.Is(err, posting.ErrIdempotencyInProgress) ||
 		errors.Is(err, posting.ErrConcurrencyConflict) ||
@@ -1005,9 +1001,9 @@ func classifyError(err error) error {
 		errors.Is(err, posting.ErrReversalAlreadyApplied) ||
 		errors.Is(err, posting.ErrEntryNotDraft) ||
 		errors.Is(err, posting.ErrEntryNotPosted) ||
-		errors.Is(err, types.ErrMoveAlreadyPosted) ||
-		errors.Is(err, types.ErrCannotModifyPostedMove) ||
-		errors.Is(err, types.ErrDuplicateAccountCode) ||
+		errors.Is(err, journal.ErrMoveAlreadyPosted) ||
+		errors.Is(err, journal.ErrCannotModifyPostedMove) ||
+		errors.Is(err, kernalmasterdata.ErrDuplicateAccountCode) ||
 		errors.Is(err, journal.ErrImmutableEntry) ||
 		errors.Is(err, valuation.ErrDuplicateRate) ||
 		errors.Is(err, publicmasterdata.ErrDuplicateCompanyCode) ||

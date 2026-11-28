@@ -341,3 +341,53 @@
 2. **عزل القيود والأرصدة والتدقيق:** كل قيد يُحفظ أو يُرحَّل ضمن `LedgerID` نشط يُوسَم بذلك الدفتر؛ قراءة القيد (`GetEntry`) وحساب الرصيد (`GetAccountBalance`) والتقارير (`ListEntriesByDateRange`) تُعزل تلقائياً حسب `LedgerID` النشط ولا تسرب بيانات دفتر آخر لنفس الشركة.
 3. **نطاق `Idempotency`:** عند وجود `LedgerID` غير افتراضي في السياق، يدخل `ledger:<ledger_id>` في مفتاح/نطاق Idempotency بحيث يمكن إعادة استخدام نفس المفتاح النصي بأمان بين دفترين مستقلين للشركة نفسها دون تعارض.
 4. **عدم كسر واجهات النواة:** يبقى `CompanyID` هو المفتاح الإلزامي في تواقيع النواة (`pkg/api/v1`), بينما يُمرَّر `LedgerID` عبر السياق (`context.Context`) وبذلك تبقى جميع عقود `v1.snapshot` مستقرة.
+
+---
+
+<a id="adr-p13-01"></a>
+
+## ADR P13-01 — ملكية أخطاء المجال وتنظيف `types/errors.go`
+
+- **الحالة:** مقبول (Accepted)
+- **التاريخ (UTC):** 2026-11-28
+- **المالك:** معمارية النواة (`types`, `masterdata`, `journal`, `posting`)
+- **المرجع:** `docs/plans/KERNEL_DDD_BOUNDARY_REMEDIATION_PLAN.md` (المرحلة 1)
+
+### القرار
+
+1. إبقاء `internal/kernal/types/errors.go` محصوراً في أخطاء التمثيل المالي والعملات الستة فقط (`ErrCurrencyMismatch`, `ErrInvalidCurrency`, `ErrInvalidAmount`, `ErrAmountExceedsPrecision`, `ErrSubMinorUnitAmount`, `ErrNegativeAmountProhibited`).
+2. نقل أخطاء الفترات والحسابات إلى `internal/kernal/masterdata/errors.go`، وأخطاء القيد ودورة حياته إلى `internal/kernal/journal/errors.go`، وأخطاء التوازن وسطوح الترحيل إلى `internal/kernal/posting/errors.go`.
+3. الحفاظ على التوافق الرجعي للسطح العام في `pkg/api/v1/types/errors.go` عبر إعادة التصدير من الحزم المالكة الجديدة، مع تحديث `pkg/sdk` والمستهلكين الداخليين.
+
+---
+
+<a id="adr-p13-02"></a>
+
+## ADR P13-02 — فصل `valuation` عن `posting` ونقل عقود Idempotency إلى `types`
+
+- **الحالة:** مقبول (Accepted)
+- **التاريخ (UTC):** 2026-11-28
+- **المالك:** معمارية النواة (`types`, `posting`, `valuation`)
+- **المرجع:** `docs/plans/KERNEL_DDD_BOUNDARY_REMEDIATION_PLAN.md` (المرحلة 2)
+
+### القرار
+
+1. نقل `IdempotencyOperation`, `IdempotencyScope`, وثوابت العمليات (`IdempotencyPosting`, `IdempotencyReversal`, `IdempotencyRevaluation`) و`ErrIdempotencyScopeRequired` إلى `internal/kernal/types/idempotency.go` مع الإبقاء على aliases في `posting/transaction.go`.
+2. إزالة استيراد `posting` من كود الإنتاج في `internal/kernal/valuation/`، وتعريف واجهتين مجردتين `EntryValidator` و`ReversalBuilder` في `valuation` مع محولات تنفيذية (`EntryValidatorAdapter`, `ReversalBuilderAdapter`) في `posting/valuation_adapter.go`.
+3. نقل `ErrRevaluationAlreadyApplied` و`ErrInvalidAdjustingEntryMetadata` الخاصة بالتقييم إلى `internal/kernal/valuation/errors.go`.
+
+---
+
+<a id="adr-p13-03"></a>
+
+## ADR P13-03 — توحيد أخطاء `apperrors` مع أخطاء المجال القانونية
+
+- **الحالة:** مقبول (Accepted)
+- **التاريخ (UTC):** 2026-11-28
+- **المالك:** معمارية النواة (`apperrors`, `posting`, `masterdata`, `pkg/sdk`)
+- **المرجع:** `docs/plans/KERNEL_DDD_BOUNDARY_REMEDIATION_PLAN.md` (المرحلة 3)
+
+### القرار
+
+1. تغليف `apperrors.ErrUnbalancedEntry` للأصل `posting.ErrUnbalancedMove`، وتغليف `apperrors.ErrPeriodClosed` للأصل `masterdata.ErrFiscalPeriodClosed` عبر حقل `Cause` في `CodedError`.
+2. إزالة الفحوص المكررة في `pkg/sdk/application.go` اعتماداً على `errors.Is` عبر `Unwrap()`.

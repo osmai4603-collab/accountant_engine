@@ -12,11 +12,8 @@ import (
 var (
 	ErrPeriodOutsideFiscalYear        = errors.New("period dates must be within the fiscal year")
 	ErrInvalidFiscalYearTransition    = errors.New("invalid fiscal year transition")
-	ErrInvalidPeriodTransition        = types.ErrInvalidPeriodTransition
 	ErrPeriodTransitionNeedsAudit     = errors.New("fiscal period transition requires an actor and reason")
 	ErrPeriodReopenRequiresAudit      = errors.New("reopening a fiscal period requires an actor and reason")
-	ErrFiscalPeriodClosed             = types.ErrFiscalPeriodClosed
-	ErrFiscalPeriodNotFound           = types.ErrFiscalPeriodNotFound
 	ErrClosedFiscalYear               = errors.New("fiscal year is closed")
 	ErrAdjustmentPeriodReaderRequired = errors.New("adjustment period reader is required")
 	ErrInvalidAdjustmentPeriod        = errors.New("invalid adjustment period")

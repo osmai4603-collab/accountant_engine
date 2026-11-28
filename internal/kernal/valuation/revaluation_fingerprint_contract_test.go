@@ -94,7 +94,7 @@ func TestRevaluationScopeHintRoundTripsThroughPosting(t *testing.T) {
 	if built != scope {
 		t.Fatalf("scope = %s, want %s", built, scope)
 	}
-	if built.Operation != posting.IdempotencyRevaluation {
+	if built.Operation != types.IdempotencyRevaluation {
 		t.Fatalf("operation = %q, want revaluation", built.Operation)
 	}
 
@@ -103,7 +103,7 @@ func TestRevaluationScopeHintRoundTripsThroughPosting(t *testing.T) {
 	if _, err := posting.BuildIdempotencyScope(entry, posting.PostOptions{
 		IdempotencyKey: forged.Key,
 		Scope:          forged,
-	}); !errors.Is(err, posting.ErrIdempotencyScopeRequired) {
+	}); !errors.Is(err, types.ErrIdempotencyScopeRequired) {
 		t.Fatalf("forged hint error = %v, want ErrIdempotencyScopeRequired", err)
 	}
 }

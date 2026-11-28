@@ -1,4 +1,8 @@
-// Package types: Exact decimal money, ISO 4217 currency and banker's rounding primitives.
+// Package types: Exact decimal money, ISO 4217 currency, banker's rounding primitives,
+// and shared kernel identifiers / idempotency scope contracts.
+//
+// Error ownership: types/errors.go defines only monetary/currency representation
+// sentinel errors; domain errors live in their owning packages (masterdata, journal, posting).
 //
 // Import charter: May import only the Go standard library, uuid and decimal.
 //
