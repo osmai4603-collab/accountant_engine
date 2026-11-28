@@ -1,0 +1,9 @@
+=== RUN   TestPostingLatencySLO
+    latency_slo_test.go:139: SLO sample written to /home/osm/StudioProjects/cashflow_system/accountant_engine/docs/reports/performance_samples.json: {Scenario:posting_pipeline Adapter:postgres Samples:1000 Duration:11.416s TPS:87.59932659555923 P50MS:157.63 P95MS:257.913 P99MS:1084.576 MinMS:124.982 MaxMS:1184.2 Recorded:2026-11-28 04:14:20.261240638 +0000 UTC}
+    latency_slo_test.go:142: P50 157.63 ms exceeds 15.00 ms limit
+    latency_slo_test.go:145: P95 257.91 ms exceeds 50.00 ms limit
+    latency_slo_test.go:148: throughput 87.6 TPS below 1000.0 TPS target
+--- FAIL: TestPostingLatencySLO (13.79s)
+FAIL
+FAIL	github.com/osmai4603-collab/accounting_engine/test/benchmark	13.791s
+FAIL

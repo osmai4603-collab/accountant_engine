@@ -1,0 +1,10 @@
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel	4.011s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/apperrors	0.022s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/governance	0.122s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/journal	0.029s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/ledger	0.030s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/masterdata	0.048s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/policy	0.298s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/posting	0.911s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/types	0.516s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/valuation	0.137s

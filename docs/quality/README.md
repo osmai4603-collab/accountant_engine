@@ -11,7 +11,10 @@
 5. [Compliance Test Suite Index](COMPLIANCE_TEST_SUITE_INDEX.md) — requirement/test traceability and run register.
 6. [Documentation Architecture Specification](DOCUMENTATION_ARCHITECTURE_SPECIFICATION.md) — ownership, dependencies, versioning and validation rules.
 7. [Quality Gates Crosswalk](QUALITY_GATES_CROSSWALK.md) — mapping between official G01–G11, historical operational G1–G15 and acceptance G1–G6.
-8. [Kernel Scope Profile](SCOPE_PROFILE_KERNEL_v1.md) — filled assessment scope instance; still Pending independent review and approval.
+8. [Kernel Scope Profile](SCOPE_PROFILE_KERNEL_v1.md) — filled assessment scope instance; its approval state is recorded in the profile.
+9. [Project Quality Assessment (2026-11-28)](PROJECT_QUALITY_ASSESSMENT_2026-11-28.md) — reconstructed assessment, with documented evidence separated from current-commit verification.
+10. [Project-Wide Quality Assessment (2026-11-28)](PROJECT_WIDE_QUALITY_ASSESSMENT_2026-11-28.md) — in-depth engineering assessment across the complete repository, integrations, modules, operations and evidence gaps.
+11. [Project-Wide Assessment Model v1.0](PROJECT_WIDE_ASSESSMENT_MODEL_v1.md) — project-level weights, scoring, evidence handling, and decision rules, separate from the kernel standard.
 
 ## Source and disposition
 
@@ -21,7 +24,7 @@ Generated from `ACCOUNTING_KERNEL_QUALITY_STANDARD_v2.0.0.md` (23 November 2026)
 
 - Version: 2.0.0
 - Normative status: review candidate
-- Project compliance status: not assessed by this documentation build
+- Project compliance status: the recorded v2.0.0 assessment is summarized in the linked report; current checkout compliance remains Not Verified until evidence is tied to its commit.
 
 ## سجل التغييرات وقرار الإصدار من المصدر
 

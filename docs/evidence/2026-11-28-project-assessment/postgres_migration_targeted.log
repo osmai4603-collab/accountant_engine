@@ -1,0 +1,4 @@
+=== RUN   TestPostgresPhase10BackfillRechainsLegacyRows
+--- PASS: TestPostgresPhase10BackfillRechainsLegacyRows (2.07s)
+PASS
+ok  	github.com/osmai4603-collab/accounting_engine/storage/postgres	2.076s

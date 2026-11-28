@@ -1,0 +1,80 @@
+?   	github.com/osmai4603-collab/accounting_engine/internal	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel	0.301s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/apperrors	0.005s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/governance	0.032s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/journal	0.006s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/ledger	0.009s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/masterdata	0.014s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/policy	0.018s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/posting	0.032s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/types	0.030s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/kernel/valuation	0.017s
+?   	github.com/osmai4603-collab/accounting_engine/internal/orbitals	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/consolidation	0.015s
+?   	github.com/osmai4603-collab/accounting_engine/internal/orbitals/events	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/postingcompat	0.014s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/reconciliation	0.019s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/reconciliation/bank_parsers	0.014s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/reporting	0.136s
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/reporting/taxonomy	0.064s
+?   	github.com/osmai4603-collab/accounting_engine/internal/orbitals/sdkapplication	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/internal/orbitals/subledgers	0.081s
+?   	github.com/osmai4603-collab/accounting_engine/modules	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/modules/ias12	0.016s
+ok  	github.com/osmai4603-collab/accounting_engine/modules/ifrs15	0.020s
+ok  	github.com/osmai4603-collab/accounting_engine/modules/ifrs16	0.017s
+ok  	github.com/osmai4603-collab/accounting_engine/modules/ifrs9	0.033s
+?   	github.com/osmai4603-collab/accounting_engine/pkg	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/events	0.011s
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/governance	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/ledger	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/reporting	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/subledger	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types	0.010s
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/sdk	0.025s
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/sdk/templates	0.016s
+?   	github.com/osmai4603-collab/accounting_engine/pkg/spi	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/spi/application	0.022s
+?   	github.com/osmai4603-collab/accounting_engine/pkg/spi/consolidation	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/spi/events	0.018s
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata	0.015s
+?   	github.com/osmai4603-collab/accounting_engine/pkg/spi/reconciliation	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/spi/standards	0.021s
+ok  	github.com/osmai4603-collab/accounting_engine/pkg/spi/storage	0.023s
+?   	github.com/osmai4603-collab/accounting_engine/pkg/spi/subledger	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/scripts/apisnapshot	1.881s
+ok  	github.com/osmai4603-collab/accounting_engine/scripts/internalapi	1.819s
+?   	github.com/osmai4603-collab/accounting_engine/storage	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/storage/masterdatacontract	0.046s
+ok  	github.com/osmai4603-collab/accounting_engine/storage/memory	0.037s
+--- FAIL: TestPostgresPhase10BackfillRechainsLegacyRows (3.23s)
+    audit_phase10_test.go:554: MigrateUp after inserting legacy rows: apply migration 202611220002_phase10_audit_evidence: ERROR: function digest(bytea, unknown) does not exist (SQLSTATE 42883)
+FAIL
+FAIL	github.com/osmai4603-collab/accounting_engine/storage/postgres	102.025s
+?   	github.com/osmai4603-collab/accounting_engine/storage/postgres/migrations	[no test files]
+?   	github.com/osmai4603-collab/accounting_engine/test	[no test files]
+ok  	github.com/osmai4603-collab/accounting_engine/test/acid	0.262s
+ok  	github.com/osmai4603-collab/accounting_engine/test/atomic	1.862s
+--- FAIL: TestPostingLatencySLO (87.95s)
+    latency_slo_test.go:139: SLO sample written to /home/osm/StudioProjects/cashflow_system/accountant_engine/docs/reports/performance_samples.json: {Scenario:posting_pipeline Adapter:postgres Samples:6000 Duration:1m24.968s TPS:70.61510219962085 P50MS:204.142 P95MS:425.257 P99MS:593.36 MinMS:105.059 MaxMS:730.367 Recorded:2026-11-28 04:07:19.73567121 +0000 UTC}
+    latency_slo_test.go:142: P50 204.14 ms exceeds 15.00 ms limit
+    latency_slo_test.go:145: P95 425.26 ms exceeds 50.00 ms limit
+    latency_slo_test.go:148: throughput 70.6 TPS below 1000.0 TPS target
+FAIL
+FAIL	github.com/osmai4603-collab/accounting_engine/test/benchmark	87.958s
+ok  	github.com/osmai4603-collab/accounting_engine/test/concurrency	0.137s
+ok  	github.com/osmai4603-collab/accounting_engine/test/contract_parity	150.788s
+--- FAIL: TestDRDrill_FullRecovery (6.40s)
+    dr_drill_test.go:101: source snapshot: {PostedMoves:3 MoveLines:6 AuditRecords:3 MoveChecksum:cf1a80c21a327f5441ec5cc49b3a4df77c61a41459fdaa6b83cc7e2bca104275}
+    --- FAIL: TestDRDrill_FullRecovery/02_restore_pg_restore (0.34s)
+        dr_drill_test.go:157: pg_restore failed: exit status 1
+            pg_restore: error: could not execute query: ERROR:  unrecognized configuration parameter "transaction_timeout"
+            Command was: SET transaction_timeout = 0;
+    dr_drill_test.go:166: restore phase did not complete
+FAIL
+FAIL	github.com/osmai4603-collab/accounting_engine/test/dr	6.409s
+?   	github.com/osmai4603-collab/accounting_engine/test/unit	[no test files]
+FAIL
