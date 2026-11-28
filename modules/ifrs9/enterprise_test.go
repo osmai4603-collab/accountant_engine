@@ -65,4 +65,3 @@ func TestIFRS9EnterpriseCapabilities(t *testing.T) {
 		t.Fatalf("profile validate: %v", err)
 	}
 }
-

@@ -3,7 +3,7 @@ package taxonomy
 import (
 	"strings"
 
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/masterdata"
 )
 
 func TagsForAccount(account masterdata.Account) []string {

@@ -3,13 +3,13 @@
 //
 // The pkg/api/v1 re-export bridge is the single sanctioned exception: names
 // defined there are public contracts even when implemented as aliases to
-// internal/kernal types (see ADR P7-01).
+// internal/kernel types (see ADR P7-01).
 //
 // Usage: go run ./scripts/internalapi [-bridge p1,p2,...] <import-path>...
 //
 // The -bridge flag lists the pkg/api/v1/... packages whose exported names are
 // the sanctioned re-exports. Their declared types are allowed to mention
-// internal/kernal even though the source importer resolves aliases eagerly.
+// internal/kernel even though the source importer resolves aliases eagerly.
 package main
 
 import (

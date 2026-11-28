@@ -161,7 +161,7 @@
 
 ### REF-002 — قرارات مصدر حقيقة GL والأرصدة في Accountant Engine
 
-- **المصادر الداخلية:** `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-03`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-03`، `docs/KERNEL_ARCHITECTURE_MAP.md` (§3)، `docs/ACCOUNTING_BUSINESS_RULES.md` (§10)، `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNAL-07`).
+- **المصادر الداخلية:** `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-03`، `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-03`، `docs/KERNEL_ARCHITECTURE_MAP.md` (§3)، `docs/ACCOUNTING_BUSINESS_RULES.md` (§10)، `docs/ACCOUNTING_CAPABILITIES_INVENTORY.md` (`CAP-KERNEL-07`).
 - **مستخدم في:** مصدر حقيقة GL، الإسقاط بالترتيب الكلي، تكافؤ `BalanceReader`، وحدود إقفال نهاية السنة (`LDG-001–006`).
 
 ### فهرس ربط المراجع بالقواعد
@@ -171,7 +171,7 @@
 | LDG-001–003 | REF-002 (ADR P1-02) | حقيقة GL القانونية وإعادة البناء الحتمية |
 | LDG-004 | REF-002 (ADR P11-03) | دلالات `BalanceReader` عبر المحولات للعملة الفارغة وغير الفارغة |
 | LDG-005 | REF-002 (ADR P1-03) | ازدواجية كائنات DTO المرجعية |
-| LDG-006 | REF-002 (`CAP-KERNAL-07`, `RULE-ACC-033`) | إقفال نهاية السنة الذري عبر القيود المرحلة |
+| LDG-006 | REF-002 (`CAP-KERNEL-07`, `RULE-ACC-033`) | إقفال نهاية السنة الذري عبر القيود المرحلة |
 
 ---
 
@@ -193,7 +193,7 @@
 | LDG-003 | إعادة بناء الأرصدة والعملات الأجنبية | PROJECT-DECISION | ADR P1-02 | اختبار تكافؤ إعادة البناء مع الأرصدة التراكمية |
 | LDG-004 | تكافؤ `asOf` والعملة الفارغة وغير الفارغة | PROJECT-DECISION | ADR P11-03 | اختبار تكافؤ المحولات للعملة الفارغة والأجنبية |
 | LDG-005 | تكافؤ DTO المرجعية دون انجراف | PROJECT-DECISION | ADR P1-03 / P3-01 | اختبار تطابق حقول DTO مع `masterdata` |
-| LDG-006 | إقفال نهاية السنة الذري عبر القيود المرحلة | PROJECT-DECISION | `CAP-KERNAL-07` / `RULE-ACC-033` | اختبار تصفير P&L ذرياً في `Retained Earnings` |
+| LDG-006 | إقفال نهاية السنة الذري عبر القيود المرحلة | PROJECT-DECISION | `CAP-KERNEL-07` / `RULE-ACC-033` | اختبار تصفير P&L ذرياً في `Retained Earnings` |
 
 ---
 

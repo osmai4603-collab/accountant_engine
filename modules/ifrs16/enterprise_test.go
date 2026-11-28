@@ -83,4 +83,3 @@ func TestIFRS16EnterpriseCapabilities(t *testing.T) {
 		t.Fatalf("GetDisclosures = %+v, %v", discs, err)
 	}
 }
-

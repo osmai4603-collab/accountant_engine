@@ -15,10 +15,10 @@ technical_terms: "en"
 
 > **بيان الإلزام والهدف:**  
 > تُحدد هذه الوثيقة **الهيكل المعماري والبرمجي الجديد (Target Packaging & Directory Structure)** لمشروع `accounting_engine`.  
-> يعكس هذا الهيكل الرؤية المعتمدة لتحويل المشروع إلى **نواة محاسبية نقية، عالية الأداء، وقابلة للتضمين (Embeddable Kernal Engine)** عبر Go SDK، مع الفصل الصارم بين:
+> يعكس هذا الهيكل الرؤية المعتمدة لتحويل المشروع إلى **نواة محاسبية نقية، عالية الأداء، وقابلة للتضمين (Embeddable Kernel Engine)** عبر Go SDK، مع الفصل الصارم بين:
 >
 > 1. السطح البرمجي العام المفتوح للمستهلك (`pkg/`).
-> 2. النواة المحاسبية الحتمية الصرفة (`internal/kernal/`).
+> 2. النواة المحاسبية الحتمية الصرفة (`internal/kernel/`).
 > 3. المكونات المدارية الاختيارية (`internal/orbitals/`).
 > 4. محولات التخزين الملموسة (`storage/`).
 > 5. وحدات المعايير التخصصية (`modules/`).
@@ -74,7 +74,7 @@ accounting_engine/
 │
 ├── internal/                             # 🔒 2. المنطق الداخلي المحمي للنواة ومكوناتها (Internal Domain)
 │   │
-│   ├── kernal/                           # 🟢 النواة المحاسبية الصرفة: تسع حزم + حزمة جذر (doc-only)
+│   ├── kernel/                           # 🟢 النواة المحاسبية الصرفة: تسع حزم + حزمة جذر (doc-only)
 │   │   ├── posting/                      # محرك الترحيل الذري، القيد المزدوج، العكس، والتقريب
 │   │   │   ├── pipeline.go               # خط أنابيب الترحيل المالي الذري ذو 17 مرحلة (0–16)
 │   │   │   ├── entry_validation.go       # التحقق الرياضي والهيكلي الصارم للقيد المزدوج والعملة
@@ -199,7 +199,7 @@ accounting_engine/
 └── docs/                                 # 📖 6. الوثائق والمعايير (المسارات الفعلية بعد إعادة التنظيم)
     ├── analysis/DOCS_CONFLICT_ANALYSIS.md         # تحليل تضاربات (لا قرار اعتماد)
     ├── architecture/
-    │   ├── TARGET_ACCOUNTING_KERNEL.md            # المسار الصحيح (لا TARGET_ACCOUNTING_KERNAL.md)
+    │   ├── TARGET_ACCOUNTING_KERNEL.md            # المسار الصحيح (لا TARGET_ACCOUNTING_KERNEL.md)
     │   ├── ARCHITECTURAL_PRINCIPLES_CHARTER.md
     │   ├── KERNEL_ARCHITECTURE_DECISION_RECORDS.md
     │   ├── KERNEL_ARCHITECTURE_MAP.md
@@ -224,9 +224,9 @@ accounting_engine/
 
 * **`pkg/sdk/`:** هذه الحزمة هي **الواجهة الوحيدة** التي يراها مطور النظام المضيف عند استدعاء المحرك داخل تطبيقه. توفر المنشئ `sdk.NewBuilder`، وكائن المحرك الرئيسي `sdk.Engine`، والخدمات المجردة (`LedgerService`, `ReportingService`, `EventIngestionService`).
 * **`pkg/api/v1/`:** نماذج بيانات ثابتة غير قابلة للتغيير (`Immutable DTOs`)، لا تحتوي على أي منطق تخزين أو استعلام.
-* **`pkg/spi/`:** عقود الموانئ (Ports) التي تضمن استقلالية المحرك؛ يمرّرها المضيف/SDK ولا تستوردها حزم `internal/kernal` مباشرة (ADR P1-01/P7-01).
+* **`pkg/spi/`:** عقود الموانئ (Ports) التي تضمن استقلالية المحرك؛ يمرّرها المضيف/SDK ولا تستوردها حزم `internal/kernel` مباشرة (ADR P1-01/P7-01).
 
-### 2. طبقة النواة المحاسبية الصرفة (`internal/kernal/`)
+### 2. طبقة النواة المحاسبية الصرفة (`internal/kernel/`)
 
 * تمثل **القلب الحسابي المصمت** للمحرك. لا تعتمد على أي حزم مدارية، ولا تعتمد على أي بروتوكول خارجي.
 * مسؤولة حصرياً عن: التحقق من التوازن، الترحيل الذري، حظر الحسابات التجميعية، الفترات المالية، الحساب العشري الدقيق، والقيود العكسية.
@@ -290,7 +290,7 @@ flowchart TD
         SPI["pkg/spi"]
     end
 
-    subgraph InternalCore ["النواة المحاسبية (internal/kernal/): 9 حزم + جذر"]
+    subgraph InternalCore ["النواة المحاسبية (internal/kernel/): 9 حزم + جذر"]
         CORE_PKG["types, apperrors, journal, ledger, masterdata, governance, policy, posting, valuation"]
     end
 
@@ -319,7 +319,7 @@ flowchart TD
     CORE_PKG -.->|محظور قطعياً| ORBIT_PKG
     CORE_PKG -.->|محظور قطعياً| STORAGE_PKG
     CORE_PKG -.->|محظور قطعياً| PublicSurface
-    %% ADR P7-01: الاستثناء الوحيد: pkg/api/v1 يعيد تصدير أنواع kernal عبر type X = kernal...X
+    %% ADR P7-01: الاستثناء الوحيد: pkg/api/v1 يعيد تصدير أنواع kernel عبر type X = kernel...X
     API -.->|جسر الأسماء المستعارة فقط — ADR P7-01| InternalCore
     SPI -.->|محظور قطعياً| InternalCore
 
@@ -329,7 +329,7 @@ flowchart TD
     style StorageAdapters fill:#6a0572,stroke:#8b008b,stroke-width:2px,color:#fff;
 ```
 
-> **تفسير الاستثناء (ADR P7-01):** الاتصال من `pkg/api/v1` إلى `InternalCore` مسموح **فقط** كجسر إعادة تصدير (`type X = kernal...X`)؛ لا يوجد أي استيراد في الاتجاه المعاكس من النواة إلى `pkg/*` أو `storage/*`، و`pkg/spi/**` ممنوع من أي `internal/*`.
+> **تفسير الاستثناء (ADR P7-01):** الاتصال من `pkg/api/v1` إلى `InternalCore` مسموح **فقط** كجسر إعادة تصدير (`type X = kernel...X`)؛ لا يوجد أي استيراد في الاتجاه المعاكس من النواة إلى `pkg/*` أو `storage/*`، و`pkg/spi/**` ممنوع من أي `internal/*`.
 
 ---
 

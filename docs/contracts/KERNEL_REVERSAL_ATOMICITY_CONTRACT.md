@@ -67,7 +67,7 @@
 - إمكانية إلغاء كل التغييرات عند أي خطأ قبل Commit، بما فيها تحديث الحالة والرابط.
 - نفس قواعد idempotency الموضحة في [عقد idempotency](./KERNEL_IDEMPOTENCY_CONTRACT.md)، مع `operation=reverse`.
 
-لا شيء من هذا يفرض SQL داخل `internal/kernal`؛ **النواة تمرّر `ReversalOfID` و`PostingIdempotency` فقط**، والمحول هو من يضيف `OriginalEntryID`/`ReversedEntryID` في JSON عند الحفظ ويترجمها عند القراءة (القسم 5). لا تُنسَب أسماء JSON إلى نموذج النواة.
+لا شيء من هذا يفرض SQL داخل `internal/kernel`؛ **النواة تمرّر `ReversalOfID` و`PostingIdempotency` فقط**، والمحول هو من يضيف `OriginalEntryID`/`ReversedEntryID` في JSON عند الحفظ ويترجمها عند القراءة (القسم 5). لا تُنسَب أسماء JSON إلى نموذج النواة.
 
 ## 7. الحكم
 

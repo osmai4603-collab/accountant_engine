@@ -67,7 +67,14 @@ else
 fi
 
 missing_doc="$(find pkg internal storage modules test -type d 2>/dev/null \
-  | while read -r dir; do [[ -f "$dir/doc.go" ]] || printf '%s\n' "$dir"; done)"
+  | while read -r dir; do
+      case "$dir" in
+        */testdata|*/testdata/*) continue ;;
+      esac
+      if compgen -G "$dir/*.go" >/dev/null 2>&1 && [[ ! -f "$dir/doc.go" ]]; then
+        printf '%s\n' "$dir"
+      fi
+    done)"
 if [[ -n "$missing_doc" ]]; then
   report FAIL "every package directory has a doc.go charter" "$missing_doc"
 else

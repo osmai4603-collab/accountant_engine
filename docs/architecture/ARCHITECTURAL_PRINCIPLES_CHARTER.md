@@ -6,7 +6,7 @@ version: "1.0.0"
 date: "2026-11-20"
 status: "ميثاق معماري معتمد"
 project: "Accounting Engine"
-classification: "Kernal Architectural Principles & Tenets"
+classification: "Kernel Architectural Principles & Tenets"
 language: "ar"
 technical_terms: "en"
 ---
@@ -15,7 +15,7 @@ technical_terms: "en"
 
 > **بيان الإلزام والهدف:**  
 > يُحدد هذا الميثاق **المبادئ المعمارية الحاكمة والقواعد الإلزامية غير القابلة للتفاوض (Architectural Principles & Invariants)** لمشروع `accounting_engine`.  
-> صُممت هذه المبادئ لضمان أن تكون النواة المحاسبية **محوراً مركزياً نقياً ومستقلاً** (Pure Central Kernal)، بحيث تعتمد جميع المكونات الأخرى (المدارية، ومحولات التخزين، والأنظمة المضيفة) على النواة، بينما **لا تعتمد النواة المحاسبية إطلاقاً على أي تفاصيل تقنية أو قطاعية أو بروتوكولية خارجية**.
+> صُممت هذه المبادئ لضمان أن تكون النواة المحاسبية **محوراً مركزياً نقياً ومستقلاً** (Pure Central Kernel)، بحيث تعتمد جميع المكونات الأخرى (المدارية، ومحولات التخزين، والأنظمة المضيفة) على النواة، بينما **لا تعتمد النواة المحاسبية إطلاقاً على أي تفاصيل تقنية أو قطاعية أو بروتوكولية خارجية**.
 >
 > **ملاحظة توثيقية (2026-11-27):** هذا الميثاق وثيقة مرجعية تاريخية؛ التوضيحات الواردة أدناه تُطابق لقطة المرحلة 1 مع القرارات اللاحقة في [سجل ADR](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md) (خصوصاً P1-01/P1-02، P7-01، P8-01) ولا تنشئ اعتماداً جديداً. عند التعارض يُرجع إلى الـ ADR وسجل الفجوات لا إلى صياغة قديمة هنا.
 
@@ -61,11 +61,11 @@ technical_terms: "en"
 
 ### المبدأ الأول: استقلال البنية التحتية والتخزين (Infrastructure Independence)
 
-- **[PRIN-INFRA-01] التجريد التام لطبقة البيانات (Storage-Agnostic Kernal):**
-  - النواة المحاسبية (`internal/kernal/posting`, `internal/kernal/masterdata`, `internal/kernal/types`) لا تعلم شيئاً عن PostgreSQL، أو محركات SQL، أو ملفات التخزين، أو جداول قواعد البيانات.
+- **[PRIN-INFRA-01] التجريد التام لطبقة البيانات (Storage-Agnostic Kernel):**
+  - النواة المحاسبية (`internal/kernel/posting`, `internal/kernel/masterdata`, `internal/kernel/types`) لا تعلم شيئاً عن PostgreSQL، أو محركات SQL، أو ملفات التخزين، أو جداول قواعد البيانات.
   - كل عمليات القراءة والكتابة والحفظ تتم عبر عقود وموانئ تخزين مجردة بالكامل (`pkg/spi/storage`).
 - **[PRIN-INFRA-02] حظر استيراد مكتبات التخزين في النواة:**
-  - يُحظر تماماً استيراد `database/sql`, `github.com/jackc/pgx`, أو أي حزمة قاعدة بيانات داخل طبقة الـ Kernal Domain.
+  - يُحظر تماماً استيراد `database/sql`, `github.com/jackc/pgx`, أو أي حزمة قاعدة بيانات داخل طبقة الـ Kernel Domain.
 - **[PRIN-INFRA-03] قابلية استبدال التخزين (Pluggable Persistence):**
   - يجب أن تكون النواة قادرة على العمل والاجتياز الكامل لكافة اختباراتها الحسابية باستخدام موائم الذاكرة المؤقتة (`storage/memory`) تماماً كما تعمل مع محول PostgreSQL الإنتاجي (`storage/postgres`) دون تعديل سطر واحد في كود النواة.
 - **[PRIN-INFRA-04] عزل منطق الأعمال عن استعلامات SQL:**
@@ -75,13 +75,13 @@ technical_terms: "en"
 
 ### المبدأ الثاني: استقلال التكامل والنقل (Integration & Transport Independence)
 
-- **[PRIN-INTEG-01] حظر بروتوكولات النقل الشبكي داخل النواة (Transport-Agnostic Kernal):**
+- **[PRIN-INTEG-01] حظر بروتوكولات النقل الشبكي داخل النواة (Transport-Agnostic Kernel):**
   - النواة المحاسبية ليست خادماً شبكياً (Server)، بل هي مكتبة برمجية نقية مضمنة (`Embedded Go Library`).
   - يُحظر منعاً باتاً تضمين أي كود يتعلق بـ HTTP REST, gRPC, Protobuf, WebSockets داخل النواة المحاسبية الصرفة. **استثناء:** يُسمح بـ `encoding/json` حصراً لتنفيذ `MarshalJSON`/`UnmarshalJSON` على أنواع النواة (`Money`, `Decimal`, `Currency`) لدعم التسلسل الحتمي، شرط عدم تضمين أي منطق نقل شبكي.
 - **[PRIN-INTEG-02] التكامل الحصري عبر الأحداث الاقتصادية المعيارية (Event-Driven Integration):**
   - الطريقة الوحيدة التي يتخاطب بها العالم الخارجي مع المحرك هي تمرير **أحداث اقتصادية مجردة (`AccountingEvent`)** أو قيود محاسبية عبر استدعاءات دوال Go مباشرة داخل المعالج (`In-Process SDK Call`).
   - مسؤولية تحويل بروتوكولات الشبكة (REST Requests أو gRPC Streams) إلى أحداث اقتصادية تقع على عاتق بوابات النقل الخارجية المستقلة (Gateways/Adapters) خارج النواة.
-- **[PRIN-INTEG-03] تجريد عمليات المصادقة وإدارة الهويات (Auth-Free Kernal):**
+- **[PRIN-INTEG-03] تجريد عمليات المصادقة وإدارة الهويات (Auth-Free Kernel):**
   - لا يدير المحرك جداول للمستخدمين، أو كلمات المرور، أو جلسات تسجيل الدخول، أو رموز JWT/OAuth.
   - تتلقى النواة سياق أمان موثوقاً ومجرداً (`Context Security Principal`) يمرره النظام المضيف عبر `context.Context` وتثبته النواة في سجل التدقيق دون إدارة هويات.
 
@@ -106,7 +106,7 @@ technical_terms: "en"
   - تطابق العملة الوظيفية لكافة أسطر القيد مع العملة الوظيفية المعتمدة للشركة إلزامي؛ وأي اختلاف يُعد خرقاً معمارياً يرفض بـ `ErrFunctionalCurrencyMismatch`.
 - **[PRIN-SANCT-02] الحفظ الذري الشامل للمعاملات (Strict Atomicity & Ordered Locking):**
   - ترحيل القيد، ترتيب مفاتيح الأقفال تصاعدياً (القفل الفعلي في Adapter/Host وفق ADR P8-01)، تخصيص رقم القيد، وحفظ مسار التدقيق المشفر تحدث معاً كوحدة عمل واحدة (`Unit of Work`) أو تتراجع بالكامل فوراً عند حدوث أي خلل.
-  - **خارج وحدة عمل النواة:** الأرصدة المشتقة وحركات الدفاتر المساعدة مملوكة للمضيف/المدارات (`internal/orbitals/*`)؛ لا تُحدَّث أرصدة مادية ولا تُسجَّل حركات دفاتر فرعية داخل `internal/kernal` (ADR P1-02).
+  - **خارج وحدة عمل النواة:** الأرصدة المشتقة وحركات الدفاتر المساعدة مملوكة للمضيف/المدارات (`internal/orbitals/*`)؛ لا تُحدَّث أرصدة مادية ولا تُسجَّل حركات دفاتر فرعية داخل `internal/kernel` (ADR P1-02).
 - **[PRIN-SANCT-03] الحرمة الأبدية للقيود المرحلة (Strict Immutability):**
   - القيد المرحّل لا يمكن تعديله أو حذفه إطلاقاً. لا يوجد أمر `UPDATE` أو `DELETE` في قاعدة البيانات يمس القيود المرحلة.
   - التصحيح يتم حصراً بقيد عكسي مستقل يرتبط دلالياً بالقيد الأصلي.
@@ -173,16 +173,16 @@ flowchart TD
         CONSOL["internal/orbitals/consolidation (Group Consolidation)"]
     end
 
-    subgraph Layer1 ["الطبقة 1: النواة المحاسبية الحتمية — 9 حزم + جذر (Kernal Kernel)"]
-        POSTING["internal/kernal/posting (Double-Entry & Posting Pipeline)"]
-        MASTER["internal/kernal/masterdata (COA, Calendar, Periods)"]
-        TYPES["internal/kernal/types (Money, Decimal, Currencies)"]
-        JOURNAL["internal/kernal/journal (Entry Aggregate & States)"]
-        LEDGER["internal/kernal/ledger (Reference DTOs, not a GL)"]
-        VALUATION["internal/kernal/valuation (Exchange Rates, FX)"]
-        POLICY["internal/kernal/policy (Posting Rules & Limits)"]
-        GOVERNANCE["internal/kernal/governance (Audit Chain & Verification)"]
-        APPERRORS["internal/kernal/apperrors (Standard Financial Errors)"]
+    subgraph Layer1 ["الطبقة 1: النواة المحاسبية الحتمية — 9 حزم + جذر (Kernel Kernel)"]
+        POSTING["internal/kernel/posting (Double-Entry & Posting Pipeline)"]
+        MASTER["internal/kernel/masterdata (COA, Calendar, Periods)"]
+        TYPES["internal/kernel/types (Money, Decimal, Currencies)"]
+        JOURNAL["internal/kernel/journal (Entry Aggregate & States)"]
+        LEDGER["internal/kernel/ledger (Reference DTOs, not a GL)"]
+        VALUATION["internal/kernel/valuation (Exchange Rates, FX)"]
+        POLICY["internal/kernel/policy (Posting Rules & Limits)"]
+        GOVERNANCE["internal/kernel/governance (Audit Chain & Verification)"]
+        APPERRORS["internal/kernel/apperrors (Standard Financial Errors)"]
     end
 
     %% اتجاه الاعتماديات الإلزامي
@@ -198,7 +198,7 @@ flowchart TD
     Layer1 -.->|محظور تماماً| Layer2
     Layer1 -.->|محظور تماماً| Layer3
     Layer1 -.->|محظور تماماً| Layer4
-    %% ADR P7-01: pkg/api/v1 وحدها تملك جسر أسماء مستعارة إلى internal/kernal؛ pkg/spi ممنوع
+    %% ADR P7-01: pkg/api/v1 وحدها تملك جسر أسماء مستعارة إلى internal/kernel؛ pkg/spi ممنوع
 
     style Layer1 fill:#2d6a4f,stroke:#1b4332,stroke-width:3px,color:#fff;
     style Layer2 fill:#1d3557,stroke:#457b9d,stroke-width:2px,color:#fff;
@@ -206,7 +206,7 @@ flowchart TD
     style Layer4 fill:#495057,stroke:#212529,stroke-width:1px,color:#fff;
 ```
 
-> **توضيح الحدود (ADR P7-01):** `pkg/spi/storage` منافذ عامة على الحدود ولا يدخل طبقة النواة؛ النواة لا تستورد أي حزمة `pkg/*`. الاستثناء الوحيد هو جسر إعادة التصدير في `pkg/api/v1/*` عبر أسماء مستعارة (`type X = kernal...X`)؛ `pkg/spi/*` يبقى ممنوعاً من استيراد أي `internal/*`.
+> **توضيح الحدود (ADR P7-01):** `pkg/spi/storage` منافذ عامة على الحدود ولا يدخل طبقة النواة؛ النواة لا تستورد أي حزمة `pkg/*`. الاستثناء الوحيد هو جسر إعادة التصدير في `pkg/api/v1/*` عبر أسماء مستعارة (`type X = kernel...X`)؛ `pkg/spi/*` يبقى ممنوعاً من استيراد أي `internal/*`.
 
 ---
 
@@ -216,9 +216,9 @@ flowchart TD
   - يمنع منعاً باتاً وجود أي تبعية دائرية بين حزم المشروع الداخلية، ويتم التحقق من ذلك آلياً عبر أدوات فحص الحزم في الـ CI.
 - **[ENF-02] حظر تسرب أنواع الـ Internal للخارج (No Internal Types Leakage):**
   - لا يجوز لأي دالة أو واجهة في السطح العام (`pkg/sdk`, `pkg/api/v1`, `pkg/spi`) أن تستقبل أو ترجع نوع بيانات مُعرف داخل `internal/*`.
-  - **استثناء صريح (ADR P7-01):** يُسمح لـ `pkg/api/v1/*` وحدها باستيراد `internal/kernal/*` لإعادة التصدير عبر أسماء مستعارة (`type X = kernal...X`)؛ لا يشمل الاستثناء `pkg/spi/*` ولا توقيعات `pkg/sdk` المُصدّرة غير المُعاد تصديرها.
+  - **استثناء صريح (ADR P7-01):** يُسمح لـ `pkg/api/v1/*` وحدها باستيراد `internal/kernel/*` لإعادة التصدير عبر أسماء مستعارة (`type X = kernel...X`)؛ لا يشمل الاستثناء `pkg/spi/*` ولا توقيعات `pkg/sdk` المُصدّرة غير المُعاد تصديرها.
 - **[ENF-03] حظر الاستيراد العكسي (No Inward-Outward Imports):**
-  - يُمنع على أي ملف داخل `internal/kernal/posting` استيراد `internal/orbitals/reporting` أو `internal/orbitals/subledgers` أو أي حزمة `pkg/*`؛ النواة مستقلة تماماً عن مداراتها وسطحها العام.
+  - يُمنع على أي ملف داخل `internal/kernel/posting` استيراد `internal/orbitals/reporting` أو `internal/orbitals/subledgers` أو أي حزمة `pkg/*`؛ النواة مستقلة تماماً عن مداراتها وسطحها العام.
 
 ---
 
@@ -229,7 +229,7 @@ flowchart TD
 | **استقلال البنية التحتية** | خلو حزم النواة من استيراد مكتبات SQL وقواعد البيانات | سكربت فحص الاعتماديات CI | مهندس معمارية البرمجيات |
 | **استقلال التكامل والنقل** | خلو النواة من `net/http` و `grpc` وعدم وجود سيرفر شبكي | فحص شجرة الحزم `go list` | مهندس معمارية البرمجيات |
 | **استقلال المجال** | خلو النواة من المصطلحات التشغيلية للقطاعات التجارية | مراجعة الكود وفحص النماذج | قائد هندسة النواة |
-| **قدسية القيد المزدوج** | اختبارات الوحدة والحالات الحدية للتوازن الرياضي | `internal/kernal/posting/entry_validation.go` | المراجع المحاسبي المعتمد |
+| **قدسية القيد المزدوج** | اختبارات الوحدة والحالات الحدية للتوازن الرياضي | `internal/kernel/posting/entry_validation.go` | المراجع المحاسبي المعتمد |
 | **الحرمة المحاسبية** | غياب أوامر `UPDATE`/`DELETE` وتطبيق Triggers مانعة | محولات PostgreSQL واختبارات الحرمة | مسؤول قواعد البيانات (DBA) |
 | **الذرية التامة (ACID)** | اختبارات حقن الأعطال (Fault-injection) والتراجع الشامل | `test/atomic/atomicity_test.go` | مهندس ضمان الجودة والأمان |
 | **الدقة العشرية** | حظر `float` واستخدام `shopspring/decimal` و `Int64` | فحص الكود الآلي (Static Linter) | قائد الهندسة البرمجية |

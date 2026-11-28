@@ -26,12 +26,12 @@ type SaleAndLeasebackInput struct {
 }
 
 type SaleAndLeasebackResult struct {
-	TransferSatisfied bool
-	ROUAsset          decimal.Decimal
-	LeaseLiability    decimal.Decimal
+	TransferSatisfied  bool
+	ROUAsset           decimal.Decimal
+	LeaseLiability     decimal.Decimal
 	GainLossRecognized decimal.Decimal
 	FinancingLiability decimal.Decimal
-	Currency          string
+	Currency           string
 }
 
 // EvaluateSaleAndLeaseback measures seller-lessee ROU asset (retained proportion)
@@ -80,19 +80,19 @@ const (
 )
 
 type SubleaseInput struct {
-	SubleaseID            uuid.UUID
-	HeadLeaseROUCarrying  decimal.Decimal
-	SubleaseReceiptsPV    decimal.Decimal
-	Classification        SubleaseClassification
-	Currency              string
+	SubleaseID           uuid.UUID
+	HeadLeaseROUCarrying decimal.Decimal
+	SubleaseReceiptsPV   decimal.Decimal
+	Classification       SubleaseClassification
+	Currency             string
 }
 
 type SubleaseResult struct {
-	Classification      SubleaseClassification
-	NetInvestment       decimal.Decimal
-	ROUDerecognized     decimal.Decimal
-	GainLossOnSublease  decimal.Decimal
-	Currency            string
+	Classification     SubleaseClassification
+	NetInvestment      decimal.Decimal
+	ROUDerecognized    decimal.Decimal
+	GainLossOnSublease decimal.Decimal
+	Currency           string
 }
 
 // ClassifyAndMeasureSublease measures an intermediate lessor's sublease (IFRS 16.B58).
@@ -220,4 +220,3 @@ func (m *Module) GetDisclosures(ctx context.Context, query reporting.DisclosureQ
 	}
 	return provider.GetDisclosures(ctx, query)
 }
-

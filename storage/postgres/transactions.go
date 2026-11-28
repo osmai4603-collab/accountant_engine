@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -76,6 +77,10 @@ func (d *Driver) ExecuteWithOptions(ctx context.Context, opts storage.TxOptions,
 	if ctx == nil {
 		return errors.New("postgres: transaction context is nil")
 	}
+	started := time.Now()
+	defer func() {
+		d.Observer().ObserveStorageTx(ctx, "postgres.unit_of_work", time.Since(started), result)
+	}()
 	if fn == nil {
 		return errors.New("postgres: transaction callback is nil")
 	}

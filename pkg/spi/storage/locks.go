@@ -11,7 +11,7 @@ import (
 )
 
 // This file is the adapter-neutral locking contract of Phase 8. The kernel
-// produces the order (internal/kernal/posting/lock_manager.go); an adapter
+// produces the order (internal/kernel/posting/lock_manager.go); an adapter
 // acquires the identities inside its own transaction. Nothing here imports a
 // driver, SQL, or a concrete storage package.
 

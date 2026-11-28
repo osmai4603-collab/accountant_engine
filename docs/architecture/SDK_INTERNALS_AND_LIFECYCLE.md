@@ -25,13 +25,13 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
 
 ### 7.2 `masterDataReaderAdapter` — جسر الأنواع
 
-يحوّل `publicmasterdata.Company` إلى `kernalmasterdata.Company`، و`publicmasterdata.Journal` إلى `kernalmasterdata.Journal` (بـ `EffectiveFrom = 2000-01-01`)، ويمرّر الحسابات والفترات كما هي.
+يحوّل `publicmasterdata.Company` إلى `kernelmasterdata.Company`، و`publicmasterdata.Journal` إلى `kernelmasterdata.Journal` (بـ `EffectiveFrom = 2000-01-01`)، ويمرّر الحسابات والفترات كما هي.
 
 استراتيجيات خاصة:
 
 | الدالة | الاستراتيجية |
 | --- | --- |
-| `GetJournalByID` | يجرب أولاً منفذاً خاصاً يُعيد نوع kernal، ثم منفذاً يُعيد النوع العام، ثم `GetJournalByCode("GENERAL")` إذا طابق الـ ID؛ وإلا يُعيد مجلة تركيبية باسم `GENERAL` وتاريخ `2000-01-01` **فقط كمسار توافق قديمي** حين لا يوفّر المحول متجراً مؤرخاً/منفذاً خاصاً للمجلات (انظر الملاحظة أدناه). |
+| `GetJournalByID` | يجرب أولاً منفذاً خاصاً يُعيد نوع kernel، ثم منفذاً يُعيد النوع العام، ثم `GetJournalByCode("GENERAL")` إذا طابق الـ ID؛ وإلا يُعيد مجلة تركيبية باسم `GENERAL` وتاريخ `2000-01-01` **فقط كمسار توافق قديمي** حين لا يوفّر المحول متجراً مؤرخاً/منفذاً خاصاً للمجلات (انظر الملاحظة أدناه). |
 | `GetPeriodByNumber` | يتطلب منفذاً خاصاً؛ وإلا يعطي `errors.New("adjustment periods not supported")`. |
 
 > **المجلة التركيبية `GENERAL` (توافق قديمي، ADR P11-04):** القيمة `2000-01-01` كانت تُستخدم تاريخياً كعنصر افتراضي؛ بعد ADR P3-01/P11-04 لا يُعدّ بديلاً صامتاً عن متجر مؤرخ. إذا وفّر المضيف متجر يوميات/سياسات مؤرخاً، يُعتمد عليه ويُفشل مغلقاً عند غياب اليومية أو غياب نسخة تغطي التاريخ؛ المسار التركيبي محصور في المحولات القديمة التي لا تعرض منفذاً مؤرخاً، ولا يجوز أن يتقدّم على متجر فعلي. لا علاقة له بسياسات `2000-01-01` الاصطناعية المذكورة في §7.4.
@@ -62,7 +62,7 @@ var _ publicapplication.DeterministicDraftCreator = (*applicationService)(nil)
 
 ### 7.4.1 منافذ master data الاختيارية (المرحلة 11، `G-019`/`G-022`)
 
-يربط SDK قارئ النسخة النافذة ومراكز التكلفة والأبعاد التحليلية انتقائياً إن وفّرها المحول؛ التنفيذ في `newApplication` (`application.go`) يستخدم **type assertions على `ports.MasterData`** لـ `publicmasterdata.EffectiveAccountReader` و`CostCenterReader` و`AnalyticalDimensionReader`، ثم يغلّفها في قارئ مركّب قبل تمريره إلى `posting.NewPostingPipeline` (وفق [ADR P11-02](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-02)). أما `Ports.Private[PolicyStoreExtensionKey]` فيُستخدم لمخزن السياسات المؤرخ (ADR P11-04)، وليس لاكتشاف منافذ master data. غياب القدرات يُبقي النواة في وضع الفشل المغلق؛ لا تُوسَّع `storage.Ports` المستقرة، ولا تظهر أنواع `internal/kernal` في التوقيعات العامة.
+يربط SDK قارئ النسخة النافذة ومراكز التكلفة والأبعاد التحليلية انتقائياً إن وفّرها المحول؛ التنفيذ في `newApplication` (`application.go`) يستخدم **type assertions على `ports.MasterData`** لـ `publicmasterdata.EffectiveAccountReader` و`CostCenterReader` و`AnalyticalDimensionReader`، ثم يغلّفها في قارئ مركّب قبل تمريره إلى `posting.NewPostingPipeline` (وفق [ADR P11-02](./KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p11-02)). أما `Ports.Private[PolicyStoreExtensionKey]` فيُستخدم لمخزن السياسات المؤرخ (ADR P11-04)، وليس لاكتشاف منافذ master data. غياب القدرات يُبقي النواة في وضع الفشل المغلق؛ لا تُوسَّع `storage.Ports` المستقرة، ولا تظهر أنواع `internal/kernel` في التوقيعات العامة.
 
 ### 7.5 `authorize` (`application.go:290`)
 
@@ -337,13 +337,13 @@ type EventInput struct {
 ## 15. قواعد الصيانة والتطوير
 
 1. **لا تستورد `storage/*` داخل `pkg/sdk`.** مرّر `storage.Ports` فقط.
-2. **لا تُعرّض أنواع `internal/kernal/*` في توقيعات عامة.** استخدم `pkg/api/v1` و`pkg/spi` دائماً.
+2. **لا تُعرّض أنواع `internal/kernel/*` في توقيعات عامة.** استخدم `pkg/api/v1` و`pkg/spi` دائماً.
 3. **أي قدرة جديدة تحتاج ثلاثة أجزاء:** خيار `WithXXX`، تحقق في `preflight`، وخدمة تُعيد `ErrCapabilityNotImplemented` عند الغياب.
 4. **أضف اختباراً خارجياً** في `test/external_consumer` يثبت أن المستهلك لا يحتاج `internal/*` عند استخدام القدرة الجديدة.
 5. **حافظ على Fail-fast:** أخطاء التهيئة تُجمع ولا تُبتلع؛ لا تُفعَّل قدرة صامتة.
 6. **أي تغيير في `publicEventFingerprint` يحتاج رفع `PublicEventPayloadHashVersion`** وإلا ستُعدّ الحمولات القديمة متعارضة.
 7. **احفظ ترتيب الإغلاق العكسي** للوحدات، واستخدم `sync.Once` لأي مورد جديد في `engineInstance`.
-8. **لا تضف منطقاً محاسبياً في SDK**؛ ضعه في `internal/kernal` واستدعِه من طبقة التطبيق.
+8. **لا تضف منطقاً محاسبياً في SDK**؛ ضعه في `internal/kernel` واستدعِه من طبقة التطبيق.
 
 ---
 

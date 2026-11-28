@@ -9,9 +9,10 @@ import (
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 )
 
-// multiLedgerScopes tracks entry-to-ledger ownership per Driver without
-// altering the exported Driver struct layout (ADR P12-01).
-var multiLedgerEntryOwners sync.Map // map[*Driver]map[types.JournalEntryID]string
+// multiLedgerEntryOwners tracks entry-to-ledger ownership per Driver without
+// altering the exported Driver struct layout (ADR P12-01). Entries are removed
+// on Driver.Close() and on transaction snapshot discard/commit.
+var multiLedgerEntryOwners sync.Map // map[*Driver]*sync.Map
 
 func activeLedgerID(ctx context.Context) string {
 	id, ok := storage.LedgerFromContext(ctx)
@@ -47,3 +48,25 @@ func (d *Driver) entryVisibleInLedger(ctx context.Context, entryID types.Journal
 	return owner.(string) == activeLedgerID(ctx)
 }
 
+func cloneMultiLedgerOwners(src, dst *Driver) {
+	val, ok := multiLedgerEntryOwners.Load(src)
+	if !ok {
+		return
+	}
+	dstMap := &sync.Map{}
+	val.(*sync.Map).Range(func(k, v any) bool {
+		dstMap.Store(k, v)
+		return true
+	})
+	multiLedgerEntryOwners.Store(dst, dstMap)
+}
+
+func copyMultiLedgerOwners(src, dst *Driver) {
+	val, ok := multiLedgerEntryOwners.Load(src)
+	if !ok {
+		multiLedgerEntryOwners.Delete(dst)
+		return
+	}
+	multiLedgerEntryOwners.Store(dst, val)
+	multiLedgerEntryOwners.Delete(src)
+}

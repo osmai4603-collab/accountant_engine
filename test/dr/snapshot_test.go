@@ -11,7 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
+	kernelgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernel/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 )
 
@@ -85,13 +85,13 @@ func verifyPostgresAuditChain(t *testing.T, ctx context.Context, pool *pgxpool.P
 		if previousHash != previous {
 			t.Fatalf("audit chain link %d broken: previous=%s want %s", count+1, previousHash, previous)
 		}
-		log := kernalgovernance.AuditLog{
+		log := kernelgovernance.AuditLog{
 			SequenceNumber: uint64(sequence), CompanyID: companyID,
 			EntityType: entityType, EntityID: entityID, Action: action, ActorID: actorID,
 			Reason: reason, CorrelationID: correlationID, Payload: payload,
 			Timestamp: timestamp, PreviousLogHash: previousHash,
 		}
-		expected := kernalgovernance.CalculateHash(log)
+		expected := kernelgovernance.CalculateHash(log)
 		if currentHash != expected {
 			t.Fatalf("audit row %d hash mismatch: stored=%s computed=%s (sequence=%d previous=%s company=%s entity=%s/%s action=%s actor=%s reason=%s correlation=%s timestamp_ns=%d payload=%x)",
 				count+1, currentHash, expected, sequence, previousHash, companyID, entityType, entityID, action, actorID, reason, correlationID, timestamp.UTC().UnixNano(), payload)

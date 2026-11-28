@@ -16,7 +16,7 @@ var (
 
 // CostCenter and AnalyticalDimensionValue are public DTOs re-exported through
 // pkg/api/v1/types. Their kind constants are likewise public so that hosts and
-// adapters can exchange analytical data without touching internal/kernal.
+// adapters can exchange analytical data without touching internal/kernel.
 type CostCenter = types.CostCenter
 type AnalyticalDimensionValue = types.AnalyticalDimensionValue
 type AnalyticalDimensionKind = types.AnalyticalDimensionKind

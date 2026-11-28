@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/policy"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/policy"
 )
 
 // PolicyUnit is the reporting-facing subset of the kernel policy unit. It

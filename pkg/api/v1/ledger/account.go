@@ -1,18 +1,18 @@
 package ledger
 
-import kernalLedger "github.com/osmai4603-collab/accounting_engine/internal/kernal/ledger"
+import kernelLedger "github.com/osmai4603-collab/accounting_engine/internal/kernel/ledger"
 
-type AccountType = kernalLedger.AccountType
-type NormalBalance = kernalLedger.NormalBalance
-type Account = kernalLedger.Account
+type AccountType = kernelLedger.AccountType
+type NormalBalance = kernelLedger.NormalBalance
+type Account = kernelLedger.Account
 
 const (
-	AccountTypeAsset     = kernalLedger.AccountTypeAsset
-	AccountTypeLiability = kernalLedger.AccountTypeLiability
-	AccountTypeEquity    = kernalLedger.AccountTypeEquity
-	AccountTypeIncome    = kernalLedger.AccountTypeIncome
-	AccountTypeExpense   = kernalLedger.AccountTypeExpense
-	AccountTypeRevenue   = kernalLedger.AccountTypeRevenue
-	NormalBalanceDebit   = kernalLedger.NormalBalanceDebit
-	NormalBalanceCredit  = kernalLedger.NormalBalanceCredit
+	AccountTypeAsset     = kernelLedger.AccountTypeAsset
+	AccountTypeLiability = kernelLedger.AccountTypeLiability
+	AccountTypeEquity    = kernelLedger.AccountTypeEquity
+	AccountTypeIncome    = kernelLedger.AccountTypeIncome
+	AccountTypeExpense   = kernelLedger.AccountTypeExpense
+	AccountTypeRevenue   = kernelLedger.AccountTypeRevenue
+	NormalBalanceDebit   = kernelLedger.NormalBalanceDebit
+	NormalBalanceCredit  = kernelLedger.NormalBalanceCredit
 )

@@ -109,4 +109,3 @@ type ConsolidationResult struct {
 type Service interface {
 	Consolidate(ctx context.Context, request ConsolidationRequest) (ConsolidationResult, error)
 }
-

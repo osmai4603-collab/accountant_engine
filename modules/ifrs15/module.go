@@ -51,29 +51,29 @@ func (m *Module) Descriptor() standards.ModuleDescriptor {
 	cfg := m.profileConfig
 	m.mu.RUnlock()
 	profile := &standards.StandardProfile{
-			Standard:      "IFRS 15",
-			Edition:       "Not configured; host must select the applicable issued edition",
-			Amendments:    []string{"Not configured; host must select applicable amendments"},
-			EffectiveDate: "Not configured; host must supply the applicable effective date",
-			Jurisdiction:  "Not configured; host must identify its reporting jurisdiction",
-			Scope:         "Expanded: host-assessed contract inputs, relative standalone selling-price allocation, variable consideration (expected value and most likely amount) with constraining under IFRS 15.56-58, significant financing component adjustment and amortization under IFRS 15.60-65, three-way contract modifications under IFRS 15.18-21, durable contract state persistence across process restarts via ContractStore, application-backed posting, and structured disclosures under IFRS 15.113-128.",
-			SupportedRequirements: []standards.StandardRequirement{
-				{ID: "IFRS15-5STEP-01", Summary: "Validate host-supplied five-step inputs for a supported fixed-price, distinct-obligation contract.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/workflow.go:NewAssessedContract", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestAssessedContractValidatesFiveStepInputs"},
-				{ID: "IFRS15-ALLOC-01", Summary: "Allocate transaction price using relative standalone selling prices.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/revenue.go:NewContract", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestRelativeSSPWeightedAllocation"},
-				{ID: "IFRS15-SCHEDULE-01", Summary: "Build daily or monthly recognition schedules for point-in-time and over-time obligations.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/schedule.go:BuildRecognitionSchedule", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestDailyAndMonthlyRecognitionSchedules"},
-				{ID: "IFRS15-POST-01", Summary: "Post externally measured satisfaction events through a configured application posting capability and real journal mapping before confirming contract state.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/workflow.go:RevenueWorkflow.Recognize", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestRevenueWorkflowPostingThroughStandardCapability"},
-				{ID: "IFRS15-VARIABLE-CONSIDERATION", Summary: "Estimate and constrain variable consideration under IFRS 15.56-58 using Expected Value or Most Likely Amount with subsequent reassessment.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/variable.go:EstimateVariableConsideration", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestVariableConsiderationConstraining"},
-				{ID: "IFRS15-FINANCING", Summary: "Significant financing component identification, practical expedient, and compound interest schedule under IFRS 15.60-65.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/financing.go:CalculateFinancingComponent", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestFinancingComponentCustomerFinancingAdvancePayment"},
-				{ID: "IFRS15-CONTRACT-MODIFICATION", Summary: "Three-way contract modification handling under IFRS 15.18-21 (separate contract, prospective replacement, cumulative catch-up).", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/modification.go:ApplyProspectiveModification", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestContractModificationTypeBProspective"},
-				{ID: "IFRS15-DURABLE-WORKFLOW", Summary: "Durable contract workflow state, lifecycle statuses (Draft, Active, Modified, Satisfied), and recovery across process restarts via ContractStore.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/store.go:InMemoryContractStore", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestDurableWorkflowRecoveryAcrossRestart"},
-				{ID: "IFRS15-DISCLOSURE", Summary: "Structured financial statement disclosures under IFRS 15.113-128 (revenue disaggregation, contract balances, remaining performance obligations).", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/disclosures.go:Module.GetDisclosures", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestModuleDisclosureProvider"},
-				{ID: "IFRS15-PRINCIPAL-VS-AGENT", Summary: "Principal versus agent gross/net evaluation under IFRS 15.B34-B38.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/enterprise.go:EvaluatePrincipalVsAgent", TestEvidence: "modules/ifrs15/enterprise_test.go:TestIFRS15EnterpriseCapabilities"},
-				{ID: "IFRS15-IP-LICENSING-COMPLEX", Summary: "Symbolic/functional IP licensing and sales/usage-based royalties under IFRS 15.B52-B63.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/enterprise.go:EvaluateIPLicense", TestEvidence: "modules/ifrs15/enterprise_test.go:TestIFRS15EnterpriseCapabilities"},
-			},
-			Exclusions: []string{
-				"Service delivery, control transfer, acceptance, and progress measurement are supplied and evidenced by the host via ControlTransferInput; the engine does not determine them.",
-			},
-		}
+		Standard:      "IFRS 15",
+		Edition:       "Not configured; host must select the applicable issued edition",
+		Amendments:    []string{"Not configured; host must select applicable amendments"},
+		EffectiveDate: "Not configured; host must supply the applicable effective date",
+		Jurisdiction:  "Not configured; host must identify its reporting jurisdiction",
+		Scope:         "Expanded: host-assessed contract inputs, relative standalone selling-price allocation, variable consideration (expected value and most likely amount) with constraining under IFRS 15.56-58, significant financing component adjustment and amortization under IFRS 15.60-65, three-way contract modifications under IFRS 15.18-21, durable contract state persistence across process restarts via ContractStore, application-backed posting, and structured disclosures under IFRS 15.113-128.",
+		SupportedRequirements: []standards.StandardRequirement{
+			{ID: "IFRS15-5STEP-01", Summary: "Validate host-supplied five-step inputs for a supported fixed-price, distinct-obligation contract.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/workflow.go:NewAssessedContract", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestAssessedContractValidatesFiveStepInputs"},
+			{ID: "IFRS15-ALLOC-01", Summary: "Allocate transaction price using relative standalone selling prices.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/revenue.go:NewContract", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestRelativeSSPWeightedAllocation"},
+			{ID: "IFRS15-SCHEDULE-01", Summary: "Build daily or monthly recognition schedules for point-in-time and over-time obligations.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/schedule.go:BuildRecognitionSchedule", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestDailyAndMonthlyRecognitionSchedules"},
+			{ID: "IFRS15-POST-01", Summary: "Post externally measured satisfaction events through a configured application posting capability and real journal mapping before confirming contract state.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/workflow.go:RevenueWorkflow.Recognize", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestRevenueWorkflowPostingThroughStandardCapability"},
+			{ID: "IFRS15-VARIABLE-CONSIDERATION", Summary: "Estimate and constrain variable consideration under IFRS 15.56-58 using Expected Value or Most Likely Amount with subsequent reassessment.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/variable.go:EstimateVariableConsideration", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestVariableConsiderationConstraining"},
+			{ID: "IFRS15-FINANCING", Summary: "Significant financing component identification, practical expedient, and compound interest schedule under IFRS 15.60-65.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/financing.go:CalculateFinancingComponent", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestFinancingComponentCustomerFinancingAdvancePayment"},
+			{ID: "IFRS15-CONTRACT-MODIFICATION", Summary: "Three-way contract modification handling under IFRS 15.18-21 (separate contract, prospective replacement, cumulative catch-up).", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/modification.go:ApplyProspectiveModification", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestContractModificationTypeBProspective"},
+			{ID: "IFRS15-DURABLE-WORKFLOW", Summary: "Durable contract workflow state, lifecycle statuses (Draft, Active, Modified, Satisfied), and recovery across process restarts via ContractStore.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/store.go:InMemoryContractStore", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestDurableWorkflowRecoveryAcrossRestart"},
+			{ID: "IFRS15-DISCLOSURE", Summary: "Structured financial statement disclosures under IFRS 15.113-128 (revenue disaggregation, contract balances, remaining performance obligations).", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/disclosures.go:Module.GetDisclosures", TestEvidence: "modules/ifrs15/ifrs15_test.go:TestModuleDisclosureProvider"},
+			{ID: "IFRS15-PRINCIPAL-VS-AGENT", Summary: "Principal versus agent gross/net evaluation under IFRS 15.B34-B38.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/enterprise.go:EvaluatePrincipalVsAgent", TestEvidence: "modules/ifrs15/enterprise_test.go:TestIFRS15EnterpriseCapabilities"},
+			{ID: "IFRS15-IP-LICENSING-COMPLEX", Summary: "Symbolic/functional IP licensing and sales/usage-based royalties under IFRS 15.B52-B63.", Status: standards.RequirementLimited, Implementation: "modules/ifrs15/enterprise.go:EvaluateIPLicense", TestEvidence: "modules/ifrs15/enterprise_test.go:TestIFRS15EnterpriseCapabilities"},
+		},
+		Exclusions: []string{
+			"Service delivery, control transfer, acceptance, and progress measurement are supplied and evidenced by the host via ControlTransferInput; the engine does not determine them.",
+		},
+	}
 	profile.ApplyConfig(cfg)
 	return standards.ModuleDescriptor{
 		ID:          "ifrs15",

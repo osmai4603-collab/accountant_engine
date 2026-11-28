@@ -2,33 +2,33 @@
 // public API boundary.
 package governance
 
-import kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
+import kernelgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernel/governance"
 
-type AuditLog = kernalgovernance.AuditLog
-type AuditCheckpoint = kernalgovernance.AuditCheckpoint
-type AuditVerificationSnapshot = kernalgovernance.AuditVerificationSnapshot
-type AuditChain = kernalgovernance.AuditChain
-type AuditLogRepository = kernalgovernance.AuditLogRepository
-type AtomicAuditLogRepository = kernalgovernance.AtomicAuditLogRepository
-type AuditVerificationSnapshotRepository = kernalgovernance.AuditVerificationSnapshotRepository
+type AuditLog = kernelgovernance.AuditLog
+type AuditCheckpoint = kernelgovernance.AuditCheckpoint
+type AuditVerificationSnapshot = kernelgovernance.AuditVerificationSnapshot
+type AuditChain = kernelgovernance.AuditChain
+type AuditLogRepository = kernelgovernance.AuditLogRepository
+type AtomicAuditLogRepository = kernelgovernance.AtomicAuditLogRepository
+type AuditVerificationSnapshotRepository = kernelgovernance.AuditVerificationSnapshotRepository
 
-const GenesisHash = kernalgovernance.GenesisHash
+const GenesisHash = kernelgovernance.GenesisHash
 
 var (
-	NewAuditChain      = kernalgovernance.NewAuditChain
-	CalculateHash      = kernalgovernance.CalculateHash
-	ValidateCheckpoint = kernalgovernance.ValidateCheckpoint
+	NewAuditChain      = kernelgovernance.NewAuditChain
+	CalculateHash      = kernelgovernance.CalculateHash
+	ValidateCheckpoint = kernelgovernance.ValidateCheckpoint
 
-	ErrAuditChainRequired                = kernalgovernance.ErrAuditChainRequired
-	ErrAuditRepositoryRequired           = kernalgovernance.ErrAuditRepositoryRequired
-	ErrAuditContextRequired              = kernalgovernance.ErrAuditContextRequired
-	ErrInvalidAuditCompany               = kernalgovernance.ErrInvalidAuditCompany
-	ErrAuditChainBroken                  = kernalgovernance.ErrAuditChainBroken
-	ErrAtomicAuditRepositoryRequired     = kernalgovernance.ErrAtomicAuditRepositoryRequired
-	ErrAuditSnapshotRepositoryRequired   = kernalgovernance.ErrAuditSnapshotRepositoryRequired
-	ErrAuditSnapshotConflict             = kernalgovernance.ErrAuditSnapshotConflict
-	ErrAuditSnapshotConsistencyRetryable = kernalgovernance.ErrAuditSnapshotConsistencyRetryable
-	ErrInvalidAuditSnapshot              = kernalgovernance.ErrInvalidAuditSnapshot
-	ErrInvalidAuditCheckpoint            = kernalgovernance.ErrInvalidAuditCheckpoint
-	ErrAuditCheckpointMismatch           = kernalgovernance.ErrAuditCheckpointMismatch
+	ErrAuditChainRequired                = kernelgovernance.ErrAuditChainRequired
+	ErrAuditRepositoryRequired           = kernelgovernance.ErrAuditRepositoryRequired
+	ErrAuditContextRequired              = kernelgovernance.ErrAuditContextRequired
+	ErrInvalidAuditCompany               = kernelgovernance.ErrInvalidAuditCompany
+	ErrAuditChainBroken                  = kernelgovernance.ErrAuditChainBroken
+	ErrAtomicAuditRepositoryRequired     = kernelgovernance.ErrAtomicAuditRepositoryRequired
+	ErrAuditSnapshotRepositoryRequired   = kernelgovernance.ErrAuditSnapshotRepositoryRequired
+	ErrAuditSnapshotConflict             = kernelgovernance.ErrAuditSnapshotConflict
+	ErrAuditSnapshotConsistencyRetryable = kernelgovernance.ErrAuditSnapshotConsistencyRetryable
+	ErrInvalidAuditSnapshot              = kernelgovernance.ErrInvalidAuditSnapshot
+	ErrInvalidAuditCheckpoint            = kernelgovernance.ErrInvalidAuditCheckpoint
+	ErrAuditCheckpointMismatch           = kernelgovernance.ErrAuditCheckpointMismatch
 )

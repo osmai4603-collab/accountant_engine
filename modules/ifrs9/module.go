@@ -29,26 +29,26 @@ func (m *Module) Descriptor() standards.ModuleDescriptor {
 	cfg := m.profileConfig
 	m.mu.RUnlock()
 	profile := &standards.StandardProfile{
-			Standard:      "IFRS 9",
-			Edition:       "Not configured; host must select the applicable issued edition",
-			Amendments:    []string{"Not configured; host must select applicable amendments"},
-			EffectiveDate: "Not configured; host must supply the applicable effective date",
-			Jurisdiction:  "Not configured; host must identify its reporting jurisdiction",
-			Scope:         "Limited: host-approved financial-asset categories, effective-interest and fair-value subsequent measurement, simplified receivables ECL, and reproducible scenario-weighted general ECL for amortised-cost/FVOCI exposures. Host-supplied classifications, staging evidence, risk estimates, and source snapshots are required.",
-			SupportedRequirements: []standards.StandardRequirement{
-				{ID: "IFRS9-ECL-SIMPLIFIED-01", Summary: "Calculate a simplified ECL allowance for receivables using supplied aging-bucket rates and existing allowance.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/ecl.go:Calculate", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestCalculateProvisionMatrixAndAllowanceAdjustment"},
-				{ID: "IFRS9-CLASSIFICATION-MEASUREMENT-01", Summary: "Apply host-approved amortised-cost, FVOCI, or FVTPL classifications to effective-interest and fair-value subsequent measurement.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/measurement.go:MeasureSubsequentPeriod", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestMeasureSubsequentPeriodByCategory"},
-				{ID: "IFRS9-ECL-GENERAL-VERSIONED-01", Summary: "Calculate reproducible, scenario-weighted Stage 1/2/3 ECL for classified amortised-cost and FVOCI exposures using computed EAD and category-specific allowance movements.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/versioned.go:EvaluateVersionedECL", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestEvaluateVersionedECLGolden"},
-				{ID: "IFRS9-ECL-POSTING-01", Summary: "Post ECL and subsequent-measurement journal drafts through the public application service using explicit account mappings and idempotency.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/classification.go:PostCategorizedVersionedECLThroughApplication", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestPostCategorizedVersionedECLThroughApplication"},
-				{ID: "IFRS9-DERECOGNITION", Summary: "Financial-asset derecognition, modification, and write-off accounting workflows from host evidence.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/enterprise.go:EvaluateDerecognition", TestEvidence: "modules/ifrs9/enterprise_test.go:TestIFRS9EnterpriseCapabilities"},
-				{ID: "IFRS9-HEDGE-ACCOUNTING", Summary: "Fair-value and cash-flow hedge effectiveness and OCI/P&L allocation under IFRS 9 Chapter 6.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/enterprise.go:EvaluateHedgeEffectiveness", TestEvidence: "modules/ifrs9/enterprise_test.go:TestIFRS9EnterpriseCapabilities"},
-				{ID: "IFRS9-INDEPENDENT-VALIDATION", Summary: "Host model governance and independent validation attestation gate.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/enterprise.go:ValidateModelGovernance", TestEvidence: "modules/ifrs9/enterprise_test.go:TestIFRS9EnterpriseCapabilities"},
-			},
-			Exclusions: []string{
-				"The host alone decides business-model and SPPI outcomes; this module validates references and applies the supplied final classification without independent judgment.",
-				"Autonomous SICR/default assessment without host risk inputs and independent external audit sign-off.",
-			},
-		}
+		Standard:      "IFRS 9",
+		Edition:       "Not configured; host must select the applicable issued edition",
+		Amendments:    []string{"Not configured; host must select applicable amendments"},
+		EffectiveDate: "Not configured; host must supply the applicable effective date",
+		Jurisdiction:  "Not configured; host must identify its reporting jurisdiction",
+		Scope:         "Limited: host-approved financial-asset categories, effective-interest and fair-value subsequent measurement, simplified receivables ECL, and reproducible scenario-weighted general ECL for amortised-cost/FVOCI exposures. Host-supplied classifications, staging evidence, risk estimates, and source snapshots are required.",
+		SupportedRequirements: []standards.StandardRequirement{
+			{ID: "IFRS9-ECL-SIMPLIFIED-01", Summary: "Calculate a simplified ECL allowance for receivables using supplied aging-bucket rates and existing allowance.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/ecl.go:Calculate", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestCalculateProvisionMatrixAndAllowanceAdjustment"},
+			{ID: "IFRS9-CLASSIFICATION-MEASUREMENT-01", Summary: "Apply host-approved amortised-cost, FVOCI, or FVTPL classifications to effective-interest and fair-value subsequent measurement.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/measurement.go:MeasureSubsequentPeriod", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestMeasureSubsequentPeriodByCategory"},
+			{ID: "IFRS9-ECL-GENERAL-VERSIONED-01", Summary: "Calculate reproducible, scenario-weighted Stage 1/2/3 ECL for classified amortised-cost and FVOCI exposures using computed EAD and category-specific allowance movements.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/versioned.go:EvaluateVersionedECL", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestEvaluateVersionedECLGolden"},
+			{ID: "IFRS9-ECL-POSTING-01", Summary: "Post ECL and subsequent-measurement journal drafts through the public application service using explicit account mappings and idempotency.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/classification.go:PostCategorizedVersionedECLThroughApplication", TestEvidence: "modules/ifrs9/ifrs9_test.go:TestPostCategorizedVersionedECLThroughApplication"},
+			{ID: "IFRS9-DERECOGNITION", Summary: "Financial-asset derecognition, modification, and write-off accounting workflows from host evidence.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/enterprise.go:EvaluateDerecognition", TestEvidence: "modules/ifrs9/enterprise_test.go:TestIFRS9EnterpriseCapabilities"},
+			{ID: "IFRS9-HEDGE-ACCOUNTING", Summary: "Fair-value and cash-flow hedge effectiveness and OCI/P&L allocation under IFRS 9 Chapter 6.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/enterprise.go:EvaluateHedgeEffectiveness", TestEvidence: "modules/ifrs9/enterprise_test.go:TestIFRS9EnterpriseCapabilities"},
+			{ID: "IFRS9-INDEPENDENT-VALIDATION", Summary: "Host model governance and independent validation attestation gate.", Status: standards.RequirementLimited, Implementation: "modules/ifrs9/enterprise.go:ValidateModelGovernance", TestEvidence: "modules/ifrs9/enterprise_test.go:TestIFRS9EnterpriseCapabilities"},
+		},
+		Exclusions: []string{
+			"The host alone decides business-model and SPPI outcomes; this module validates references and applies the supplied final classification without independent judgment.",
+			"Autonomous SICR/default assessment without host risk inputs and independent external audit sign-off.",
+		},
+	}
 	profile.ApplyConfig(cfg)
 	return standards.ModuleDescriptor{
 		ID:          "ifrs9",

@@ -47,6 +47,18 @@ func WithGovernance(store storage.GovernanceStore) Option {
 	}
 }
 
+// WithObserver installs an optional operational Observer. The default is a
+// no-op, so enabling observability never adds a dependency to the engine.
+func WithObserver(observer publicapplication.Observer) Option {
+	return func(b *EngineBuilder) error {
+		if isNilDependency(observer) {
+			return errors.New("observer is nil")
+		}
+		b.observer = observer
+		return nil
+	}
+}
+
 // WithAuthorizer configures a host-supplied authorizer for access control.
 func WithAuthorizer(authorizer publicapplication.Authorizer) Option {
 	return func(b *EngineBuilder) error {

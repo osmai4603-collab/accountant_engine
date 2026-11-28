@@ -198,7 +198,7 @@ type IdempotencyLookup interface {
 	Lookup(ctx context.Context, companyID types.CompanyID, key string) (IdempotencyRecord, bool, error)
 }
 
-// Ports is the explicit dependency set required to build the kernal engine.
+// Ports is the explicit dependency set required to build the kernel engine.
 // Optional fields are capabilities: nil means the capability is disabled, not
 // silently emulated.
 type Ports struct {

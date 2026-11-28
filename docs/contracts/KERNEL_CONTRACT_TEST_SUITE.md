@@ -97,7 +97,7 @@
 
 ## 4. اختبارات النواة والـ SPI المرافقة
 
-`internal/kernal/posting/transaction_contract_test.go` يثبت الجانب الذي تملكه النواة:
+`internal/kernel/posting/transaction_contract_test.go` يثبت الجانب الذي تملكه النواة:
 
 - تحقق النطاق الثلاثي ورفض العناصر الناقصة.
 - حتمية `FingerprintRequest` وحساسية البصمة للتغييرات المالية وعدم حساسيتها لترتيب الأسطر أو الـ correlation.
@@ -106,7 +106,7 @@
 
 اختبارات المرحلة 8 المرافقة:
 
-- `internal/kernal/posting/lock_manager_test.go`: `TestOrderedAccountKeysAreDeterministicAndScoped` و`TestOrderedAccountKeysHandlesEmptyEntries` و`TestOrderedAccountKeysAreStatelessUnderConcurrency` تثبت أن النواة تُنتج مفاتيح مرتبة ومعزولة بالشركة بلا حالة قفل أو حجز فعلي.
+- `internal/kernel/posting/lock_manager_test.go`: `TestOrderedAccountKeysAreDeterministicAndScoped` و`TestOrderedAccountKeysHandlesEmptyEntries` و`TestOrderedAccountKeysAreStatelessUnderConcurrency` تثبت أن النواة تُنتج مفاتيح مرتبة ومعزولة بالشركة بلا حالة قفل أو حجز فعلي.
 - `pkg/spi/storage/locks_test.go`: `TestLockTargetsAreCanonicalAndSorted` و`TestLockTargetRejectsMissingScope` و`TestPostingLockTargetsCoverAllConcurrencyKeys` و`TestWithOrderedLocksAcquiresAndReleasesInOrder` و`TestWithOrderedLocksReleasesAcquiredTargetsOnFailure` و`TestValidateIdempotencyScopeRejectsForeignCompany` و`TestRetryPolicyIsBounded`.
 - `pkg/sdk/classify_error_phase8_test.go` يثبت أن `storage.ErrScopeViolation` يُترجم إلى `publicapplication.ErrForbidden` ولا يُعامل كخطأ عابر.
 
@@ -116,7 +116,7 @@
 
 ```bash
 # النواة فقط
-go test ./internal/kernal/posting -count=1
+go test ./internal/kernel/posting -count=1
 
 # المجموعة على المحولين
 go test ./test/contract_parity -count=1 -v
@@ -126,7 +126,7 @@ POSTGRES_URL='postgres://...' go test ./test/contract_parity -count=1 -v
 # سيناريوهات المرحلة 8 فقط
 go test ./test/contract_parity -run '^TestPhase8_' -count=1 -v
 go test ./storage/postgres -run '^TestPhase8PostgresRLSRuntimeIsolation$' -count=1 -v
-go test ./internal/kernal/posting ./pkg/spi/storage -count=1 -race
+go test ./internal/kernel/posting ./pkg/spi/storage -count=1 -race
 
 # سيناريوهات المرحلة 11 فقط (لا تُحدّث التقرير)
 go test ./test/contract_parity -run '^TestPhase11_' -count=1 -v

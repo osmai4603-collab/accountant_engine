@@ -1,20 +1,20 @@
 package ledger
 
-import kernalLedger "github.com/osmai4603-collab/accounting_engine/internal/kernal/ledger"
+import kernelLedger "github.com/osmai4603-collab/accounting_engine/internal/kernel/ledger"
 
-type PostedMovement = kernalLedger.PostedMovement
-type AccountBalanceKey = kernalLedger.AccountBalanceKey
-type AccountBalance = kernalLedger.AccountBalance
-type ForeignCurrencyBalanceKey = kernalLedger.ForeignCurrencyBalanceKey
-type ForeignCurrencyBalance = kernalLedger.ForeignCurrencyBalance
-type ForeignCurrencyBalanceFilter = kernalLedger.ForeignCurrencyBalanceFilter
+type PostedMovement = kernelLedger.PostedMovement
+type AccountBalanceKey = kernelLedger.AccountBalanceKey
+type AccountBalance = kernelLedger.AccountBalance
+type ForeignCurrencyBalanceKey = kernelLedger.ForeignCurrencyBalanceKey
+type ForeignCurrencyBalance = kernelLedger.ForeignCurrencyBalance
+type ForeignCurrencyBalanceFilter = kernelLedger.ForeignCurrencyBalanceFilter
 
 var (
-	IsPostedAccountingFact         = kernalLedger.IsPostedAccountingFact
-	ComparePostedEntries           = kernalLedger.ComparePostedEntries
-	CompareEntryLines              = kernalLedger.CompareEntryLines
-	ProjectPostedMovements         = kernalLedger.ProjectPostedMovements
-	RebuildAccountBalances         = kernalLedger.RebuildAccountBalances
-	RebuildForeignCurrencyBalances = kernalLedger.RebuildForeignCurrencyBalances
-	SortedForeignCurrencyBalances  = kernalLedger.SortedForeignCurrencyBalances
+	IsPostedAccountingFact         = kernelLedger.IsPostedAccountingFact
+	ComparePostedEntries           = kernelLedger.ComparePostedEntries
+	CompareEntryLines              = kernelLedger.CompareEntryLines
+	ProjectPostedMovements         = kernelLedger.ProjectPostedMovements
+	RebuildAccountBalances         = kernelLedger.RebuildAccountBalances
+	RebuildForeignCurrencyBalances = kernelLedger.RebuildForeignCurrencyBalances
+	SortedForeignCurrencyBalances  = kernelLedger.SortedForeignCurrencyBalances
 )

@@ -12,7 +12,7 @@
 - **سطح خدمات مقسّم:** `Ledger()`، `Reporting()`، `Governance()`، `Events()`، `Standards()`، `Scheduler()` (ست خدمات)، إضافةً إلى `Close()` و`CloseWithContext()` لإدارة دورة الحياة لا كخدمات مجال.
 - **نظام قدرات صريح (Explicit Opt-in):** التقارير، الحوكمة، المعايير الدولية، الأحداث، والدفاتر المساعدة لا تُفعّل صامتة؛ إما تُقدَّم بشكل صريح أو تُعيد `ErrCapabilityNotImplemented` صراحة.
 - **حارسة للثوابت المحاسبية:** تمنع المرور إلى طبقة التطبيق إذا كانت القيود غير مكتملة، وتتحقق من القدرات المطلوبة قبل بناء المحرك (Fail-fast).
-- **طبقة تكييف بين عالمين:** تحوّل أنواع `pkg/api/v1` العامة إلى أنواع `internal/kernal`، وتمرّر الأوامر إلى `pkg/spi/application.Service` ثم إلى `internal/kernal/posting`.
+- **طبقة تكييف بين عالمين:** تحوّل أنواع `pkg/api/v1` العامة إلى أنواع `internal/kernel`، وتمرّر الأوامر إلى `pkg/spi/application.Service` ثم إلى `internal/kernel/posting`.
 
 الحجم الحالي (جرد 2026-11-27): **21 ملف Go داخل `pkg/sdk`** (18 في الجذر + 3 في `templates/`)، بإجمالي **4,684 سطراً** شاملاً للاختبارات، إضافةً إلى ملف توثيق واحد (`doc.go`) في `internal/orbitals/sdkapplication`.
 
@@ -26,7 +26,7 @@
 
 أي أنها **نقطة الدخول الموحّدة القابلة للتضمين**، وتتحمل أربع مسؤوليات كبرى:
 
-1. **التركيب (Composition):** تجميع النواة المحاسبية `internal/kernal/posting`، وطبقة التطبيق، والمكونات المدارية `internal/orbitals`، ومodules المعايير `modules/*` داخل كائن `Engine` واحد.
+1. **التركيب (Composition):** تجميع النواة المحاسبية `internal/kernel/posting`، وطبقة التطبيق، والمكونات المدارية `internal/orbitals`، ومodules المعايير `modules/*` داخل كائن `Engine` واحد.
 2. **التجريد (Facade):** إخفاء التعقيد الداخلي خلف واجهات صغيرة (`LedgerService`، `EventIngestionService`، …).
 3. **الحراسة (Guard):** التحقق من اكتمال المنافذ، وصحة القدرات، ووجود هوية موثّقة (Principal) عند تركيب Authorizer، ورفض القيود غير الصالحة قبل الترحيل.
 4. **الاستيعاب (Ingestion):** تحويل الأحداث الاقتصادية (`events.AccountingEvent`) إلى قيود يومية (`journal.JournalEntry`) وترحيلها مع ديمومة منع التكرار (Idempotency) واسترداد بعد الأعطال.
@@ -42,14 +42,14 @@
 النص الحرفي في `pkg/sdk/doc.go`:
 
 ```go
-// Import charter: May import pkg/api/v1/*, pkg/spi/*, internal/kernal/* and internal/orbitals/*; never storage/* directly.
+// Import charter: May import pkg/api/v1/*, pkg/spi/*, internal/kernel/* and internal/orbitals/*; never storage/* directly.
 ```
 
 | الحزمة | مسموح لـ `pkg/sdk`؟ | الغرض |
 | --- | --- | --- |
 | `pkg/api/v1/*` | ✅ | أنواع البيانات العامة (DTOs): `journal`، `events`، `reporting`، `types`، `ledger`، `governance`، `subledger` |
 | `pkg/spi/*` | ✅ | عقود المنافذ: `storage.Ports`، `application.Service`، `standards.*`، `events.*`، `subledger.*` |
-| `internal/kernal/*` | ✅ | النواة: `posting`، `policy`، `journal`، `masterdata`، `types` (داخل الحزمة فقط، لا تُعرَض في التوقيعات العامة) |
+| `internal/kernel/*` | ✅ | النواة: `posting`، `policy`، `journal`، `masterdata`، `types` (داخل الحزمة فقط، لا تُعرَض في التوقيعات العامة) |
 | `internal/orbitals/*` | ✅ | المكونات المدارية (يُستخدم الآن عبر `sdkapplication` كمساحة محجوزة) |
 | `storage/*` | ❌ | محظور قطعاً؛ المضيف هو من يمرّر `Ports` الجاهزة |
 | `cmd/*`, بوابات الشبكة | ❌ | غير موجودة أصلاً في هذا المستودع |
@@ -73,7 +73,7 @@ flowchart TD
     SDK --> API["pkg/api/v1 (DTOs)"]
     SDK --> SPI["pkg/spi (Ports)"]
     SDK --> APP["طبقة التطبيق: application.go"]
-    APP --> KERNAL["internal/kernal/posting + policy + masterdata"]
+    APP --> KERNEL["internal/kernel/posting + policy + masterdata"]
     SDK --> ORBIT["internal/orbitals + modules/*"]
     SDK --> EVENTS["استيعاب الأحداث + Router"]
     EVENTS --> APP
@@ -189,7 +189,7 @@ flowchart TD
    - يعيد التحقق من `ports.Validate()` ثم يستدعي `newApplication`.
 2. **`newApplication` (`application.go:154`)**
    - ينشئ `policy.NewPolicyEngine()`.
-   - يلفّ `ports.MasterData` داخل `masterDataReaderAdapter` لتحويل النوع العام إلى `kernalmasterdata`.
+   - يلفّ `ports.MasterData` داخل `masterDataReaderAdapter` لتحويل النوع العام إلى `kernelmasterdata`.
    - ينشئ `posting.NewPostingPipeline(mdAdapter, app.executePosting, posting.WithPolicyEngine(...), posting.WithReversalExecutor(app.executeReversalPosting))`.
 3. **جدولة وأحداث**
    - `standards.NewDefaultScheduler()` و`events.NewRouter()`.

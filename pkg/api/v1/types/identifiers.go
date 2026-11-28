@@ -1,31 +1,31 @@
 package types
 
-import kernalTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
+import kernelTypes "github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
 
-type CompanyID = kernalTypes.CompanyID
-type AccountID = kernalTypes.AccountID
-type FiscalYearID = kernalTypes.FiscalYearID
-type FiscalPeriodID = kernalTypes.FiscalPeriodID
-type JournalID = kernalTypes.JournalID
-type JournalEntryID = kernalTypes.JournalEntryID
-type JournalEntryLineID = kernalTypes.JournalEntryLineID
-type PartnerID = kernalTypes.PartnerID
-type CostCenterID = kernalTypes.CostCenterID
-type ProjectID = kernalTypes.ProjectID
-type SegmentID = kernalTypes.SegmentID
-type BusinessUnitID = kernalTypes.BusinessUnitID
+type CompanyID = kernelTypes.CompanyID
+type AccountID = kernelTypes.AccountID
+type FiscalYearID = kernelTypes.FiscalYearID
+type FiscalPeriodID = kernelTypes.FiscalPeriodID
+type JournalID = kernelTypes.JournalID
+type JournalEntryID = kernelTypes.JournalEntryID
+type JournalEntryLineID = kernelTypes.JournalEntryLineID
+type PartnerID = kernelTypes.PartnerID
+type CostCenterID = kernelTypes.CostCenterID
+type ProjectID = kernelTypes.ProjectID
+type SegmentID = kernelTypes.SegmentID
+type BusinessUnitID = kernelTypes.BusinessUnitID
 
 var (
-	NewCompanyID          = kernalTypes.NewCompanyID
-	NewAccountID          = kernalTypes.NewAccountID
-	NewFiscalYearID       = kernalTypes.NewFiscalYearID
-	NewFiscalPeriodID     = kernalTypes.NewFiscalPeriodID
-	NewJournalID          = kernalTypes.NewJournalID
-	NewJournalEntryID     = kernalTypes.NewJournalEntryID
-	NewJournalEntryLineID = kernalTypes.NewJournalEntryLineID
-	NewPartnerID          = kernalTypes.NewPartnerID
-	NewCostCenterID       = kernalTypes.NewCostCenterID
-	NewProjectID          = kernalTypes.NewProjectID
-	NewSegmentID          = kernalTypes.NewSegmentID
-	NewBusinessUnitID     = kernalTypes.NewBusinessUnitID
+	NewCompanyID          = kernelTypes.NewCompanyID
+	NewAccountID          = kernelTypes.NewAccountID
+	NewFiscalYearID       = kernelTypes.NewFiscalYearID
+	NewFiscalPeriodID     = kernelTypes.NewFiscalPeriodID
+	NewJournalID          = kernelTypes.NewJournalID
+	NewJournalEntryID     = kernelTypes.NewJournalEntryID
+	NewJournalEntryLineID = kernelTypes.NewJournalEntryLineID
+	NewPartnerID          = kernelTypes.NewPartnerID
+	NewCostCenterID       = kernelTypes.NewCostCenterID
+	NewProjectID          = kernelTypes.NewProjectID
+	NewSegmentID          = kernelTypes.NewSegmentID
+	NewBusinessUnitID     = kernelTypes.NewBusinessUnitID
 )

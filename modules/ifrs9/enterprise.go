@@ -21,26 +21,26 @@ const (
 )
 
 type DerecognitionInput struct {
-	InstrumentID           uuid.UUID
-	Kind                   DerecognitionKind
-	GrossCarryingAmount    decimal.Decimal
-	LossAllowance          decimal.Decimal
-	ConsiderationReceived  decimal.Decimal
-	ModifiedPresentValue   decimal.Decimal
-	SubstantialMod         bool
-	Currency               string
-	EffectiveDate          time.Time
-	HostEvidenceReference  string
+	InstrumentID          uuid.UUID
+	Kind                  DerecognitionKind
+	GrossCarryingAmount   decimal.Decimal
+	LossAllowance         decimal.Decimal
+	ConsiderationReceived decimal.Decimal
+	ModifiedPresentValue  decimal.Decimal
+	SubstantialMod        bool
+	Currency              string
+	EffectiveDate         time.Time
+	HostEvidenceReference string
 }
 
 type DerecognitionResult struct {
-	InstrumentID         uuid.UUID
-	Kind                 DerecognitionKind
-	NetCarryingAmount    decimal.Decimal
+	InstrumentID          uuid.UUID
+	Kind                  DerecognitionKind
+	NetCarryingAmount     decimal.Decimal
 	DerecognitionGainLoss decimal.Decimal
-	AllowanceReleased    decimal.Decimal
-	Derecognized         bool
-	Currency             string
+	AllowanceReleased     decimal.Decimal
+	Derecognized          bool
+	Currency              string
 }
 
 // EvaluateDerecognition computes derecognition, substantial modification, or write-off
@@ -168,12 +168,12 @@ func EvaluateHedgeEffectiveness(in HedgeInput) (HedgeResult, error) {
 }
 
 type ModelGovernanceInput struct {
-	ModelVersion            string
-	SPPIAssessmentRef       string
-	BusinessModelRef        string
-	IndependentReviewerID   string
-	ValidationReportRef     string
-	ValidatedAt             time.Time
+	ModelVersion          string
+	SPPIAssessmentRef     string
+	BusinessModelRef      string
+	IndependentReviewerID string
+	ValidationReportRef   string
+	ValidatedAt           time.Time
 }
 
 // ValidateModelGovernance enforces independent validation and host-responsibility
@@ -196,4 +196,3 @@ func (m *Module) SetProfileConfig(cfg standards.StandardProfileConfig) {
 	defer m.mu.Unlock()
 	m.profileConfig = cfg
 }
-

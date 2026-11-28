@@ -225,7 +225,7 @@ func TestCoreLedgerHasNoIndustryDependencies(t *testing.T) {
 	if !ok {
 		t.Fatal("could not locate external-consumer test source")
 	}
-	postingDir := filepath.Clean(filepath.Join(filepath.Dir(testFile), "..", "..", "internal", "kernal", "posting"))
+	postingDir := filepath.Clean(filepath.Join(filepath.Dir(testFile), "..", "..", "internal", "kernel", "posting"))
 	industryTerms := []string{
 		"HARVEST_CROP", "POS_SALE", "CropYield", "HarvestOrder",
 		"ProductionOrder", "ManufacturingOrder", "SubscriptionRevenue",

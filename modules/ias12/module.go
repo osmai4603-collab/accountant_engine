@@ -36,26 +36,26 @@ func (m *Module) Descriptor() standards.ModuleDescriptor {
 	cfg := m.profileConfig
 	m.mu.RUnlock()
 	profile := &standards.StandardProfile{
-			Standard:      "IAS 12",
-			Edition:       "Not configured; host must select the applicable issued edition",
-			Amendments:    []string{"Not configured; host must select applicable amendments"},
-			EffectiveDate: "Not configured; host must supply the applicable effective date",
-			Jurisdiction:  "Not configured; host must identify its reporting jurisdiction",
-			Scope:         "Limited: supplied taxable-profit estimate and temporary differences measured with versioned tax profiles and bounded DTA evidence; host-assessed IFRIC 23 positions measured with probable-acceptance, most-likely-amount, or expected-value inputs and explicit reassessment evidence; and structured tax-rate reconciliation disclosures from host-supplied reports. Local tax-law analysis, tax-return preparation/filing, and full IAS 12 workflows are excluded.",
-			SupportedRequirements: []standards.StandardRequirement{
-				{ID: "IAS12-DEFERRED-MEASUREMENT-01", Summary: "Measure supplied temporary differences at enacted profile rates selected by expected reversal date; bound recognized deductible differences by supplied probable-profit evidence.", Status: standards.RequirementLimited, Implementation: "modules/ias12/profile.go:MeasureWithProfile", TestEvidence: "modules/ias12/ias12_test.go:TestMeasureWithProfileUsesEffectiveRatesAndBoundedRecognitionEvidence"},
-				{ID: "IAS12-CURRENT-TAX-ESTIMATE-01", Summary: "Estimate current tax from a supplied nonnegative taxable-profit base and the profile rate effective at period end.", Status: standards.RequirementLimited, Implementation: "modules/ias12/profile.go:MeasureCurrentTax", TestEvidence: "modules/ias12/ias12_test.go:TestMeasureCurrentTaxUsesPeriodEffectiveRateAndSource"},
-				{ID: "IFRIC23-UNCERTAIN-TAX-TREATMENTS-01", Summary: "Apply probable-acceptance, most-likely-amount, or expected-value measurement to host-assessed uncertain tax treatments, with explicit unit-of-account, examination, provenance, and reassessment evidence.", Status: standards.RequirementLimited, Implementation: "modules/ias12/uncertain.go:MeasureUncertainTaxTreatment", TestEvidence: "modules/ias12/ias12_test.go:TestMeasureUncertainTaxTreatmentMostLikelyAmountBinaryScenario"},
-				{ID: "IAS12-TAX-RATE-RECONCILIATION-01", Summary: "Build a structured, versioned tax-rate reconciliation disclosure from a validated IAS 12 reconciliation report.", Status: standards.RequirementLimited, Implementation: "modules/ias12/disclosures.go:BuildTaxReconciliationDisclosure", TestEvidence: "modules/ias12/ias12_test.go:TestBuildTaxReconciliationDisclosure"},
-				{ID: "IAS12-POSTING-WORKFLOW", Summary: "Post deferred tax and current tax drafts through the public application service with real account mappings and idempotency.", Status: standards.RequirementLimited, Implementation: "modules/ias12/module.go:PostDeferredTax", TestEvidence: "modules/ias12/ias12_test.go:TestIAS12PostingWorkflow"},
-				{ID: "IAS12-CURRENT-TAX-WORKFLOW", Summary: "Current-tax determination with permanent/temporary adjustments, tax loss carryforwards, and tax credits.", Status: standards.RequirementLimited, Implementation: "modules/ias12/enterprise.go:CalculateCurrentTaxFull", TestEvidence: "modules/ias12/enterprise_test.go:TestIAS12EnterpriseCapabilities"},
-				{ID: "IAS12-PRESENTATION-DISCLOSURE", Summary: "IAS 12.71-88 current/deferred tax offsetting and presentation disclosures.", Status: standards.RequirementLimited, Implementation: "modules/ias12/enterprise.go:BuildTaxPresentationAndDisclosure", TestEvidence: "modules/ias12/enterprise_test.go:TestIAS12EnterpriseCapabilities"},
-			},
-			Exclusions: []string{
-				"Local tax-return preparation and statutory e-filing remain host responsibilities.",
-				"Independent professional tax or accounting review has not been performed as part of this implementation.",
-			},
-		}
+		Standard:      "IAS 12",
+		Edition:       "Not configured; host must select the applicable issued edition",
+		Amendments:    []string{"Not configured; host must select applicable amendments"},
+		EffectiveDate: "Not configured; host must supply the applicable effective date",
+		Jurisdiction:  "Not configured; host must identify its reporting jurisdiction",
+		Scope:         "Limited: supplied taxable-profit estimate and temporary differences measured with versioned tax profiles and bounded DTA evidence; host-assessed IFRIC 23 positions measured with probable-acceptance, most-likely-amount, or expected-value inputs and explicit reassessment evidence; and structured tax-rate reconciliation disclosures from host-supplied reports. Local tax-law analysis, tax-return preparation/filing, and full IAS 12 workflows are excluded.",
+		SupportedRequirements: []standards.StandardRequirement{
+			{ID: "IAS12-DEFERRED-MEASUREMENT-01", Summary: "Measure supplied temporary differences at enacted profile rates selected by expected reversal date; bound recognized deductible differences by supplied probable-profit evidence.", Status: standards.RequirementLimited, Implementation: "modules/ias12/profile.go:MeasureWithProfile", TestEvidence: "modules/ias12/ias12_test.go:TestMeasureWithProfileUsesEffectiveRatesAndBoundedRecognitionEvidence"},
+			{ID: "IAS12-CURRENT-TAX-ESTIMATE-01", Summary: "Estimate current tax from a supplied nonnegative taxable-profit base and the profile rate effective at period end.", Status: standards.RequirementLimited, Implementation: "modules/ias12/profile.go:MeasureCurrentTax", TestEvidence: "modules/ias12/ias12_test.go:TestMeasureCurrentTaxUsesPeriodEffectiveRateAndSource"},
+			{ID: "IFRIC23-UNCERTAIN-TAX-TREATMENTS-01", Summary: "Apply probable-acceptance, most-likely-amount, or expected-value measurement to host-assessed uncertain tax treatments, with explicit unit-of-account, examination, provenance, and reassessment evidence.", Status: standards.RequirementLimited, Implementation: "modules/ias12/uncertain.go:MeasureUncertainTaxTreatment", TestEvidence: "modules/ias12/ias12_test.go:TestMeasureUncertainTaxTreatmentMostLikelyAmountBinaryScenario"},
+			{ID: "IAS12-TAX-RATE-RECONCILIATION-01", Summary: "Build a structured, versioned tax-rate reconciliation disclosure from a validated IAS 12 reconciliation report.", Status: standards.RequirementLimited, Implementation: "modules/ias12/disclosures.go:BuildTaxReconciliationDisclosure", TestEvidence: "modules/ias12/ias12_test.go:TestBuildTaxReconciliationDisclosure"},
+			{ID: "IAS12-POSTING-WORKFLOW", Summary: "Post deferred tax and current tax drafts through the public application service with real account mappings and idempotency.", Status: standards.RequirementLimited, Implementation: "modules/ias12/module.go:PostDeferredTax", TestEvidence: "modules/ias12/ias12_test.go:TestIAS12PostingWorkflow"},
+			{ID: "IAS12-CURRENT-TAX-WORKFLOW", Summary: "Current-tax determination with permanent/temporary adjustments, tax loss carryforwards, and tax credits.", Status: standards.RequirementLimited, Implementation: "modules/ias12/enterprise.go:CalculateCurrentTaxFull", TestEvidence: "modules/ias12/enterprise_test.go:TestIAS12EnterpriseCapabilities"},
+			{ID: "IAS12-PRESENTATION-DISCLOSURE", Summary: "IAS 12.71-88 current/deferred tax offsetting and presentation disclosures.", Status: standards.RequirementLimited, Implementation: "modules/ias12/enterprise.go:BuildTaxPresentationAndDisclosure", TestEvidence: "modules/ias12/enterprise_test.go:TestIAS12EnterpriseCapabilities"},
+		},
+		Exclusions: []string{
+			"Local tax-return preparation and statutory e-filing remain host responsibilities.",
+			"Independent professional tax or accounting review has not been performed as part of this implementation.",
+		},
+	}
 	profile.ApplyConfig(cfg)
 	return standards.ModuleDescriptor{
 		ID:          "ias12",

@@ -14,12 +14,12 @@ import (
 // ControlTransferInput defines the host-supplied evidence for control transfer
 // and progress measurement (IFRS 15.31-45).
 type ControlTransferInput struct {
-	ContractID          uuid.UUID
-	ObligationID        uuid.UUID
-	SatisfactionDate    time.Time
-	ProgressPercentage  decimal.Decimal // 0..100
-	HostEvidenceRef     string
-	MeasurementMethod   string // e.g., "output_milestone", "cost_to_cost"
+	ContractID         uuid.UUID
+	ObligationID       uuid.UUID
+	SatisfactionDate   time.Time
+	ProgressPercentage decimal.Decimal // 0..100
+	HostEvidenceRef    string
+	MeasurementMethod  string // e.g., "output_milestone", "cost_to_cost"
 }
 
 func (c ControlTransferInput) Validate() error {
@@ -96,15 +96,15 @@ const (
 )
 
 type IPLicenseInput struct {
-	ContractID        uuid.UUID
-	LicenseType       IPLicenseType
-	FixedFee          decimal.Decimal
-	SalesUsageBase    decimal.Decimal
-	RoyaltyRate       decimal.Decimal // e.g. 0.05 for 5%
-	SalesOccurred     bool
-	Currency          string
-	PeriodStart       time.Time
-	PeriodEnd         time.Time
+	ContractID     uuid.UUID
+	LicenseType    IPLicenseType
+	FixedFee       decimal.Decimal
+	SalesUsageBase decimal.Decimal
+	RoyaltyRate    decimal.Decimal // e.g. 0.05 for 5%
+	SalesOccurred  bool
+	Currency       string
+	PeriodStart    time.Time
+	PeriodEnd      time.Time
 }
 
 type IPLicenseResult struct {
@@ -154,4 +154,3 @@ func WithStandardProfile(cfg standards.StandardProfileConfig) Option {
 		m.profileConfig = cfg
 	}
 }
-

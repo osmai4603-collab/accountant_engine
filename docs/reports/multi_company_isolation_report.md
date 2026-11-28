@@ -74,7 +74,7 @@
 
 - `docs/reports/contract_parity_report.md`: تشغيل كامل للمستودع، **90 نتيجة PASS (45 سيناريو × محولين)** بعد إضافة سيناريوهات المرحلة 8؛ رقم 42 (21 × 2) كان رقماً قديماً قبل التوسيع.
 - `go test -race ./... -count=1`: PASS لكل الحزم بما فيها `test/contract_parity` و`storage/postgres`.
-- `./scripts/verify_architecture.sh`: PASS 11/11؛ لا SQL ولا `pgx` داخل `internal/kernal`.
+- `./scripts/verify_architecture.sh`: PASS 11/11؛ لا SQL ولا `pgx` داخل `internal/kernel`.
 
 ## 8. الحكم
 

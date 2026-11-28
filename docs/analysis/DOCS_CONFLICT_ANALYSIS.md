@@ -26,7 +26,7 @@
 ## 2. مراجع ذات صلة
 
 - [`DOCS_COMPLETE_ANALYSIS.md`](DOCS_COMPLETE_ANALYSIS.md) — الجرد الوظيفي الكامل لملفات `docs/`
-- [`KERNAL_VS_DOCS_COMPARISON.md`](KERNAL_VS_DOCS_COMPARISON.md) — مقارنة الكود الفعلي في `internal/kernal/` مع التوثيق
+- [`KERNEL_VS_DOCS_COMPARISON.md`](KERNEL_VS_DOCS_COMPARISON.md) — مقارنة الكود الفعلي في `internal/kernel/` مع التوثيق
 - [`../reports/KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md`](../reports/KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md) — تفاصيل الملاحظات الـ27
 - [`../APPROVAL_EXECUTION_PLAN.md`](../APPROVAL_EXECUTION_PLAN.md) — خطة التنفيذ الشاملة
 

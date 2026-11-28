@@ -1,16 +1,16 @@
-# مقارنة النواة الفعلية مع التوثيق (`KERNAL_VS_DOCS_COMPARISON`)
+# مقارنة النواة الفعلية مع التوثيق (`KERNEL_VS_DOCS_COMPARISON`)
 
 > **الحالة:** وثيقة تحليلية مرجعية
 > **التاريخ:** `2026-11-28`
-> **نطاق الفحص:** `internal/kernal/` مقابل `docs/specifications/kernel/` و`docs/rules/` و`docs/contracts/`
+> **نطاق الفحص:** `internal/kernel/` مقابل `docs/specifications/kernel/` و`docs/rules/` و`docs/contracts/`
 
 ---
 
 ## 1. نتيجة الفحص المباشر للكود
 
-أثبت الفحص المباشر للشيفرة المصدرية في `internal/kernal/` أن جميع القواعد المحاسبية الحتمية (**27/27** في `RULE-KERNEL-001..027` و**13/13** في `AC-MAND-01..13`) منفّذة ومختبرة فعلياً:
+أثبت الفحص المباشر للشيفرة المصدرية في `internal/kernel/` أن جميع القواعد المحاسبية الحتمية (**27/27** في `RULE-KERNEL-001..027` و**13/13** في `AC-MAND-01..13`) منفّذة ومختبرة فعلياً:
 
-| القاعدة / الميزة | موقع التنفيذ في `internal/kernal/` | الحالة في الكود | الحالة في التوثيق قبل التحديث |
+| القاعدة / الميزة | موقع التنفيذ في `internal/kernel/` | الحالة في الكود | الحالة في التوثيق قبل التحديث |
 | --- | --- | :---: | --- |
 | القيد المزدوج وتوازن العملة الوظيفية | `posting/entry_validation.go` (`ValidateEntryDoubleEntry`) | ✅ | ✅ متطابق |
 | حظر `float32`/`float64` | `shopspring/decimal` + فحص AST | ✅ | ✅ متطابق |
@@ -24,6 +24,6 @@
 
 ## 2. الخلاصة
 
-- **لا توجد فجوات تنفيذية مفتوحة في الكود المحاسبي** (`internal/kernal/`).
+- **لا توجد فجوات تنفيذية مفتوحة في الكود المحاسبي** (`internal/kernel/`).
 - جميع الفجوات الـ27 المسجلة في [`KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md`](../reports/KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md) هي فجوات وثائقية/مواصفاتية تُعالج بتحديث المواصفات والوثائق في المرحلتين 1 و2 من [`APPROVAL_EXECUTION_PLAN.md`](../APPROVAL_EXECUTION_PLAN.md).
 

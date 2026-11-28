@@ -2,8 +2,8 @@
 
 - **رمز الوثيقة:** `AE-POST-FLOW-V12`
 - **المرحلة:** 6 — الترحيل والعكس المحاسبي
-- **النطاق:** `internal/kernal/posting/**` والتفاعل الضروري مع `journal` و`masterdata` و`policy` و`types`
-- **المرجع:** ~~خطة المعالجة، المرحلة 6~~ *(حُذف مجلد `plans/`)*، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)، [مصفوفة التتبع](../../internal/kernal/KERNEL_TRACEABILITY_MATRIX.md)
+- **النطاق:** `internal/kernel/posting/**` والتفاعل الضروري مع `journal` و`masterdata` و`policy` و`types`
+- **المرجع:** ~~خطة المعالجة، المرحلة 6~~ *(حُذف مجلد `plans/`)*، [ثوابت النواة](../../internal/kernel/KERNEL_ACCOUNTING_INVARIANTS.md)، [مصفوفة التتبع](../../internal/kernel/KERNEL_TRACEABILITY_MATRIX.md)
 - **القرار المعماري:** [ADR P1-02](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p1-02) و[ADR P3-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p3-01) و[ADR P5-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p5-01)
 - **قاعدة حاكمة:** هذه مواصفة سلوكية للنواة فقط. لا تحتوي على SQL أو تخزين ملموس أو HTTP/gRPC أو RBAC أو أرصدة مادية أو تقارير.
 
@@ -29,7 +29,7 @@
 
 ## 3. تدفق `PostEntry` بالترتيب التنفيذي
 
-الترتيب أدناه مطابق لـ `internal/kernal/posting/pipeline.go`. أي خطأ في أي خطوة يُعاد فوراً قبل أي تفويض.
+الترتيب أدناه مطابق لـ `internal/kernel/posting/pipeline.go`. أي خطأ في أي خطوة يُعاد فوراً قبل أي تفويض.
 
 | # | الخطوة | الدالة / الفحص | القاعدة | نتيجة الفشل النموذجية | دليل اختبار |
 |---:|---|---|---|---|---|
@@ -116,7 +116,7 @@
 | 9–11 | القسم 5 + اختبارات العكس و`FuzzReversalNetImpactIsZeroPerAccount` |
 | 12 | القسم 6 + اختبارات TOCTOU |
 | 13 | القسم 7 + اختبارات الفشل العدائية |
-| 14–15 | `internal/kernal/doc_test.go` (`TestKernelTraceabilityMatrixCoversAllRulesAndNamedTests`) + ملحق المرحلة 6 في مصفوفة التتبع |
+| 14–15 | `internal/kernel/doc_test.go` (`TestKernelTraceabilityMatrixCoversAllRulesAndNamedTests`) + ملحق المرحلة 6 في مصفوفة التتبع |
 
 ---
 
@@ -124,8 +124,8 @@
 
 تنجح بوابة المرحلة 6 إذا تحققت كل الشروط التالية آلياً:
 
-- `gofmt -l internal/kernal/` بلا إخراج.
-- `go test ./internal/kernal/... -count=1` و`go test -race ./internal/kernal/... -count=1` PASS.
+- `gofmt -l internal/kernel/` بلا إخراج.
+- `go test ./internal/kernel/... -count=1` و`go test -race ./internal/kernel/... -count=1` PASS.
 - `./scripts/verify_architecture.sh` PASS without lowering the 11 rules.
 - مصفوفة التتبع تغطي 27 قاعدة وكل مرجع `Test`/`Fuzz` موجود فعلاً.
 - لا استدعاء Executor في أي اختبار رفض.

@@ -15,13 +15,13 @@ technical_terms: "en"
 
 > **بيان الإلزام والهدف:**  
 > تجمع هذه الوثيقة وتحصر بدقة **كافة قواعد العمل الهندسية والتقنية والمعمارية** المعتمدة لمشروع `accounting_engine` (استناداً إلى وثائق المعمارية `project_specification_and_architecture.md`, `ENGINEERING_AND_ACCOUNTING_STANDARD.md`, ومعايير ISO/IEC 25010 و NIST SSDF).  
-> تهدف هذه القواعد لضمان سلامة النواة البرمجية، متانتها، كفاءتها التشغيلية، وعزلها التام كـ Embeddable Kernal Engine خالية من الشوائب والاقتران التقني الضار.
+> تهدف هذه القواعد لضمان سلامة النواة البرمجية، متانتها، كفاءتها التشغيلية، وعزلها التام كـ Embeddable Kernel Engine خالية من الشوائب والاقتران التقني الضار.
 
 ---
 
 ## فهرس المحتويات
 
-1. [المعمارية واستقلالية النواة (Architecture & Kernal Isolation)](#1-المعمارية-واستقلالية-النواة-architecture--kernal-isolation)
+1. [المعمارية واستقلالية النواة (Architecture & Kernel Isolation)](#1-المعمارية-واستقلالية-النواة-architecture--kernel-isolation)
 2. [المعاملات والذرية التامة (Transactions & ACID Invariants)](#2-المعاملات-والذرية-التامة-transactions--acid-invariants)
 3. [منع التكرار والحتمية (Idempotency & Determinism)](#3-منع-التكرار-والحتمية-idempotency--determinism)
 4. [الأمان وتعدد الشركات والعزل (Multi-Tenancy & Tenant Isolation)](#4-الأمان-وتعدد-الشركات-والعزل-multi-tenancy--tenant-isolation)
@@ -34,12 +34,12 @@ technical_terms: "en"
 
 ---
 
-## 1. المعمارية واستقلالية النواة (Architecture & Kernal Isolation)
+## 1. المعمارية واستقلالية النواة (Architecture & Kernel Isolation)
 
 * **[RULE-ENG-001] التبعية المعمارية الصارمة (Clean / Hexagonal Architecture):**
   * يجب أن تتبع كافة الحزم اتجاه التبعية إلى الداخل (Dependency Inversion):
-    $$\text{Infrastructure / Adapters} \longrightarrow \text{Public SDK / SPI} \longrightarrow \text{Kernal Domain}$$
-  * يُمنع منعاً باتاً استيراد أي حزمة بنية تحتية (`storage`, `postgres`, `http`, `grpc`, `sql`) داخل طبقة النواة (`internal/kernal/posting`, `internal/kernal/masterdata`, `internal/kernal/types`, `internal/kernal/governance`).
+    $$\text{Infrastructure / Adapters} \longrightarrow \text{Public SDK / SPI} \longrightarrow \text{Kernel Domain}$$
+  * يُمنع منعاً باتاً استيراد أي حزمة بنية تحتية (`storage`, `postgres`, `http`, `grpc`, `sql`) داخل طبقة النواة (`internal/kernel/posting`, `internal/kernel/masterdata`, `internal/kernel/types`, `internal/kernel/governance`).
 
 * **[RULE-ENG-002] حظر استيراد `internal/` للمستهلك الخارجي (Package Encapsulation):**
   * يُحظر على أي كود خارجي أو مستهلك للنواة استيراد أي حزمة داخل مسار `internal/*`.
@@ -50,7 +50,7 @@ technical_terms: "en"
   * يُمنع تضمين أي خادم شبكي (HTTP REST, gRPC, WebSocket) أو أي موائم شبكي داخل النواة المحاسبية.
   * طبقات النقل الشبكي تعيش خارج مستودع النواة في خدمات مستقلة.
 
-* **[RULE-ENG-004] تجريد عمليات المصادقة والتفويض (Auth-Free Kernal):**
+* **[RULE-ENG-004] تجريد عمليات المصادقة والتفويض (Auth-Free Kernel):**
   * يُمنع تضمين جداول المستخدمين، كلمات المرور، جلسات الدخول، التحقق من JWT/OAuth، أو Rate Limiting داخل النواة.
   * تتلقى النواة سياق أمان موثوقاً ومجرداً (`Security Context / Principal`) ممرراً عبر `context.Context` وتثبته فقط في سجلات التدقيق دون إدارة هويات.
 
@@ -172,7 +172,7 @@ technical_terms: "en"
 ## 9. معايير الاختبارات وضمان الجودة (Testing & Verification Standards)
 
 * **[RULE-ENG-024] تغطية الاختبارات الآلية (Coverage Floor):**
-  * يجب ألا تقل نسبة التغطية الاختبارية الإجمالية للمشروع عن 80% في بوابة الإنتاج، مع استهداف تغطية تفوق 95% لطبقة النواة المحاسبية (`internal/kernal/posting`).
+  * يجب ألا تقل نسبة التغطية الاختبارية الإجمالية للمشروع عن 80% في بوابة الإنتاج، مع استهداف تغطية تفوق 95% لطبقة النواة المحاسبية (`internal/kernel/posting`).
 
 * **[RULE-ENG-025] هرم الاختبارات المتكامل (Testing Pyramid):**
   * يجب أن يخضع المحرك لأربع طبقات اختبارية إلزامية:

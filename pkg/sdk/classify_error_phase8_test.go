@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/apperrors"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
-	kernalmasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/apperrors"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/journal"
+	kernelmasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernel/masterdata"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/posting"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/valuation"
 	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 )
@@ -41,16 +41,16 @@ func TestClassifyErrorUsesTypedTaxonomyWithoutStringHeuristics(t *testing.T) {
 	}{
 		{"invalid reversal", posting.ErrInvalidReversal, publicapplication.ErrValidation},
 		{"inactive dimension", posting.ErrInactiveFinancialDimension, publicapplication.ErrValidation},
-		{"cannot post to header account", kernalmasterdata.ErrCannotPostToParentAccount, publicapplication.ErrValidation},
-		{"journal reader required", kernalmasterdata.ErrJournalReaderRequired, publicapplication.ErrValidation},
+		{"cannot post to header account", kernelmasterdata.ErrCannotPostToParentAccount, publicapplication.ErrValidation},
+		{"journal reader required", kernelmasterdata.ErrJournalReaderRequired, publicapplication.ErrValidation},
 		{"invalid cancellation", journal.ErrInvalidCancellation, publicapplication.ErrValidation},
 		{"apperrors unbalanced", apperrors.ErrUnbalancedEntry, publicapplication.ErrValidation},
-		{"period closed", kernalmasterdata.ErrFiscalPeriodClosed, publicapplication.ErrPeriodClosed},
+		{"period closed", kernelmasterdata.ErrFiscalPeriodClosed, publicapplication.ErrPeriodClosed},
 		{"apperrors period closed", apperrors.ErrPeriodClosed, publicapplication.ErrPeriodClosed},
 		{"rate not found", valuation.ErrRateNotFound, publicapplication.ErrNotFound},
 		{"entry not found", storage.ErrEntryNotFound, publicapplication.ErrNotFound},
-		{"account not found", kernalmasterdata.ErrAccountNotFound, publicapplication.ErrNotFound},
-		{"company inactive", kernalmasterdata.ErrCompanyInactive, publicapplication.ErrForbidden},
+		{"account not found", kernelmasterdata.ErrAccountNotFound, publicapplication.ErrNotFound},
+		{"company inactive", kernelmasterdata.ErrCompanyInactive, publicapplication.ErrForbidden},
 		{"concurrency conflict", posting.ErrConcurrencyConflict, publicapplication.ErrConflict},
 		{"coded infra error", apperrors.NewCategorized("ERR_IO", apperrors.CategoryInfrastructure, true, "db timeout", nil), publicapplication.ErrDependencyUnavailable},
 	}
@@ -71,7 +71,7 @@ func TestGetJournalByIDFailsClosedUnlessSyntheticOptedIn(t *testing.T) {
 	companyID := types.NewCompanyID()
 	journalID := types.NewJournalID()
 	reader := masterDataReaderAdapter{reader: legacyOnlyMasterDataReader{}}
-	if _, err := reader.GetJournalByID(context.Background(), companyID, journalID); !errors.Is(err, kernalmasterdata.ErrJournalReaderRequired) {
+	if _, err := reader.GetJournalByID(context.Background(), companyID, journalID); !errors.Is(err, kernelmasterdata.ErrJournalReaderRequired) {
 		t.Fatalf("default GetJournalByID error = %v, want ErrJournalReaderRequired", err)
 	}
 }

@@ -59,4 +59,3 @@ func TestIAS12EnterpriseCapabilities(t *testing.T) {
 		t.Fatalf("profile validate: %v", err)
 	}
 }
-

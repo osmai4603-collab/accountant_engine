@@ -8,7 +8,7 @@
 
 1. المصادر الرسمية المُحالة داخل المواصفات نفسها (`RFC 2119`, `RFC 8174`, `IAS 21`, `ISO 4217:2015`, `IASB Conceptual Framework 2018 Ch. 4`, `NIST FIPS 180-4`, `RFC 9562`, `General Decimal Arithmetic 1.70`, `IEEE 754-2019`).  
 2. منهجية صياغة المواصفات المعيارية للمشروع (`docs/references/NORMATIVE_SPECIFICATION_METHODOLOGY.md` — `NSM-001`).  
-3. وثائق النواة المرتبطة في `docs/` (`TARGET_ACCOUNTING_KERNEL.md`, `ACCOUNTING_BUSINESS_RULES.md`, `KERNEL_ARCHITECTURE_MAP.md`, `KERNEL_POSTING_FLOW_SPECIFICATION.md`, `KERNEL_IDEMPOTENCY_CONTRACT.md`, `KERNEL_LOCKING_CONTRACT.md`, `KERNEL_AUDIT_THREAT_MODEL.md`, `KERNEL_AUDIT_REPOSITORY_CONTRACT.md`, `KERNEL_REVERSAL_ATOMICITY_CONTRACT.md`, `KERNEL_POSTING_TRANSACTION_CONTRACT.md`, `KERNEL_VALUATION_RULES_MATRIX.md`, `KERNEL_MONETARY_PRECISION_MATRIX.md`, `KERNEL_REMEDIATION_GAP_REGISTER.md`, ووثائق `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md`, و`internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md`).
+3. وثائق النواة المرتبطة في `docs/` (`TARGET_ACCOUNTING_KERNEL.md`, `ACCOUNTING_BUSINESS_RULES.md`, `KERNEL_ARCHITECTURE_MAP.md`, `KERNEL_POSTING_FLOW_SPECIFICATION.md`, `KERNEL_IDEMPOTENCY_CONTRACT.md`, `KERNEL_LOCKING_CONTRACT.md`, `KERNEL_AUDIT_THREAT_MODEL.md`, `KERNEL_AUDIT_REPOSITORY_CONTRACT.md`, `KERNEL_REVERSAL_ATOMICITY_CONTRACT.md`, `KERNEL_POSTING_TRANSACTION_CONTRACT.md`, `KERNEL_VALUATION_RULES_MATRIX.md`, `KERNEL_MONETARY_PRECISION_MATRIX.md`, `KERNEL_REMEDIATION_GAP_REGISTER.md`, ووثائق `docs/architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md`, و`internal/kernel/KERNEL_ACCOUNTING_INVARIANTS.md`).
 
 ---
 
@@ -131,7 +131,7 @@
 
 ### 6. فجوات وتضارب في `JOURNAL_ENTRY` (`JRN-006`, `JRN-007`) و`FX_REVALUATION` (`VAL-007`)
 
-1. **اسم التصنيف الافتراضي:** تستخدم `JOURNAL_ENTRY` (§3، `JRN-006`) الاسم **`Standard`**، بينما تستخدم `internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md` (`RULE-KERNEL-009`) الاسم **`Regular`**.
+1. **اسم التصنيف الافتراضي:** تستخدم `JOURNAL_ENTRY` (§3، `JRN-006`) الاسم **`Standard`**، بينما تستخدم `internal/kernel/KERNEL_ACCOUNTING_INVARIANTS.md` (`RULE-KERNEL-009`) الاسم **`Regular`**.
 2. **بيانات `Adjusting` لإعادة التقييم:** تنتج `VAL-007` قيداً بتصنيف `Adjusting`، وتشترط `JRN-006` بيانات وصفية إلزامية لقيد `Adjusting` (`ErrAdjustingEntryMetadataRequired`)، لكن `VAL-007` لا تحدد البيانات الوصفية التي يختمها مولد قيد إعادة التقييم لتمرير `JRN-006`.
 3. **حالة `Cancelled`:** تُعرّف `JRN-007` انتقال `Draft -> Cancelled`، بينما لا تُذكر حالة `Cancelled` في ملخص `journal` داخل `TARGET_ACCOUNTING_KERNEL.md` (§3.8 سطر 207)؛ كما لم تحدد `JRN-007` الخطأ المرجع عند محاولة إلغاء مسودة ملغاة مسبقاً (`Cancelled -> Cancelled`) أو الحقول المختومة عند الإلغاء (`CancelledAt`, `CancelledBy`, `CancellationReason`).
 4. **مصطلح غير معرّف:** تذكر `JRN-006` (سطر 135) جواز استهداف *"الرصيد الافتتاحي المعتمد"* في قيود `Opening` دون تعريف هذا المصطلح في §3 أو في `MASTERDATA`.

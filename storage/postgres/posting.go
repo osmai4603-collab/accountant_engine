@@ -219,37 +219,45 @@ func saveEntryTx(ctx context.Context, tx pgx.Tx, entry journal.JournalEntry) err
 	}
 
 	if entry.Status == journal.EntryPosted || entry.Status == journal.EntryReversed {
-		// When committing or reversing, ensure the draft move exists first if not present
-		var exists bool
-		_ = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM account_moves WHERE id=$1 AND company_id=$2)`,
-			uuid.UUID(entry.ID), uuid.UUID(entry.CompanyID)).Scan(&exists)
-		if !exists {
-			draftEntry := entry
-			draftEntry.Status = journal.EntryDraft
-			draftData, err := json.Marshal(draftEntry)
-			if err != nil {
-				return err
-			}
-			if _, err := tx.Exec(ctx, `INSERT INTO account_moves(
-				id, company_id, journal_id, period_id, entry_date, posting_date,
-				entry_number, status, classification, reversed_move_id, entry
-			) VALUES($1, $2, $3, $4, $5, NULL, $6, 'draft', $7, $8, $9)`,
-				uuid.UUID(entry.ID), uuid.UUID(entry.CompanyID), uuid.UUID(entry.JournalID),
-				uuid.UUID(entry.FiscalPeriodID), effectiveDate, entry.SequenceNumber,
-				classification, reversedMoveID, draftData); err != nil {
-				return err
-			}
-			// Insert draft lines
-			if err := insertMoveLines(ctx, tx, entry); err != nil {
-				return err
-			}
-		}
-
 		expectedStatus := "draft"
 		if entry.Status == journal.EntryReversed {
 			expectedStatus = "posted"
 		}
+		// The SDK always stages a draft before posting. Attempt the transition
+		// first and only materialize a draft on the rare direct-call path,
+		// avoiding a separate EXISTS round-trip in the hot path.
 		result, err := tx.Exec(ctx,
+			`UPDATE account_moves SET journal_id=$3,period_id=$4,entry_date=$5,posting_date=$6,entry_number=$7,
+			 status=$8,classification=$9,reversed_move_id=$10,entry=$11
+			 WHERE id=$1 AND company_id=$2 AND status=$12`,
+			uuid.UUID(entry.ID), uuid.UUID(entry.CompanyID), uuid.UUID(entry.JournalID), uuid.UUID(entry.FiscalPeriodID),
+			effectiveDate, postingDate, entry.SequenceNumber, string(entry.Status), classification, reversedMoveID, data, expectedStatus)
+		if err != nil {
+			return err
+		}
+		if result.RowsAffected() == 1 {
+			return nil
+		}
+		draftEntry := entry
+		draftEntry.Status = journal.EntryDraft
+		draftData, err := json.Marshal(draftEntry)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO account_moves(
+			id, company_id, journal_id, period_id, entry_date, posting_date,
+			entry_number, status, classification, reversed_move_id, entry
+		) VALUES($1, $2, $3, $4, $5, NULL, $6, 'draft', $7, $8, $9)
+		ON CONFLICT (id) DO NOTHING`,
+			uuid.UUID(entry.ID), uuid.UUID(entry.CompanyID), uuid.UUID(entry.JournalID),
+			uuid.UUID(entry.FiscalPeriodID), effectiveDate, entry.SequenceNumber,
+			classification, reversedMoveID, draftData); err != nil {
+			return err
+		}
+		if err := insertMoveLines(ctx, tx, entry); err != nil {
+			return err
+		}
+		result, err = tx.Exec(ctx,
 			`UPDATE account_moves SET journal_id=$3,period_id=$4,entry_date=$5,posting_date=$6,entry_number=$7,
 			 status=$8,classification=$9,reversed_move_id=$10,entry=$11
 			 WHERE id=$1 AND company_id=$2 AND status=$12`,
@@ -293,10 +301,31 @@ func saveEntryTx(ctx context.Context, tx pgx.Tx, entry journal.JournalEntry) err
 	return insertMoveLines(ctx, tx, entry)
 }
 
+// insertMoveLines replaces a deleted draft's lines in a single round-trip via
+// unnest. The per-line loop used one Exec per line, which dominated latency for
+// multi-line entries; all column arrays stay positionally aligned.
 func insertMoveLines(ctx context.Context, tx pgx.Tx, entry journal.JournalEntry) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM account_move_lines WHERE move_id=$1`, uuid.UUID(entry.ID)); err != nil {
 		return err
 	}
+	if len(entry.Lines) == 0 {
+		return nil
+	}
+
+	moveIDs := make([]uuid.UUID, len(entry.Lines))
+	companyIDs := make([]uuid.UUID, len(entry.Lines))
+	lineIDs := make([]uuid.UUID, len(entry.Lines))
+	accountIDs := make([]uuid.UUID, len(entry.Lines))
+	debits := make([]string, len(entry.Lines))
+	credits := make([]string, len(entry.Lines))
+	amounts := make([]string, len(entry.Lines))
+	currencies := make([]string, len(entry.Lines))
+	txMinorUnits := make([]int64, len(entry.Lines))
+	txCurrencies := make([]string, len(entry.Lines))
+	exchangeRates := make([]string, len(entry.Lines))
+	functionalDebits := make([]int64, len(entry.Lines))
+	functionalCredits := make([]int64, len(entry.Lines))
+	lineData := make([][]byte, len(entry.Lines))
 
 	for i, line := range entry.Lines {
 		lineID := uuid.UUID(line.ID)
@@ -304,11 +333,10 @@ func insertMoveLines(ctx context.Context, tx pgx.Tx, entry journal.JournalEntry)
 			lineID = uuid.New()
 			entry.Lines[i].ID = types.JournalEntryLineID(lineID)
 		}
-		lineData, err := json.Marshal(line)
+		data, err := json.Marshal(line)
 		if err != nil {
 			return err
 		}
-
 		fDebitMinor, err := moneyMinorUnits(line.FunctionalDebit)
 		if err != nil {
 			return err
@@ -325,20 +353,44 @@ func insertMoveLines(ctx context.Context, tx pgx.Tx, entry journal.JournalEntry)
 			txMinor = -txMinor
 		}
 
-		_, err = tx.Exec(ctx, `INSERT INTO account_move_lines (
+		moveIDs[i] = uuid.UUID(entry.ID)
+		companyIDs[i] = uuid.UUID(entry.CompanyID)
+		lineIDs[i] = lineID
+		accountIDs[i] = uuid.UUID(line.AccountID)
+		debits[i] = line.FunctionalDebit.Amount().String()
+		credits[i] = line.FunctionalCredit.Amount().String()
+		amounts[i] = line.TransactionAmount.Amount().String()
+		currencies[i] = line.TransactionCurrency
+		txMinorUnits[i] = txMinor
+		txCurrencies[i] = line.TransactionCurrency
+		exchangeRates[i] = line.ExchangeRate.String()
+		functionalDebits[i] = fDebitMinor
+		functionalCredits[i] = fCreditMinor
+		lineData[i] = data
+	}
+
+	_, err := tx.Exec(ctx, `
+		INSERT INTO account_move_lines (
 			move_id, company_id, line_id, account_id,
 			debit, credit, amount_currency, currency_id, transaction_amount_minor,
 			transaction_currency, exchange_rate, functional_debit_minor, functional_credit_minor, line_data
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-			uuid.UUID(entry.ID), uuid.UUID(entry.CompanyID), lineID, uuid.UUID(line.AccountID),
-			line.FunctionalDebit.Amount(), line.FunctionalCredit.Amount(), line.TransactionAmount.Amount(),
-			line.TransactionCurrency, txMinor, line.TransactionCurrency, line.ExchangeRate,
-			fDebitMinor, fCreditMinor, lineData)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+		)
+		SELECT move_id, company_id, line_id, account_id,
+			debit, credit, amount_currency, currency_id, transaction_amount_minor,
+			transaction_currency, exchange_rate, functional_debit_minor, functional_credit_minor, line_data
+		FROM unnest(
+			$1::uuid[], $2::uuid[], $3::uuid[], $4::uuid[],
+			$5::numeric[], $6::numeric[], $7::numeric[], $8::varchar[], $9::bigint[],
+			$10::varchar[], $11::numeric[], $12::bigint[], $13::bigint[], $14::jsonb[]
+		) AS lines(
+			move_id, company_id, line_id, account_id,
+			debit, credit, amount_currency, currency_id, transaction_amount_minor,
+			transaction_currency, exchange_rate, functional_debit_minor, functional_credit_minor, line_data
+		)`,
+		moveIDs, companyIDs, lineIDs, accountIDs,
+		debits, credits, amounts, currencies, txMinorUnits,
+		txCurrencies, exchangeRates, functionalDebits, functionalCredits, lineData)
+	return err
 }
 
 func moneyMinorUnits(m types.Money) (int64, error) {

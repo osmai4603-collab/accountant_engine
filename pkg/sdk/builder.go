@@ -29,6 +29,7 @@ type EngineBuilder struct {
 	reportingStore       storage.ReportingStore
 	governanceStore      storage.GovernanceStore
 	authorizer           publicapplication.Authorizer
+	observer             publicapplication.Observer
 	standards            []standards.StandardModule
 	standardsRegistry    *standards.Registry
 	postingConfig        PostingConfig
@@ -78,6 +79,11 @@ func (b *EngineBuilder) Build(ctx context.Context) (Engine, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("application layer initialization: %w", err)
+	}
+	if b.observer != nil {
+		if app, ok := appService.(*applicationService); ok {
+			app.observer = b.observer
+		}
 	}
 	b.useCases = appService
 
@@ -445,12 +451,14 @@ func (s *defaultLedgerService) ReverseEntry(ctx context.Context, companyID types
 	if s.useCases == nil {
 		return journal.JournalEntry{}, ErrCapabilityNotImplemented
 	}
+	metadata, _ := publicapplication.RequestMetadataFromContext(ctx)
 	cmd := publicapplication.ReverseEntryCommand{
-		Context:       commandContext(ctx, companyID, "sdk", "sdk", s.requirePrincipal),
-		CompanyID:     companyID,
-		EntryID:       entryID,
-		Reason:        reason,
-		EffectiveDate: time.Now().UTC(),
+		Context:        commandContext(ctx, companyID, "sdk", "sdk", s.requirePrincipal),
+		CompanyID:      companyID,
+		EntryID:        entryID,
+		Reason:         reason,
+		EffectiveDate:  time.Now().UTC(),
+		IdempotencyKey: metadata.IdempotencyKey,
 	}
 	reversedResult, err := s.useCases.Reverse(ctx, cmd)
 	if err != nil {

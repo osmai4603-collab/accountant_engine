@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	kernalgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
+	kernelgovernance "github.com/osmai4603-collab/accounting_engine/internal/kernel/governance"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/sdk"
@@ -90,7 +90,7 @@ func TestDRDrill_FullRecovery(t *testing.T) {
 	if err != nil || lastAudit == nil {
 		t.Fatalf("read last source audit log: %v", err)
 	}
-	if err := sourceDriver.SetExternalAuditCheckpoint(ctx, env.fixture.Company.ID, kernalgovernance.AuditCheckpoint{
+	if err := sourceDriver.SetExternalAuditCheckpoint(ctx, env.fixture.Company.ID, kernelgovernance.AuditCheckpoint{
 		CompanyID: env.fixture.Company.ID, SequenceNumber: lastAudit.SequenceNumber,
 		Version: 1, LogHash: lastAudit.CurrentLogHash,
 	}); err != nil {

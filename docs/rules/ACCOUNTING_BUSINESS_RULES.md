@@ -16,7 +16,7 @@ technical_terms: "en"
 > **بيان الإلزام والهدف:**  
 > تجمع هذه الوثيقة وتحصر بدقة **كافة قواعد العمل والمحددات المحاسبية الحتمية (Accounting Business Rules & Invariants)** المستنبطة من شيفرة ومواصفات ومعايير مشروع `accounting_engine` (بما فيها مواصفات `internal/posting`, `internal/masterdata`, `internal/subledgers`, وسلسلة معايير IFRS/IAS المعتمدة).  
 > تُعد هذه القواعد **ثوابت حتمية غير قابلة للتفاوض (Non-negotiable Invariants)**؛ وأي انتهاك أو تجاوز لها يُعد خطأً وظيفياً ومحاسبياً جسيماً يرفضه المحرك قطعياً.
-> توضح [وثيقة معمارية النواة](../architecture/TARGET_ACCOUNTING_KERNEL.md) حدود تطبيق هذه القواعد داخل `internal/kernal/`، بما في ذلك فصل المصادقة والتفويض وموافقات المستخدمين عن النواة.
+> توضح [وثيقة معمارية النواة](../architecture/TARGET_ACCOUNTING_KERNEL.md) حدود تطبيق هذه القواعد داخل `internal/kernel/`، بما في ذلك فصل المصادقة والتفويض وموافقات المستخدمين عن النواة.
 >
 > **تنبيه تمييز المعرّفات:** معرّفات RULE-ACC-xxx هنا مستقلة عن ACC-xxx في docs/quality/ACCOUNTING_KERNEL_QUALITY_STANDARD.md؛ RULE-ACC-013 يخص IAS 21
 
@@ -280,7 +280,7 @@ technical_terms: "en"
 
 ## 12. قواعد معايير IFRS/IAS المتخصصة (Specialized Standards Rules)
 
-> **ملاحظة نطاقية:** قواعد هذا القسم (RULE-ACC-037 إلى RULE-ACC-040) هي قواعد **توثيقية اختيارية (Opt-in)** تخص وحدات المعايير الدولية في `modules/*`. النواة المحاسبية (`internal/kernal/`) محايدة للأطر المحاسبية (باستثناء `IAS 21` المضمّن في `internal/kernal/valuation`). تفعيل هذه القواعد يتم عبر `sdk.WithStandard(module)` وفق [`SCOPE_PROFILE_KERNEL_v1.md`](../quality/SCOPE_PROFILE_KERNEL_v1.md).
+> **ملاحظة نطاقية:** قواعد هذا القسم (RULE-ACC-037 إلى RULE-ACC-040) هي قواعد **توثيقية اختيارية (Opt-in)** تخص وحدات المعايير الدولية في `modules/*`. النواة المحاسبية (`internal/kernel/`) محايدة للأطر المحاسبية (باستثناء `IAS 21` المضمّن في `internal/kernel/valuation`). تفعيل هذه القواعد يتم عبر `sdk.WithStandard(module)` وفق [`SCOPE_PROFILE_KERNEL_v1.md`](../quality/SCOPE_PROFILE_KERNEL_v1.md).
 
 * **[RULE-ACC-037] معيار IFRS 15 (الاعتراف بالإيراد من العقود مع العملاء):**
   * يجب فصل التزامات الأداء (`Performance Obligations`) وعدم الاعتراف بالإيراد إلا عند استيفاء الالتزام (نقطة زمنية أو على مدار الوقت).

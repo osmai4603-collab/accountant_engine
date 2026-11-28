@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
-	kernalmasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/journal"
+	kernelmasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernel/masterdata"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/posting"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/valuation"
 	postingcompat "github.com/osmai4603-collab/accounting_engine/internal/orbitals/postingcompat"
 	"github.com/osmai4603-collab/accounting_engine/internal/orbitals/reporting"
 	"github.com/osmai4603-collab/accounting_engine/internal/orbitals/subledgers"
@@ -54,7 +54,7 @@ func (s *applicationService) ExecuteYearEndClosing(ctx context.Context, command 
 		if err != nil {
 			return err
 		}
-		if year.State != kernalmasterdata.FiscalYearOpen {
+		if year.State != kernelmasterdata.FiscalYearOpen {
 			return reporting.ErrFiscalYearNotOpen
 		}
 
@@ -134,13 +134,13 @@ func (s *applicationService) ExecuteYearEndClosing(ctx context.Context, command 
 			return err
 		}
 		for _, p := range periods {
-			if p.Number == 13 && p.State == kernalmasterdata.PeriodOpen {
-				if err := closingStore.UpdateFiscalPeriodState(txCtx, command.CompanyID, p.ID, kernalmasterdata.PeriodHardClosed, actorID, reason); err != nil {
+			if p.Number == 13 && p.State == kernelmasterdata.PeriodOpen {
+				if err := closingStore.UpdateFiscalPeriodState(txCtx, command.CompanyID, p.ID, kernelmasterdata.PeriodHardClosed, actorID, reason); err != nil {
 					return err
 				}
 			}
 		}
-		if err := closingStore.UpdateFiscalYearState(txCtx, command.CompanyID, command.FiscalYearID, kernalmasterdata.FiscalYearHardClosed, actorID, reason); err != nil {
+		if err := closingStore.UpdateFiscalYearState(txCtx, command.CompanyID, command.FiscalYearID, kernelmasterdata.FiscalYearHardClosed, actorID, reason); err != nil {
 			return err
 		}
 
@@ -238,7 +238,7 @@ func (s *applicationService) ReopenYearEndClosing(ctx context.Context, command p
 	approvalRef := strings.TrimSpace(command.ApprovalReference)
 	if reason == "" || approvalRef == "" {
 		return publicapplication.ReopenYearEndClosingResult{}, publicapplication.NewError(
-			publicapplication.ErrValidation, "reopen reason and approval reference are required", kernalmasterdata.ErrPeriodReopenRequiresAudit)
+			publicapplication.ErrValidation, "reopen reason and approval reference are required", kernelmasterdata.ErrPeriodReopenRequiresAudit)
 	}
 	closingStore, ok := s.ports.MasterData.(storage.YearEndClosingStore)
 	if !ok || s.ports.TxRunner == nil {
@@ -256,7 +256,7 @@ func (s *applicationService) ReopenYearEndClosing(ctx context.Context, command p
 		if err != nil {
 			return err
 		}
-		if year.State == kernalmasterdata.FiscalYearOpen {
+		if year.State == kernelmasterdata.FiscalYearOpen {
 			return reporting.ErrFiscalYearNotClosedForCarryForward
 		}
 
@@ -269,7 +269,7 @@ func (s *applicationService) ReopenYearEndClosing(ctx context.Context, command p
 		}
 
 		// Reopen the fiscal year and period 13 first so reversal entries can post into period 13.
-		if err := closingStore.UpdateFiscalYearState(txCtx, command.CompanyID, command.FiscalYearID, kernalmasterdata.FiscalYearOpen, actorID, reason); err != nil {
+		if err := closingStore.UpdateFiscalYearState(txCtx, command.CompanyID, command.FiscalYearID, kernelmasterdata.FiscalYearOpen, actorID, reason); err != nil {
 			return err
 		}
 		periods, err := closingStore.ListFiscalPeriods(txCtx, command.CompanyID, command.FiscalYearID)
@@ -277,8 +277,8 @@ func (s *applicationService) ReopenYearEndClosing(ctx context.Context, command p
 			return err
 		}
 		for _, p := range periods {
-			if p.Number == 13 && p.State != kernalmasterdata.PeriodOpen {
-				if err := closingStore.UpdateFiscalPeriodState(txCtx, command.CompanyID, p.ID, kernalmasterdata.PeriodOpen, actorID, reason); err != nil {
+			if p.Number == 13 && p.State != kernelmasterdata.PeriodOpen {
+				if err := closingStore.UpdateFiscalPeriodState(txCtx, command.CompanyID, p.ID, kernelmasterdata.PeriodOpen, actorID, reason); err != nil {
 					return err
 				}
 			}
@@ -472,7 +472,7 @@ var _ reporting.Repository = (*sdkClosingRepository)(nil)
 var _ reporting.FiscalPeriodRepository = (*sdkClosingRepository)(nil)
 var _ reporting.FiscalYearHistoryRepository = (*sdkClosingRepository)(nil)
 
-func (r *sdkClosingRepository) ListAccounts(ctx context.Context) ([]kernalmasterdata.Account, error) {
+func (r *sdkClosingRepository) ListAccounts(ctx context.Context) ([]kernelmasterdata.Account, error) {
 	return r.store.ListAccounts(ctx, r.companyID)
 }
 
@@ -480,11 +480,11 @@ func (r *sdkClosingRepository) ListPostedEntries(ctx context.Context, start, end
 	return r.ListEntriesForCompanyContext(ctx, uuid.UUID(r.companyID), start, end)
 }
 
-func (r *sdkClosingRepository) ListAccountsForCompanyContext(ctx context.Context, companyID uuid.UUID) ([]kernalmasterdata.Account, error) {
+func (r *sdkClosingRepository) ListAccountsForCompanyContext(ctx context.Context, companyID uuid.UUID) ([]kernelmasterdata.Account, error) {
 	return r.store.ListAccounts(ctx, types.CompanyID(companyID))
 }
 
-func (r *sdkClosingRepository) ListAccountsForCompanyAsOfContext(ctx context.Context, companyID uuid.UUID, _ time.Time) ([]kernalmasterdata.Account, error) {
+func (r *sdkClosingRepository) ListAccountsForCompanyAsOfContext(ctx context.Context, companyID uuid.UUID, _ time.Time) ([]kernelmasterdata.Account, error) {
 	return r.store.ListAccounts(ctx, types.CompanyID(companyID))
 }
 
@@ -524,15 +524,15 @@ func (r *sdkClosingRepository) GetRateOfTypeForCompany(context.Context, uuid.UUI
 	return decimal.NewFromInt(1), nil
 }
 
-func (r *sdkClosingRepository) GetFiscalYearForCompanyContext(ctx context.Context, companyID, fiscalYearID uuid.UUID) (kernalmasterdata.FiscalYear, error) {
+func (r *sdkClosingRepository) GetFiscalYearForCompanyContext(ctx context.Context, companyID, fiscalYearID uuid.UUID) (kernelmasterdata.FiscalYear, error) {
 	return r.masterData.GetFiscalYear(ctx, types.CompanyID(companyID), types.FiscalYearID(fiscalYearID))
 }
 
-func (r *sdkClosingRepository) UpdatePeriodStateForCompanyContext(ctx context.Context, companyID, periodID uuid.UUID, state kernalmasterdata.PeriodState) error {
+func (r *sdkClosingRepository) UpdatePeriodStateForCompanyContext(ctx context.Context, companyID, periodID uuid.UUID, state kernelmasterdata.PeriodState) error {
 	return r.store.UpdateFiscalPeriodState(ctx, types.CompanyID(companyID), types.FiscalPeriodID(periodID), state, "system", "year-end closing")
 }
 
-func (r *sdkClosingRepository) UpdateFiscalYearStateForCompanyContext(ctx context.Context, companyID, fiscalYearID uuid.UUID, state kernalmasterdata.FiscalYearState) error {
+func (r *sdkClosingRepository) UpdateFiscalYearStateForCompanyContext(ctx context.Context, companyID, fiscalYearID uuid.UUID, state kernelmasterdata.FiscalYearState) error {
 	return r.store.UpdateFiscalYearState(ctx, types.CompanyID(companyID), types.FiscalYearID(fiscalYearID), state, "system", "year-end closing")
 }
 
@@ -544,7 +544,7 @@ func (r *sdkClosingRepository) GetEntryByIDForCompanyContext(ctx context.Context
 	return kernelEntryToCompat(e), nil
 }
 
-func (r *sdkClosingRepository) ListFiscalPeriodsForCompanyContext(ctx context.Context, companyID, fiscalYearID uuid.UUID) ([]kernalmasterdata.FiscalPeriod, error) {
+func (r *sdkClosingRepository) ListFiscalPeriodsForCompanyContext(ctx context.Context, companyID, fiscalYearID uuid.UUID) ([]kernelmasterdata.FiscalPeriod, error) {
 	return r.store.ListFiscalPeriods(ctx, types.CompanyID(companyID), types.FiscalYearID(fiscalYearID))
 }
 

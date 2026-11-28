@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Architecture guard for the embeddable accounting kernal.
+# Architecture guard for the embeddable accounting kernel.
 #
 # Enforces the import boundaries declared in AE-PLAN-STEP-P0 (P0-03),
 # NEW_PROJECT_STRUCTURE.md section 5 and ARCHITECTURAL_PRINCIPLES_CHARTER.md:
 #
 #   1. internal/* never imports grpc, protobuf or net/http.
-#   2. pkg/api/* and pkg/spi/* may depend on internal/kernal/* contracts.
-#   3. internal/kernal/* never imports internal/orbitals/* or storage/*
+#   2. pkg/api/* and pkg/spi/* may depend on internal/kernel/* contracts.
+#   3. internal/kernel/* never imports internal/orbitals/* or storage/*
 #      (and never imports database/sql or pgx).
 #   4. The repository contains no cmd/ or proto/ directories.
 #   5. go.mod contains no network/cloud dependencies.
@@ -65,12 +65,12 @@ scan_imports "R1: internal/* free of net/http, grpc and protobuf" "$network_patt
 internal_any_pattern="$(import_pattern '([^"]*/)?internal(/[^"]*)?')"
 scan_imports "R2a: pkg/spi/* free of internal/* imports" "$internal_any_pattern" pkg/spi/
 
-# R2b: pkg/api/* may import internal/kernal/* only, through the bridge.
-non_kernal_imports="$(go list -f '{{range .Imports}}{{$.ImportPath}} {{.}}{{"\n"}}{{end}}' ./pkg/api/... 2>/dev/null | awk '$2 ~ /(^|\/)internal(\/|$)/ && $2 !~ /\/internal\/kernal(\/|$)/ {print}' || true)"
-if [[ -n "$non_kernal_imports" ]]; then
-  report_failure "R2b: pkg/api/* internal imports limited to internal/kernal/*" "$non_kernal_imports"
+# R2b: pkg/api/* may import internal/kernel/* only, through the bridge.
+non_kernel_imports="$(go list -f '{{range .Imports}}{{$.ImportPath}} {{.}}{{"\n"}}{{end}}' ./pkg/api/... 2>/dev/null | awk '$2 ~ /(^|\/)internal(\/|$)/ && $2 !~ /\/internal\/kernel(\/|$)/ {print}' || true)"
+if [[ -n "$non_kernel_imports" ]]; then
+  report_failure "R2b: pkg/api/* internal imports limited to internal/kernel/*" "$non_kernel_imports"
 else
-  report_pass "R2b: pkg/api/* internal imports limited to internal/kernal/*"
+  report_pass "R2b: pkg/api/* internal imports limited to internal/kernel/*"
 fi
 
 # R2c: exported signatures must not expose internal types unless they arrive
@@ -88,18 +88,18 @@ else
   report_failure "R2c: exported API free of unbridged internal/* type exposure" "$internalapi_output"
 fi
 
-# Rule 3: the kernal is independent of public contracts, orbitals and storage.
+# Rule 3: the kernel is independent of public contracts, orbitals and storage.
 orbit_pattern="$(import_pattern '([^"]*/)?internal/orbitals(/[^"]*)?')"
-scan_imports "R3a: internal/kernal/* free of internal/orbitals/* imports" "$orbit_pattern" internal/kernal/
+scan_imports "R3a: internal/kernel/* free of internal/orbitals/* imports" "$orbit_pattern" internal/kernel/
 
 public_pattern="$(import_pattern '([^"]*/)?pkg(/[^\"]*)?')"
-scan_imports "R3b: internal/kernal/* free of pkg/* imports" "$public_pattern" internal/kernal/
+scan_imports "R3b: internal/kernel/* free of pkg/* imports" "$public_pattern" internal/kernel/
 
 storage_adapter_pattern="$(import_pattern "${module_path}/storage(/[^\"]*)?")"
-scan_imports "R3c: internal/kernal/* free of concrete storage/* imports" "$storage_adapter_pattern" internal/kernal/
+scan_imports "R3c: internal/kernel/* free of concrete storage/* imports" "$storage_adapter_pattern" internal/kernel/
 
 sql_pattern="$(import_pattern '(database/sql|github\.com/jackc/pgx(/[^\"]*)?)')"
-scan_imports "R3d: internal/kernal/* free of database/sql and pgx" "$sql_pattern" internal/kernal/
+scan_imports "R3d: internal/kernel/* free of database/sql and pgx" "$sql_pattern" internal/kernel/
 
 internal_pattern="$(import_pattern "${module_path}/internal(/[^\"]*)?")"
 scan_imports "R3e: storage/* free of internal/* imports" "$internal_pattern" storage/

@@ -1,23 +1,23 @@
 package ledger
 
-import kernalLedger "github.com/osmai4603-collab/accounting_engine/internal/kernal/ledger"
+import kernelLedger "github.com/osmai4603-collab/accounting_engine/internal/kernel/ledger"
 
-type PeriodState = kernalLedger.PeriodState
-type FiscalYearState = kernalLedger.FiscalYearState
-type FiscalPeriodType = kernalLedger.FiscalPeriodType
-type FiscalYear = kernalLedger.FiscalYear
-type FiscalPeriod = kernalLedger.FiscalPeriod
+type PeriodState = kernelLedger.PeriodState
+type FiscalYearState = kernelLedger.FiscalYearState
+type FiscalPeriodType = kernelLedger.FiscalPeriodType
+type FiscalYear = kernelLedger.FiscalYear
+type FiscalPeriod = kernelLedger.FiscalPeriod
 
 const (
-	PeriodOpen       = kernalLedger.PeriodOpen
-	PeriodSoftClosed = kernalLedger.PeriodSoftClosed
-	PeriodHardClosed = kernalLedger.PeriodHardClosed
+	PeriodOpen       = kernelLedger.PeriodOpen
+	PeriodSoftClosed = kernelLedger.PeriodSoftClosed
+	PeriodHardClosed = kernelLedger.PeriodHardClosed
 
-	FiscalYearOpen       = kernalLedger.FiscalYearOpen
-	FiscalYearSoftClosed = kernalLedger.FiscalYearSoftClosed
-	FiscalYearHardClosed = kernalLedger.FiscalYearHardClosed
+	FiscalYearOpen       = kernelLedger.FiscalYearOpen
+	FiscalYearSoftClosed = kernelLedger.FiscalYearSoftClosed
+	FiscalYearHardClosed = kernelLedger.FiscalYearHardClosed
 
-	FiscalPeriodTypeNormal            = kernalLedger.FiscalPeriodTypeNormal
-	FiscalPeriodTypeYearEndAdjustment = kernalLedger.FiscalPeriodTypeYearEndAdjustment
-	FiscalPeriodTypeAuditAdjustment   = kernalLedger.FiscalPeriodTypeAuditAdjustment
+	FiscalPeriodTypeNormal            = kernelLedger.FiscalPeriodTypeNormal
+	FiscalPeriodTypeYearEndAdjustment = kernelLedger.FiscalPeriodTypeYearEndAdjustment
+	FiscalPeriodTypeAuditAdjustment   = kernelLedger.FiscalPeriodTypeAuditAdjustment
 )

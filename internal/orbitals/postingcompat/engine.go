@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
+	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
 )
 
 // Row is a minimal single-row reader exposed to attachments running against

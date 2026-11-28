@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	publicevents "github.com/osmai4603-collab/accounting_engine/pkg/spi/events"
 	publicmasterdata "github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
@@ -26,6 +27,14 @@ func New(ctx context.Context, connectionString string) (*Adapter, error) {
 // NewWithPool wraps an existing pgxpool.Pool in an Adapter.
 func NewWithPool(pool *pgxpool.Pool) *Adapter {
 	return &Adapter{driver: NewDriverWithPool(pool)}
+}
+
+// SetObserver installs an optional operational Observer on the adapter's
+// driver. A nil observer restores the no-op default.
+func (a *Adapter) SetObserver(observer publicapplication.Observer) {
+	if a != nil && a.driver != nil {
+		a.driver.SetObserver(observer)
+	}
 }
 
 // Ports exports the complete set of storage ports implementing pkg/spi/storage.Ports.

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -30,6 +31,14 @@ func TestMain(m *testing.M) {
 	}
 	if os.Getenv("CONTRACT_PARITY_SKIP_REPORT") == "1" {
 		fmt.Fprintln(os.Stderr, "WARNING: CONTRACT_PARITY_SKIP_REPORT=1 leaves the checked-in parity report unchanged; this run is NOT evidence of a fresh full suite")
+		os.Exit(code)
+	}
+
+	if os.Getenv("WRITE_PARITY_REPORT") != "1" {
+		if tmpDir, err := os.MkdirTemp("", "contract-parity-report-*"); err == nil {
+			_ = GlobalReporter.WriteReportToFile(filepath.Join(tmpDir, "parity_report.md"))
+			_ = os.RemoveAll(tmpDir)
+		}
 		os.Exit(code)
 	}
 

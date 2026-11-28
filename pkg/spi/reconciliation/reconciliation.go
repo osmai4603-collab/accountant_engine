@@ -30,10 +30,10 @@ type ReconciliationRequest struct {
 }
 
 type Match struct {
-	Key          string
-	LeftAmount   decimal.Decimal
-	RightAmount  decimal.Decimal
-	Difference   decimal.Decimal
+	Key         string
+	LeftAmount  decimal.Decimal
+	RightAmount decimal.Decimal
+	Difference  decimal.Decimal
 }
 
 type Exception struct {
@@ -53,4 +53,3 @@ type ReconciliationResult struct {
 type Service interface {
 	ReconcileRecords(ctx context.Context, request ReconciliationRequest) (ReconciliationResult, error)
 }
-

@@ -48,7 +48,7 @@ for spec in "${targets[@]}"; do
   echo "--- Running Fuzz: ${pkg}/${fn} (fuzztime=${fuzztime}) ---" | tee -a "$logfile"
   
   start_ts=$(date +%s)
-  out=$(go test "./internal/kernal/${pkg}" -run='^$' -fuzz="^${fn}$" -fuzztime="${fuzztime}" -count=1 2>&1)
+  out=$(go test "./internal/kernel/${pkg}" -run='^$' -fuzz="^${fn}$" -fuzztime="${fuzztime}" -count=1 2>&1)
   rc=$?
   end_ts=$(date +%s)
   duration=$((end_ts - start_ts))

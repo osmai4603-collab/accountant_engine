@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/masterdata"
 )
 
 // The kernel masterdata package intentionally exposes a smaller vocabulary

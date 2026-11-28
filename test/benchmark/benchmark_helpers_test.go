@@ -99,6 +99,15 @@ func newPostgresBench(tb testing.TB) *benchHarness {
 		config.ConnConfig.RuntimeParams = make(map[string]string)
 	}
 	config.ConnConfig.RuntimeParams["search_path"] = schema + ",public"
+	// The SLO harness drives 16 concurrent workers. pgxpool's default
+	// MaxConns (max(4, GOMAXPROCS)) would queue most workers on the pool and
+	// inflate P50/P95 without measuring the posting path. Size the pool for
+	// the certified workload and keep warm connections available.
+	config.MaxConns = 32
+	config.MinConns = 8
+	config.MaxConnIdleTime = 5 * time.Minute
+	config.MaxConnLifetime = 30 * time.Minute
+	config.HealthCheckPeriod = time.Minute
 
 	testPool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {

@@ -1,20 +1,20 @@
 package types
 
 import (
-	kernalTypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
+	kernelTypes "github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
 )
 
 const (
-	FinancialScale = kernalTypes.FinancialScale
-	InternalScale  = kernalTypes.InternalScale
+	FinancialScale = kernelTypes.FinancialScale
+	InternalScale  = kernelTypes.InternalScale
 )
 
-type Money = kernalTypes.Money
+type Money = kernelTypes.Money
 
 var (
-	NewMoney            = kernalTypes.NewMoney
-	NewMoneyFromDecimal = kernalTypes.NewMoneyFromDecimal
-	NewMoneyFromString  = kernalTypes.NewMoneyFromString
-	Zero                = kernalTypes.Zero
-	CurrencyMinorUnit   = kernalTypes.CurrencyMinorUnit
+	NewMoney            = kernelTypes.NewMoney
+	NewMoneyFromDecimal = kernelTypes.NewMoneyFromDecimal
+	NewMoneyFromString  = kernelTypes.NewMoneyFromString
+	Zero                = kernelTypes.Zero
+	CurrencyMinorUnit   = kernelTypes.CurrencyMinorUnit
 )

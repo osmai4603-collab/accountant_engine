@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
+	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
 	posting "github.com/osmai4603-collab/accounting_engine/internal/orbitals/postingcompat"
 	"github.com/shopspring/decimal"
 )

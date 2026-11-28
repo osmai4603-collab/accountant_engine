@@ -11,11 +11,11 @@
 
 ## 1. القاعدة الحاكمة
 
-النواة تنتج **ترتيباً حتمياً لمفاتيح القفل**، والمحول (أو المضيف) ينفّذ **القفل الفعلي** داخل معاملته. لا يوجد قفل داخل `internal/kernal`، ولا SQL، ولا `pgx`، ولا حالة قفل مشتركة بين الطلبات.
+النواة تنتج **ترتيباً حتمياً لمفاتيح القفل**، والمحول (أو المضيف) ينفّذ **القفل الفعلي** داخل معاملته. لا يوجد قفل داخل `internal/kernel`، ولا SQL، ولا `pgx`، ولا حالة قفل مشتركة بين الطلبات.
 
 الفجوة `G-002` كانت تنشأ من وصف دالة `ExtractAndSortAccountIDs` بأنها «تضمن قفل صفوف خالٍ من الجمود» بينما هي `sort.Slice` فقط. بعد المرحلة 8 أصبح الوصف والسلوك متطابقين:
 
-- `AccountLockKey` و`OrderedAccountKeys` في `internal/kernal/posting/lock_manager.go` يُنتجان مفاتيح نصية مرتبة، بلا حجز.
+- `AccountLockKey` و`OrderedAccountKeys` في `internal/kernel/posting/lock_manager.go` يُنتجان مفاتيح نصية مرتبة، بلا حجز.
 - `storage.LockTarget` و`WithOrderedLocks` في `pkg/spi/storage/locks.go` يُعرّفان كيف يُنفّذ المحول الحجز الفعلي.
 - `storage/memory` و`storage/postgres` يستدعيان العقد نفسه داخل `CommitPosting`.
 
@@ -62,7 +62,7 @@ v1|company=<companyID>|kind=<kind>|id=<value>
 
 | الطبقة | تملك | لا تملك |
 |---|---|---|
-| `internal/kernal/posting` | اشتقاق مفاتيح الحسابات، ترتيبها، تجميد القيد وختم النطاق/البصمات | معاملة، قفل فعلي، retry، SQL، معرفة محرك التخزين |
+| `internal/kernel/posting` | اشتقاق مفاتيح الحسابات، ترتيبها، تجميد القيد وختم النطاق/البصمات | معاملة، قفل فعلي، retry، SQL، معرفة محرك التخزين |
 | `pkg/spi/storage` | `LockTarget`، `OrderLockTargets`، `WithOrderedLocks`، `LockObserver`، `ValidateIdempotencyScope`، أخطاء محايدة | أي تنفيذ قفل خاص بمحول |
 | `storage/memory` | أقفال مسماة داخل العملية عبر `sync.Map` وقنوات حساسة للـ context | إعادة تعريف الترتيب أو تجاهل نطاق الشركة |
 | `storage/postgres` | `pg_advisory_xact_lock(hashtextextended(canonical, salt))` داخل المعاملة | هجرة مخطط جديدة؛ الأقفال الاستشارية لا تغيّر المخطط |
@@ -147,7 +147,7 @@ ExecuteWithRetry(ctx, runner, opts, policy, fn)
 
 ## 8. دليل الامتثال
 
-- `internal/kernal/posting/lock_manager_test.go`: حتمية الترتيب، عزل الشركة، عدم تغيير الإدخال، وعدم حمل حالة تحت التزامن.
+- `internal/kernel/posting/lock_manager_test.go`: حتمية الترتيب، عزل الشركة، عدم تغيير الإدخال، وعدم حمل حالة تحت التزامن.
 - `pkg/spi/storage/locks_test.go`: الشكل القانوني، التحقق، التوحيد، الحجز/التحرير، فشل الحجز، نطاق idempotency، وحد retry.
 - `test/contract_parity/phase8_concurrency_isolation_test.go`: إثبات الحجز الفعلي على المحولين، نفس الحساب، الترتيب العكسي، عاصفة replay، العكس المتزامن، تداخل الشركات، كل المنافذ، اللقطة المجمدة، وخرق النطاق.
 - `storage/postgres/phase8_isolation_test.go`: عزل RLS وقت التشغيل بمستخدم غير superuser.

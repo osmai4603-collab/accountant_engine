@@ -4,54 +4,54 @@
 package types
 
 import (
-	kernalMasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
+	kernelMasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernel/masterdata"
 )
 
-type AccountType = kernalMasterdata.AccountType
+type AccountType = kernelMasterdata.AccountType
 
 const (
-	AccountTypeAsset     = kernalMasterdata.AccountTypeAsset
-	AccountTypeLiability = kernalMasterdata.AccountTypeLiability
-	AccountTypeEquity    = kernalMasterdata.AccountTypeEquity
-	AccountTypeIncome    = kernalMasterdata.AccountTypeIncome
-	AccountTypeExpense   = kernalMasterdata.AccountTypeExpense
+	AccountTypeAsset     = kernelMasterdata.AccountTypeAsset
+	AccountTypeLiability = kernelMasterdata.AccountTypeLiability
+	AccountTypeEquity    = kernelMasterdata.AccountTypeEquity
+	AccountTypeIncome    = kernelMasterdata.AccountTypeIncome
+	AccountTypeExpense   = kernelMasterdata.AccountTypeExpense
 )
 
-type NormalBalance = kernalMasterdata.NormalBalance
+type NormalBalance = kernelMasterdata.NormalBalance
 
 const (
-	NormalBalanceDebit  = kernalMasterdata.NormalBalanceDebit
-	NormalBalanceCredit = kernalMasterdata.NormalBalanceCredit
+	NormalBalanceDebit  = kernelMasterdata.NormalBalanceDebit
+	NormalBalanceCredit = kernelMasterdata.NormalBalanceCredit
 )
 
-type FiscalYearState = kernalMasterdata.FiscalYearState
-type PeriodState = kernalMasterdata.PeriodState
-type FiscalPeriodType = kernalMasterdata.FiscalPeriodType
+type FiscalYearState = kernelMasterdata.FiscalYearState
+type PeriodState = kernelMasterdata.PeriodState
+type FiscalPeriodType = kernelMasterdata.FiscalPeriodType
 
 const (
-	FiscalYearOpen                    = kernalMasterdata.FiscalYearOpen
-	FiscalYearSoftClosed              = kernalMasterdata.FiscalYearSoftClosed
-	FiscalYearHardClosed              = kernalMasterdata.FiscalYearHardClosed
-	PeriodOpen                        = kernalMasterdata.PeriodOpen
-	PeriodSoftClosed                  = kernalMasterdata.PeriodSoftClosed
-	PeriodHardClosed                  = kernalMasterdata.PeriodHardClosed
-	FiscalPeriodTypeNormal            = kernalMasterdata.FiscalPeriodTypeNormal
-	FiscalPeriodTypeYearEndAdjustment = kernalMasterdata.FiscalPeriodTypeYearEndAdjustment
-	FiscalPeriodTypeAuditAdjustment   = kernalMasterdata.FiscalPeriodTypeAuditAdjustment
+	FiscalYearOpen                    = kernelMasterdata.FiscalYearOpen
+	FiscalYearSoftClosed              = kernelMasterdata.FiscalYearSoftClosed
+	FiscalYearHardClosed              = kernelMasterdata.FiscalYearHardClosed
+	PeriodOpen                        = kernelMasterdata.PeriodOpen
+	PeriodSoftClosed                  = kernelMasterdata.PeriodSoftClosed
+	PeriodHardClosed                  = kernelMasterdata.PeriodHardClosed
+	FiscalPeriodTypeNormal            = kernelMasterdata.FiscalPeriodTypeNormal
+	FiscalPeriodTypeYearEndAdjustment = kernelMasterdata.FiscalPeriodTypeYearEndAdjustment
+	FiscalPeriodTypeAuditAdjustment   = kernelMasterdata.FiscalPeriodTypeAuditAdjustment
 )
 
-type Account = kernalMasterdata.Account
-type FiscalYear = kernalMasterdata.FiscalYear
-type FiscalPeriod = kernalMasterdata.FiscalPeriod
+type Account = kernelMasterdata.Account
+type FiscalYear = kernelMasterdata.FiscalYear
+type FiscalPeriod = kernelMasterdata.FiscalPeriod
 
 // Public re-exports of the company-scoped analytical master data vocabulary
 // (ADR P11-02). They remain aliases so callers never import internal/*.
-type CostCenter = kernalMasterdata.CostCenter
-type AnalyticalDimensionValue = kernalMasterdata.AnalyticalDimensionValue
-type AnalyticalDimensionKind = kernalMasterdata.AnalyticalDimensionKind
+type CostCenter = kernelMasterdata.CostCenter
+type AnalyticalDimensionValue = kernelMasterdata.AnalyticalDimensionValue
+type AnalyticalDimensionKind = kernelMasterdata.AnalyticalDimensionKind
 
 const (
-	DimensionProject      = kernalMasterdata.DimensionProject
-	DimensionSegment      = kernalMasterdata.DimensionSegment
-	DimensionBusinessUnit = kernalMasterdata.DimensionBusinessUnit
+	DimensionProject      = kernelMasterdata.DimensionProject
+	DimensionSegment      = kernelMasterdata.DimensionSegment
+	DimensionBusinessUnit = kernelMasterdata.DimensionBusinessUnit
 )

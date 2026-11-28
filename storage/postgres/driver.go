@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
+	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	"github.com/osmai4603-collab/accounting_engine/pkg/spi/storage"
 )
 
@@ -18,7 +19,8 @@ var (
 
 // Driver manages the PostgreSQL connection pool and transaction lifecycle.
 type Driver struct {
-	pool *pgxpool.Pool
+	pool     *pgxpool.Pool
+	observer publicapplication.Observer
 }
 
 // NewDriver connects to PostgreSQL, verifies connectivity, applies pending migrations,
@@ -40,12 +42,34 @@ func NewDriver(ctx context.Context, connectionString string) (*Driver, error) {
 		pool.Close()
 		return nil, err
 	}
-	return &Driver{pool: pool}, nil
+	return NewDriverWithPool(pool), nil
 }
 
 // NewDriverWithPool wraps an existing pgxpool.Pool.
 func NewDriverWithPool(pool *pgxpool.Pool) *Driver {
-	return &Driver{pool: pool}
+	return &Driver{pool: pool, observer: publicapplication.NoopObserver{}}
+}
+
+// SetObserver installs an optional operational Observer. Passing nil restores
+// the no-op default. The setter is additive and does not change existing
+// constructor signatures.
+func (d *Driver) SetObserver(observer publicapplication.Observer) {
+	if d == nil {
+		return
+	}
+	if observer == nil {
+		d.observer = publicapplication.NoopObserver{}
+		return
+	}
+	d.observer = observer
+}
+
+// Observer returns the currently installed Observer.
+func (d *Driver) Observer() publicapplication.Observer {
+	if d == nil || d.observer == nil {
+		return publicapplication.NoopObserver{}
+	}
+	return d.observer
 }
 
 // EnsureSchema executes all pending migrations up to the latest version.

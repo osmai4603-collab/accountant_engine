@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/valuation"
 )
 
 var (

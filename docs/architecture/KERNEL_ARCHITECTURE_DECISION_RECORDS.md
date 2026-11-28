@@ -37,12 +37,12 @@
 
 ### السياق
 
-أثبت جرد المرحلة 0 وجود **تسع حزم فعلية** تحت `internal/kernal/**` إضافة إلى حزمة جذر تحمل charters الاستيراد فقط. مخطط الاعتماد المستخرج من `go list` يثبت أن البنية DAG بلا دورات، وأن `journal` و`ledger` تؤديان أدواراً مختلفة عن `masterdata` و`posting`.
+أثبت جرد المرحلة 0 وجود **تسع حزم فعلية** تحت `internal/kernel/**` إضافة إلى حزمة جذر تحمل charters الاستيراد فقط. مخطط الاعتماد المستخرج من `go list` يثبت أن البنية DAG بلا دورات، وأن `journal` و`ledger` تؤديان أدواراً مختلفة عن `masterdata` و`posting`.
 
 ### القرار
 
 1. **الحزم المعتمدة (تسع + حزمة جذر):**
-   - `internal/kernal` (doc-only): إعلان charter الاستيراد وحفظ الثوائق الاسمية (`doc.go`, `doc_test.go`).
+   - `internal/kernel` (doc-only): إعلان charter الاستيراد وحفظ الثوائق الاسمية (`doc.go`, `doc_test.go`).
    - `types`: القيم والمعرفات (Money، ISO 4217، التقريب، المعرفات الصلبة، الأخطاء المشتركة) — `@foundation`.
    - `apperrors`: تصنيف أخطاء مشفر (`CodedError`, `IsCode`) للتوافق العام؛ حزمة معزولة لا تستوردها حزم النواة حالياً.
    - `journal`: تعريف القيد كـ aggregate (`JournalEntry`, `EntryLine`, `EntryStatus`, `Clone` الدفاعي) — يعتمد على `types`.
@@ -59,7 +59,7 @@
    - `apperrors` تبقى للتوافق العام؛ لا تُحذف ولا تُوسَّع دون ADR جديد.
    - charter الاستيراد الفعلي: **stdlib + uuid + decimal + حزم kernel الأخرى فقط**.
    - حدود `pkg/api/v1` و`pkg/spi` و`pkg/sdk` تبقى كما ثبّتها [ADR P7-01](#adr-p7-01).
-3. **ملحق المرحلة 4 (2026-11-22):** أُضيف `internal/kernal/ledger/projection.go` لتوفير إسقاطات قراءة حتمية مشتقة من القيود المرحلة، فأصبح اعتماد `ledger` هو `journal, types` دون إنشاء دورة أو نقل مسؤولية التخزين.
+3. **ملحق المرحلة 4 (2026-11-22):** أُضيف `internal/kernel/ledger/projection.go` لتوفير إسقاطات قراءة حتمية مشتقة من القيود المرحلة، فأصبح اعتماد `ledger` هو `journal, types` دون إنشاء دورة أو نقل مسؤولية التخزين.
 
 ### البدائل المرفوضة
 
@@ -76,7 +76,7 @@
 - **الحالة:** مقبول (Accepted) — قرار معماري ملزم؛ لا يغيّر قاعدة محاسبية قائمة.
 - **التاريخ (UTC):** 2026-11-21T21:04:06Z
 - **المالك:** مالك معمارية النواة + مالك عقود التخزين
-- **المرجع:** ~~الخطة~~ *(حُذف مجلد `plans/`)*، الفجوة `G-004` في ~~سجل الفجوات~~ *(حُذف)*، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
+- **المرجع:** ~~الخطة~~ *(حُذف مجلد `plans/`)*، الفجوة `G-004` في ~~سجل الفجوات~~ *(حُذف)*، [ثوابت النواة](../../internal/kernel/KERNEL_ACCOUNTING_INVARIANTS.md)
 
 ### القرار
 
@@ -84,7 +84,7 @@
 2. **الانتقالات المسموحة:** `Draft → Posted → Reversed` (عبر قيد عكسي مرتبط فقط)، ويُضاف `Draft → Cancelled` للمسودات قبل الترحيل وفق [JRN-007](../specifications/kernel/JOURNAL_ENTRY_DOMAIN_SPECIFICATION_v1.2.0.md#jrn-007) (بـ `ActorID` وسبب وختم `CancelledAt`/`CancelledBy`/`CancellationReason` عبر `Cancel()`، دون أثر مالي في الأستاذ العام، ويُرفض إلغاء قيد مرحّل أو معكوس أو ملغى مسبقاً، كما تتضمن قيود `account_moves` في PostgreSQL الحالة `'cancelled'`). لا تحديث ولا حذف للقيد المرحّل (`RULE-KERNEL-011`, `RULE-KERNEL-012`).
 3. **إعادة بناء GL والرصيد بالعملة الأجنبية (`LDG-003`):** قراءة القيود المرحلة (`posted`/`reversed`) مع استبعاد `draft` و`cancelled` لكل نطاق شركة، وتطبيق ترتيب كلي حتمي `(EffectiveDate UTC, SequenceNumber, JournalEntryID.String())` للقيود و`EntryLine.ID.String()` للأسطر، ثم تجميع `FunctionalDebit` و`FunctionalCredit` لكل `AccountID` ولكل عملة وظيفية عبر `RebuildAccountBalances`؛ ولأغراض إعادة التقييم (`IAS 21.23(a)`) يوفر `RebuildForeignCurrencyBalances` (والميناء الاختياري `storage.TransactionBalanceReader`) صافي رصيد عملة المعاملة الموقّع إلى جانب الرصيد الوظيفي دون تغيير دلالات `BalanceReader` القائمة (`ADR P11-03`).
 4. **نطاق البيانات:** مفتاح النطاق الملزم هو `CompanyID` (`masterdata.ValidateCompanyScope`). `JournalID` يقيّد اليومية والتسلسل داخل الشركة. لا يوجد `BookID` أو `LedgerID` في النواة.
-5. **ملحق المرحلة 4 (2026-11-22):** إضافة `ledger.PostedMovement` و`ledger.ProjectPostedMovements` و`ledger.RebuildAccountBalances` كإسقاط قراءة حتمي وإعادة بناء للأرصدة دون تخزين رصيد مادي داخل `internal/kernal`.
+5. **ملحق المرحلة 4 (2026-11-22):** إضافة `ledger.PostedMovement` و`ledger.ProjectPostedMovements` و`ledger.RebuildAccountBalances` كإسقاط قراءة حتمي وإعادة بناء للأرصدة دون تخزين رصيد مادي داخل `internal/kernel`.
 6. **ملحق المرحلة 6 (2026-11-22):** حماية `PostEntry` عبر قراءة واحدة نافذة زمنياً (`ResolvePostableAccountAsOf`)، نسخة مجمدة دفاعياً قبل أي قراءة، عكس لا يكتب على الأصل ويحسب فترة العكس من تاريخه، وضبط الوقت عبر `systemClock{}.Now()` أو `Clock` المحقون.
 7. **ملحق المرحلة 7 (2026-11-22):** تختم النواة `IdempotencyScope` وبصمتي الطلب وحمولة المتصل قبل التفويض؛ وحدة عمل المحول ذرية بالكامل دون نجاح جزئي.
 
@@ -101,7 +101,7 @@
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-21T21:04:06Z
 - **المالك:** مالك معمارية النواة + مالك السطح العام
-- **المرجع:** [ADR P1-01](#adr-p1-01)، [ADR P1-02](#adr-p1-02)، [ADR P7-01](#adr-p7-01)، [ثوابت النواة 016–020](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
+- **المرجع:** [ADR P1-01](#adr-p1-01)، [ADR P1-02](#adr-p1-02)، [ADR P7-01](#adr-p7-01)، [ثوابت النواة 016–020](../../internal/kernel/KERNEL_ACCOUNTING_INVARIANTS.md)
 
 ### القرار
 
@@ -112,7 +112,7 @@
    - حقول `masterdata.Account` الـ13 الإضافية (`EffectiveFrom/To`, `IsControlAccount`, `IsContraAccount`, `RequiresCostCenter`, `IsMonetary`, `IsCashEquivalent`, `IsNonCashAdjustment`, `CashFlowActivity`, `IFRSCategory`, `DisplayOrder`, `CreatedAt`, `UpdatedAt`) لا تُسقَط بصمت في سياق المجال وتُوثّق صراحةً في اختبارَي التطابق الانعكاسي (`G-016`).
    - `AccountTypeRevenue` يبقى اسماً مستعاراً لـ `AccountTypeIncome` (`"income"`).
    - `ledger.FiscalPeriod.Contains` لا تُستخدم لاكتشاف فترة الترحيل.
-4. **ملحق المرحلة 3 (2026-11-22):** أُضيف `TestReferenceModelsDoNotDriftSilently` في `internal/kernal/masterdata/masterdata_integrity_test.go` للتحقق الانعكاسي الآلي من عدم انحراف حقول `ledger` عن `masterdata`.
+4. **ملحق المرحلة 3 (2026-11-22):** أُضيف `TestReferenceModelsDoNotDriftSilently` في `internal/kernel/masterdata/masterdata_integrity_test.go` للتحقق الانعكاسي الآلي من عدم انحراف حقول `ledger` عن `masterdata`.
 
 ---
 
@@ -123,7 +123,7 @@
 - **الحالة:** مقبول (Accepted) — تثبيت وتوثيق لسلوك قائم؛ **لا تغيير في أي قاعدة محاسبية أو توقيع عام**.
 - **التاريخ (UTC):** 2026-11-22
 - **المالك:** مالك نواة `types` + مالك بوابة جودة النواة
-- **المرجع:** [مصفوفة الدقة المالية](../contracts/KERNEL_MONETARY_PRECISION_MATRIX.md)، [ثوابت النواة](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
+- **المرجع:** [مصفوفة الدقة المالية](../contracts/KERNEL_MONETARY_PRECISION_MATRIX.md)، [ثوابت النواة](../../internal/kernel/KERNEL_ACCOUNTING_INVARIANTS.md)
 
 ### القرار
 
@@ -135,7 +135,7 @@
    - **الوحدة الصغرى:** `MinorUnitsExact()` يفشل مغلقاً بـ `ErrSubMinorUnitAmount`؛ `MinorUnits()` يقرّب ويُسجّل الفروق عبر `RoundingDifference()`.
    - **المقارنة والعمليات:** مقارنة عملتين مختلفتين تُعيد `false`؛ الجمع والطرح يُعيدان `ErrCurrencyMismatch`. سعر العملة لنفسها `1` مع بقاء التحقق من الرمز والتاريخ والنوع.
    - **القيم غير قابلة للتغيير:** `Money` و`Currency` قيَم immutable.
-3. **حظر Float:** يُمنع `float32` و`float64` و`decimal.NewFromFloat` في **كل** ملفات النواة بما فيها الاختبارات (مفروض بفحص AST في `internal/kernal/doc_test.go`). الواجهتان المتساهلتان `Money.RoundForPosting()` و`CurrencyMinorUnit()` تبقيان للتوافق العام فقط ويُمنع استدعاؤهما من شيفرة النواة الإنتاجية.
+3. **حظر Float:** يُمنع `float32` و`float64` و`decimal.NewFromFloat` في **كل** ملفات النواة بما فيها الاختبارات (مفروض بفحص AST في `internal/kernel/doc_test.go`). الواجهتان المتساهلتان `Money.RoundForPosting()` و`CurrencyMinorUnit()` تبقيان للتوافق العام فقط ويُمنع استدعاؤهما من شيفرة النواة الإنتاجية.
 
 ---
 
@@ -145,8 +145,8 @@
 
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
-- **المالك:** مالك معمارية النواة + مالك `internal/kernal/masterdata`
-- **المرجع:** [تقرير التحقق النهائي](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، [قواعد الثوابت 016–020](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
+- **المالك:** مالك معمارية النواة + مالك `internal/kernel/masterdata`
+- **المرجع:** [تقرير التحقق النهائي](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، [قواعد الثوابت 016–020](../../internal/kernel/KERNEL_ACCOUNTING_INVARIANTS.md)
 
 ### القرار
 
@@ -166,8 +166,8 @@
 
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
-- **المالك:** مالك معمارية النواة + مالك `internal/kernal/policy`
-- **المرجع:** [تقرير التحقق النهائي](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، [RULE-KERNEL-010/019](../../internal/kernal/KERNEL_ACCOUNTING_INVARIANTS.md)
+- **المالك:** مالك معمارية النواة + مالك `internal/kernel/policy`
+- **المرجع:** [تقرير التحقق النهائي](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)، [RULE-KERNEL-010/019](../../internal/kernel/KERNEL_ACCOUNTING_INVARIANTS.md)
 
 ### القرار
 
@@ -190,10 +190,10 @@
 
 ### القرار
 
-1. **جسر إعادة تصدير واحد فقط:** `pkg/api/v1/...` هي الحزمة الوحيدة المسموح لها باستيراد `internal/kernal/*` عبر أسماء مستعارة (`type X = kernal...X`).
+1. **جسر إعادة تصدير واحد فقط:** `pkg/api/v1/...` هي الحزمة الوحيدة المسموح لها باستيراد `internal/kernel/*` عبر أسماء مستعارة (`type X = kernel...X`).
 2. **حظر مطلق على `pkg/spi/*`:** لا تُستورد أي حزمة `internal/*` من `pkg/spi/**`.
-3. **سماح مشروط لـ `pkg/sdk`:** يجوز لـ `pkg/sdk` استيراد `internal/kernal/*` داخلياً بشرط ألا يظهر أي نوع من `internal/*` في توقيعاته المُصدّرة إلا المعاد تصديره عبر الجسر (`R2c`).
-4. **نظافة النواة:** تحظر `R1` و`R3a`–`R3d` أي اعتماد من `internal/kernal/*` على النقل أو `internal/orbitals/*` أو `pkg/*` أو `storage/*` أو `database/sql`/`pgx`.
+3. **سماح مشروط لـ `pkg/sdk`:** يجوز لـ `pkg/sdk` استيراد `internal/kernel/*` داخلياً بشرط ألا يظهر أي نوع من `internal/*` في توقيعاته المُصدّرة إلا المعاد تصديره عبر الجسر (`R2c`).
+4. **نظافة النواة:** تحظر `R1` و`R3a`–`R3d` أي اعتماد من `internal/kernel/*` على النقل أو `internal/orbitals/*` أو `pkg/*` أو `storage/*` أو `database/sql`/`pgx`.
 5. **التنفيذ الآلي:** `R2a`، `R2b`، و`R2c` عبر `scripts/internalapi/main.go -bridge=...`.
 6. **خطة الهجرة إذا رُفض الاستثناء مستقبلاً:** `v1.0.x` تثبيت الجسر واللقطة في `docs/api/v1.snapshot` ← `v1.1` تعريف DTOs مستقلة ← `v1.2` تحويل توقيعات `pkg/sdk` و`pkg/spi` ← `v2.0` حذف الأسماء المستعارة.
 
@@ -205,7 +205,7 @@
 
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
-- **المالك:** مالك معمارية النواة + مالك `internal/kernal/posting` + مالكو المحولات
+- **المالك:** مالك معمارية النواة + مالك `internal/kernel/posting` + مالكو المحولات
 - **المرجع:** [نموذج التزامن](../contracts/KERNEL_CONCURRENCY_MODEL.md)، [عقد القفل](../contracts/KERNEL_LOCKING_CONTRACT.md)، [تقرير العزل متعدد الشركات](../reports/multi_company_isolation_report.md)، الفجوة `G-002`
 
 ### القرار
@@ -225,7 +225,7 @@
 
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
-- **المالك:** مالك معمارية النواة + مالك `internal/kernal/valuation` + مضيف التخزين
+- **المالك:** مالك معمارية النواة + مالك `internal/kernel/valuation` + مضيف التخزين
 - **المرجع:** [مصفوفة قواعد التقييم](../contracts/KERNEL_VALUATION_RULES_MATRIX.md)، [عقد idempotency](../contracts/KERNEL_IDEMPOTENCY_CONTRACT.md)
 
 ### القرار
@@ -244,7 +244,7 @@
 
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-22
-- **المالك:** مالك `internal/kernal/governance` + مالكو المحولات + مالك العمليات
+- **المالك:** مالك `internal/kernel/governance` + مالكو المحولات + مالك العمليات
 - **المرجع:** [نموذج تهديد التدقيق](../contracts/KERNEL_AUDIT_THREAT_MODEL.md)، [عقد مستودع التدقيق](../contracts/KERNEL_AUDIT_REPOSITORY_CONTRACT.md)، الفجوتان `G-013` و`G-025`
 
 ### القرار
@@ -329,11 +329,11 @@
 - **الحالة:** مقبول (Accepted)
 - **التاريخ (UTC):** 2026-11-28
 - **المالك:** مالك معمارية النواة + `ledger` + `storage` + `sdk`
-- **المرجع:** `internal/kernal/ledger/doc.go`، `pkg/spi/storage/context.go`
+- **المرجع:** `internal/kernel/ledger/doc.go`، `pkg/spi/storage/context.go`
 
 ### السياق
 
-كانت النواة ومحولات التخزين تفرض العزل على مستوى `CompanyID` فقط، مع توثيق غياب `BookID` / `LedgerID` كقيد مؤجل في `internal/kernal/ledger/doc.go`. تتطلب المؤسسات المتعددة المعايير (مثل دفتر `IFRS` ودفتر `Statutory/Tax` لنفس الشركة) عزلاً صريحاً في القيود والأرصدة ومفاتيح Idempotency والتدقيق والتقارير دون كسر المستهلكين الأحاديي الدفتر.
+كانت النواة ومحولات التخزين تفرض العزل على مستوى `CompanyID` فقط، مع توثيق غياب `BookID` / `LedgerID` كقيد مؤجل في `internal/kernel/ledger/doc.go`. تتطلب المؤسسات المتعددة المعايير (مثل دفتر `IFRS` ودفتر `Statutory/Tax` لنفس الشركة) عزلاً صريحاً في القيود والأرصدة ومفاتيح Idempotency والتدقيق والتقارير دون كسر المستهلكين الأحاديي الدفتر.
 
 ### القرار
 
@@ -355,8 +355,8 @@
 
 ### القرار
 
-1. إبقاء `internal/kernal/types/errors.go` محصوراً في أخطاء التمثيل المالي والعملات الستة فقط (`ErrCurrencyMismatch`, `ErrInvalidCurrency`, `ErrInvalidAmount`, `ErrAmountExceedsPrecision`, `ErrSubMinorUnitAmount`, `ErrNegativeAmountProhibited`).
-2. نقل أخطاء الفترات والحسابات إلى `internal/kernal/masterdata/errors.go`، وأخطاء القيد ودورة حياته إلى `internal/kernal/journal/errors.go`، وأخطاء التوازن وسطوح الترحيل إلى `internal/kernal/posting/errors.go`.
+1. إبقاء `internal/kernel/types/errors.go` محصوراً في أخطاء التمثيل المالي والعملات الستة فقط (`ErrCurrencyMismatch`, `ErrInvalidCurrency`, `ErrInvalidAmount`, `ErrAmountExceedsPrecision`, `ErrSubMinorUnitAmount`, `ErrNegativeAmountProhibited`).
+2. نقل أخطاء الفترات والحسابات إلى `internal/kernel/masterdata/errors.go`، وأخطاء القيد ودورة حياته إلى `internal/kernel/journal/errors.go`، وأخطاء التوازن وسطوح الترحيل إلى `internal/kernel/posting/errors.go`.
 3. الحفاظ على التوافق الرجعي للسطح العام في `pkg/api/v1/types/errors.go` عبر إعادة التصدير من الحزم المالكة الجديدة، مع تحديث `pkg/sdk` والمستهلكين الداخليين.
 
 ---
@@ -372,9 +372,9 @@
 
 ### القرار
 
-1. نقل `IdempotencyOperation`, `IdempotencyScope`, وثوابت العمليات (`IdempotencyPosting`, `IdempotencyReversal`, `IdempotencyRevaluation`) و`ErrIdempotencyScopeRequired` إلى `internal/kernal/types/idempotency.go` مع الإبقاء على aliases في `posting/transaction.go`.
-2. إزالة استيراد `posting` من كود الإنتاج في `internal/kernal/valuation/`، وتعريف واجهتين مجردتين `EntryValidator` و`ReversalBuilder` في `valuation` مع محولات تنفيذية (`EntryValidatorAdapter`, `ReversalBuilderAdapter`) في `posting/valuation_adapter.go`.
-3. نقل `ErrRevaluationAlreadyApplied` و`ErrInvalidAdjustingEntryMetadata` الخاصة بالتقييم إلى `internal/kernal/valuation/errors.go`.
+1. نقل `IdempotencyOperation`, `IdempotencyScope`, وثوابت العمليات (`IdempotencyPosting`, `IdempotencyReversal`, `IdempotencyRevaluation`) و`ErrIdempotencyScopeRequired` إلى `internal/kernel/types/idempotency.go` مع الإبقاء على aliases في `posting/transaction.go`.
+2. إزالة استيراد `posting` من كود الإنتاج في `internal/kernel/valuation/`، وتعريف واجهتين مجردتين `EntryValidator` و`ReversalBuilder` في `valuation` مع محولات تنفيذية (`EntryValidatorAdapter`, `ReversalBuilderAdapter`) في `posting/valuation_adapter.go`.
+3. نقل `ErrRevaluationAlreadyApplied` و`ErrInvalidAdjustingEntryMetadata` الخاصة بالتقييم إلى `internal/kernel/valuation/errors.go`.
 
 ---
 

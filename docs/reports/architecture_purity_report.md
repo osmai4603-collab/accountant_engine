@@ -14,12 +14,12 @@ Architecture verification (module: github.com/osmai4603-collab/accounting_engine
 -------------------------------------------------------------
   [OK]   R1: internal/* free of net/http, grpc and protobuf
   [OK]   R2a: pkg/spi/* free of internal/* imports
-  [OK]   R2b: pkg/api/* internal imports limited to internal/kernal/*
+  [OK]   R2b: pkg/api/* internal imports limited to internal/kernel/*
   [OK]   R2c: exported API free of unbridged internal/* type exposure
-  [OK]   R3a: internal/kernal/* free of internal/orbitals/* imports
-  [OK]   R3b: internal/kernal/* free of pkg/* imports
-  [OK]   R3c: internal/kernal/* free of concrete storage/* imports
-  [OK]   R3d: internal/kernal/* free of database/sql and pgx
+  [OK]   R3a: internal/kernel/* free of internal/orbitals/* imports
+  [OK]   R3b: internal/kernel/* free of pkg/* imports
+  [OK]   R3c: internal/kernel/* free of concrete storage/* imports
+  [OK]   R3d: internal/kernel/* free of database/sql and pgx
   [OK]   R4: no cmd/ or proto/ directories
   [OK]   R5: go.mod free of grpc, protobuf, aws-sdk and net/http
   [OK]   R6: package graph resolves without import cycles
@@ -32,10 +32,10 @@ RESULT: PASS - clean architectural base
 | Rule | Enforcement |
 | :--- | :--- |
 | `R2a` | `grep` over `pkg/spi/**/*.go` for any `internal/...` import path. Zero hits. |
-| `R2b` | `go list -f '{{range .Imports}}...'` over `./pkg/api/...`; only `internal/kernal/*` accepted. Zero other hits. |
+| `R2b` | `go list -f '{{range .Imports}}...'` over `./pkg/api/...`; only `internal/kernel/*` accepted. Zero other hits. |
 | `R2c` | `go run ./scripts/internalapi -bridge=<go list ./pkg/api/v1/...> <go list ./pkg/sdk/... ./pkg/spi/... ./storage/...>` → 0 exposures. |
 
-`R2c` initially reported 299 exposures because the `source` importer resolves bridge aliases such as `types.Account = kernalMasterdata.Account` into their internal named objects before inspection. The checker therefore builds an allow-list from the exported names of every `pkg/api/v1/...` package and exempts only those named objects. All 299 were attributable to the documented bridge after the refactor of `pkg/spi/masterdata/masterdata.go` to `pkg/api/v1/types`; no raw `internal/*` type remains in a non-bridge exported signature.
+`R2c` initially reported 299 exposures because the `source` importer resolves bridge aliases such as `types.Account = kernelMasterdata.Account` into their internal named objects before inspection. The checker therefore builds an allow-list from the exported names of every `pkg/api/v1/...` package and exempts only those named objects. All 299 were attributable to the documented bridge after the refactor of `pkg/spi/masterdata/masterdata.go` to `pkg/api/v1/types`; no raw `internal/*` type remains in a non-bridge exported signature.
 
 ## Dependency evidence
 

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/masterdata"
 )
 
 // The kernel masterdata package models IFRS categories as free-form strings

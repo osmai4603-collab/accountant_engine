@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/policy"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/policy"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/posting"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/valuation"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	publicmasterdata "github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"

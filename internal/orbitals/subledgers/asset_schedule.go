@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
+	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
 	apisubledger "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/subledger"
 	apitypes "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	spisubledger "github.com/osmai4603-collab/accounting_engine/pkg/spi/subledger"

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	kernalposting "github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
+	kernelposting "github.com/osmai4603-collab/accounting_engine/internal/kernel/posting"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/journal"
 	"github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	"github.com/osmai4603-collab/accounting_engine/pkg/sdk"
@@ -500,7 +500,7 @@ func TestPhase11_G022_SDKFailsClosedWithoutDimensionCapabilities(t *testing.T) {
 		if err == nil {
 			t.Fatal("posting with dimensions succeeded without a dimension reader")
 		}
-		if !errors.Is(err, kernalposting.ErrDimensionReaderRequired) &&
+		if !errors.Is(err, kernelposting.ErrDimensionReaderRequired) &&
 			!strings.Contains(strings.ToLower(err.Error()), "dimension reader is required") {
 			t.Fatalf("error = %v, want ErrDimensionReaderRequired", err)
 		}

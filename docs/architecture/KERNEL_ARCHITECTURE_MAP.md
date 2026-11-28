@@ -17,16 +17,16 @@ technical_terms: "en"
 
 | الحزمة | الملفات غير الاختبارية | المسؤولية | لا يملك |
 | --- | --- | --- | --- |
-| `internal/kernal` | `doc.go` (+ `doc_test.go`) | charter الاستيراد والفحوص المعمارية | أي منطق مجال |
-| `internal/kernal/types` | `money.go`, `currency.go`, `errors.go`, `identifiers.go`, `idempotency.go`, `rounding.go`, `doc.go` | Money/double-entry primitives، ISO 4217، المعرفات، عقود Idempotency، التقريب | تحقق القيد أو حفظ |
-| `internal/kernal/apperrors` | `errors.go`, `doc.go` | `CodedError`, `IsCode` وتغليف أخطاء المجال القانونية | استخداماً داخل النواة حالياً |
-| `internal/kernal/journal` | `entry.go`, `errors.go`, `doc.go` | aggregate القيد: الحقول/الحالات/الروابط/`Clone`/أخطاء دورة الحياة | التوازن، الحفظ |
-| `internal/kernal/ledger` | `account.go`, `period.go`, `projection.go`, `doc.go` | DTO مرجعي لـ `pkg/api/v1/ledger` + إسقاطات قراءة حتمية مُشتقة من القيود المرحلة | تخزين حركة/رصيد مادي، تقارير، تحقق أهلية |
-| `internal/kernal/masterdata` | `types.go`, `account.go`, `coa.go`, `company_scope.go`, `cost_center.go`, `dimension.go`, `errors.go`, `fiscal_calendar.go`, `journal.go`, `ports.go`, `doc.go` | الحقيقة المخولة لـ Company/COA/Journal/Calendar/Dimensions + Reader ports + أخطاء المجال | حفظ ملموس أو تقارير |
-| `internal/kernal/governance` | `audit_chain.go`, `verifier.go`, `doc.go` | سلسلة تدقيق ذرية ولقطة تحقق/checkpoint خارجي | أرصدة أو قيود |
-| `internal/kernal/policy` | `eligibility.go`, `posting_rules.go`, `doc.go` | سياسات نافذة زمنياً ومحصورة بالشركة، أهلية الحساب/الأبعاد | موافقات مستخدمين أو RBAC |
-| `internal/kernal/posting` | `entry_validation.go`, `errors.go`, `pipeline.go`, `rounding.go`, `reversal.go`, `adjusting.go`, `lock_manager.go`, `valuation_adapter.go`, `doc.go` | `PostEntry` كنقطة تحقق مركزية، التقريب، العكس، ترتيب المفاتيح، تفويض الحفظ، محولات `valuation` | SQL/أقفال فعلية/تخزين رصيد |
-| `internal/kernal/valuation` | `exchange_rate.go`, `conversion.go`, `errors.go`, `revaluation.go`, `doc.go` | أسعار صرف وتحويل وإعادة تقييم وتوليد قيد (معزولة عن `posting` عبر واجهات) | مزود أسعار خارجي أو شبكة |
+| `internal/kernel` | `doc.go` (+ `doc_test.go`) | charter الاستيراد والفحوص المعمارية | أي منطق مجال |
+| `internal/kernel/types` | `money.go`, `currency.go`, `errors.go`, `identifiers.go`, `idempotency.go`, `rounding.go`, `doc.go` | Money/double-entry primitives، ISO 4217، المعرفات، عقود Idempotency، التقريب | تحقق القيد أو حفظ |
+| `internal/kernel/apperrors` | `errors.go`, `doc.go` | `CodedError`, `IsCode` وتغليف أخطاء المجال القانونية | استخداماً داخل النواة حالياً |
+| `internal/kernel/journal` | `entry.go`, `errors.go`, `doc.go` | aggregate القيد: الحقول/الحالات/الروابط/`Clone`/أخطاء دورة الحياة | التوازن، الحفظ |
+| `internal/kernel/ledger` | `account.go`, `period.go`, `projection.go`, `doc.go` | DTO مرجعي لـ `pkg/api/v1/ledger` + إسقاطات قراءة حتمية مُشتقة من القيود المرحلة | تخزين حركة/رصيد مادي، تقارير، تحقق أهلية |
+| `internal/kernel/masterdata` | `types.go`, `account.go`, `coa.go`, `company_scope.go`, `cost_center.go`, `dimension.go`, `errors.go`, `fiscal_calendar.go`, `journal.go`, `ports.go`, `doc.go` | الحقيقة المخولة لـ Company/COA/Journal/Calendar/Dimensions + Reader ports + أخطاء المجال | حفظ ملموس أو تقارير |
+| `internal/kernel/governance` | `audit_chain.go`, `verifier.go`, `doc.go` | سلسلة تدقيق ذرية ولقطة تحقق/checkpoint خارجي | أرصدة أو قيود |
+| `internal/kernel/policy` | `eligibility.go`, `posting_rules.go`, `doc.go` | سياسات نافذة زمنياً ومحصورة بالشركة، أهلية الحساب/الأبعاد | موافقات مستخدمين أو RBAC |
+| `internal/kernel/posting` | `entry_validation.go`, `errors.go`, `pipeline.go`, `rounding.go`, `reversal.go`, `adjusting.go`, `lock_manager.go`, `valuation_adapter.go`, `doc.go` | `PostEntry` كنقطة تحقق مركزية، التقريب، العكس، ترتيب المفاتيح، تفويض الحفظ، محولات `valuation` | SQL/أقفال فعلية/تخزين رصيد |
+| `internal/kernel/valuation` | `exchange_rate.go`, `conversion.go`, `errors.go`, `revaluation.go`, `doc.go` | أسعار صرف وتحويل وإعادة تقييم وتوليد قيد (معزولة عن `posting` عبر واجهات) | مزود أسعار خارجي أو شبكة |
 
 ### 1.1 عقود Reader بعد المرحلة 3
 
@@ -42,7 +42,7 @@ technical_terms: "en"
 
 ## 2. مخطط الاعتماد الفعلي
 
-المصدر: `go list -f '{{.ImportPath}} -> {{join .Imports " "}}' ./internal/kernal/...`. لا دورات استيراد؛ البنية DAG صارمة.
+المصدر: `go list -f '{{.ImportPath}} -> {{join .Imports " "}}' ./internal/kernel/...`. لا دورات استيراد؛ البنية DAG صارمة.
 
 ```mermaid
 flowchart BT
@@ -63,7 +63,7 @@ flowchart BT
     M --> V
     PO --> AE["apperrors"]
     M --> AE
-    ROOT["kernal root (doc-only)"]
+    ROOT["kernel root (doc-only)"]
 ```
 
 | الطبقة | الحزم | قاعدة الاعتماد |
@@ -98,10 +98,10 @@ flowchart LR
 
 | المسار | الحكم | دليل التنفيذ |
 | --- | --- | --- |
-| `pkg/api/v1/...` | الجسر الوحيد المسموح له باستيراد `internal/kernal/*` لإعادة التصدير | `R2b` + `docs/api/v1.snapshot` |
+| `pkg/api/v1/...` | الجسر الوحيد المسموح له باستيراد `internal/kernel/*` لإعادة التصدير | `R2b` + `docs/api/v1.snapshot` |
 | `pkg/spi/**` | ممنوع استيراد أي `internal/*` | `R2a` |
 | `pkg/sdk/**` | يسمح بالاستيراد كتفصيل تنفيذي فقط؛ لا تسريب نوع غير مُعاد تصديره في التوقيعات المُصدّرة | `R2c` |
-| `internal/kernal/**` | نظيف من التخزين والشبكة والسطح العام | `R1`, `R3a–R3d`, `doc_test.go` |
+| `internal/kernel/**` | نظيف من التخزين والشبكة والسطح العام | `R1`, `R3a–R3d`, `doc_test.go` |
 
 نتيجة التشغيل في المرحلة 1: `./scripts/verify_architecture.sh` → `PASS` بـ11 قاعدة (لا تخفيض).
 
@@ -113,5 +113,5 @@ flowchart LR
 | --- | --- |
 | `G-003` خريطة الحزم في الوثيقة المعمارية | مغلقة: هذه الوثيقة + تحديث Target Kernel |
 | `G-004` مصدر حقيقة GL | مغلقة من جانب القرار/التوثيق؛ إثبات إعادة البناء التنفيذي يبقى في المرحلة 4/12 |
-| `G-008` غياب `doc.go` في `apperrors` | مغلقة: `internal/kernal/apperrors/doc.go` |
+| `G-008` غياب `doc.go` في `apperrors` | مغلقة: `internal/kernel/apperrors/doc.go` |
 | `G-016` انحراف النماذج المرجعية (جديدة) | مغلقة جزئياً/أُضيف اختبار انعكاسي (Medium، المرحلة 3/11): `TestReferenceModelsDoNotDriftSilently` يربط `masterdata` و`ledger` |

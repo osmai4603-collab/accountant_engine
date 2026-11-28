@@ -54,7 +54,7 @@ go test -race ./...
 | توافق API | `./scripts/check_api_compat.sh` | exit 0 |
 | السباقات | `go test -race ./...` | 0 Data Races |
 | الذرية والتكافؤ | اختبارات التكافؤ في [مجموعة اختبارات العقد](../../contracts/KERNEL_CONTRACT_TEST_SUITE.md) | 0 Partial Writes |
-| التغطية | `scripts/check_coverage.sh coverage.out` | ≥ 80% **للمستودع كاملاً**؛ هذه ليست بوابة النواة: تغطية `internal/kernal/...` المستهدفة > 95% ([معايير النجاح](../../rules/ACCOUNTING_ENGINE_SUCCESS_CRITERIA.md))، و`coverage.out` الكامل سجّل 52.5% في [سجل الاستثناءات](../../../internal/kernal/KERNEL_COVERAGE_EXCEPTIONS.md). لا تُستخدم تغطية وحدها كشرط GO. |
+| التغطية | `scripts/check_coverage.sh coverage.out` | ≥ 80% **للمستودع كاملاً**؛ هذه ليست بوابة النواة: تغطية `internal/kernel/...` المستهدفة > 95% ([معايير النجاح](../../rules/ACCOUNTING_ENGINE_SUCCESS_CRITERIA.md))، و`coverage.out` الكامل سجّل 52.5% في [سجل الاستثناءات](../../../internal/kernel/KERNEL_COVERAGE_EXCEPTIONS.md). لا تُستخدم تغطية وحدها كشرط GO. |
 | الاستعادة | `go test -v ./test/dr` | PASS |
 
 لا يُغلق الحادث حتى تتوفر وثيقة اعتماد إصدار **سارية** بحالة `GO` للإصدار المرجعي بتوقيع جهة معتمدة معلومة. [اعتماد الإصدار الحالي](../../reports/KERNEL_RELEASE_SIGNOFF.md) مُلغى (`SUPERSEDED`) ولا يكفي لإغلاق الحادث؛ بدلاً منه يُسجَّل في سجل الحادث قرار `NO-GO`/مؤجل مع موانعه حتى صدور اعتماد جديد يغطي بوابات `G01–G11`. أرفق الإصدار، الهجرة، القرار، الأثر، ونتائج التحقق في سجل الحادث، وأضف اختبار انحدار يمنع تكرار السبب.

@@ -4,7 +4,7 @@
 - **المرحلة:** 2 — سلامة الأنواع والقيم المالية
 - **القرار المرجعي:** [ADR P2-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p2-01)
 - **الخطة:** ~~KERNEL_REMEDIATION_EXECUTION_PLAN.md~~ *(حُذف مجلد `plans/`)*، المرحلة 2 مهمة 1
-- **النطاق:** `internal/kernal/types` ونقاط استخدام `Money` في `journal` و`posting` و`valuation`
+- **النطاق:** `internal/kernel/types` ونقاط استخدام `Money` في `journal` و`posting` و`valuation`
 - **الحالة:** مصفوفة تنفيذية مُثبتة بالاختبارات؛ لا تغيير في السلوك المالي القائم
 
 ---
@@ -23,7 +23,7 @@
 | `CurrencyCode` | `string` | رمز عملة مكوّن من 3 أحرف | رموز السجل + `XXX` كعلامة منع | `normalizeCurrency` (upper + trim) | `currency.go:180`, `currency.go:302-308` |
 | `XXX` | `"999"` sentinel | عملة محظورة مالياً | `MinorUnit = 0`, رمز فارغ | `LookupCurrency` succeeds, لكن بناء `Money` يفشل بـ`ErrInvalidCurrency` | `currency.go:275`, `money.go:67-70` |
 
-> لا يوجد `float32` أو `float64` في أي مسار مالي داخل النواة، بما في ذلك الاختبارات؛ يُفرض ذلك بفحص AST في `internal/kernal/doc_test.go` (`TestKernelFinancialCodeHasNoFloatConversions`).
+> لا يوجد `float32` أو `float64` في أي مسار مالي داخل النواة، بما في ذلك الاختبارات؛ يُفرض ذلك بفحص AST في `internal/kernel/doc_test.go` (`TestKernelFinancialCodeHasNoFloatConversions`).
 
 ## 2. قواعد البناء والرفض
 

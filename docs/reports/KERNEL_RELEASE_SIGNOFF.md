@@ -5,7 +5,7 @@
 
 - **تاريخ الاعتماد:** 2026-11-28
 - **الحالة النهائية:** **`SUPERSEDED — ملغاة`** (حلت محلها [`KERNEL_RELEASE_DECISION_2026-11-27.md`](KERNEL_RELEASE_DECISION_2026-11-27.md))
-- **النطاق المعتمد:** النواة المحاسبية (`internal/kernal`), العقود العامة (`pkg/api`, `pkg/spi`, `pkg/sdk`), محولا التخزين (`storage/memory`, `storage/postgres`), المدارات المنشورة (`consolidation`, `reconciliation`, `reporting`, `subledgers`, `events`), ومعايير التقارير (`IFRS 9`, `IFRS 15`, `IFRS 16`, `IAS 12`).
+- **النطاق المعتمد:** النواة المحاسبية (`internal/kernel`), العقود العامة (`pkg/api`, `pkg/spi`, `pkg/sdk`), محولا التخزين (`storage/memory`, `storage/postgres`), المدارات المنشورة (`consolidation`, `reconciliation`, `reporting`, `subledgers`, `events`), ومعايير التقارير (`IFRS 9`, `IFRS 15`, `IFRS 16`, `IAS 12`).
 
 ---
 

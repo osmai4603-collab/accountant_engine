@@ -11,7 +11,7 @@
 | **G01–G11** | `QUALITY_GATES_SPECIFICATION.md` | 11 | ✅ **الترقيم الرسمي المعتمد** لمعيار الجودة |
 | **G1–G15** | `KERNEL_RELEASE_SIGNOFF.md` و`KERNEL_FINAL_VERIFICATION_REPORT.md` | 15 | ترقيم تشغيلي خاص بمراحل التحقق والإصدار |
 | **G1–G6** | `ACCOUNTING_ENGINE_ACCEPTANCE_CRITERIA.md` | 6 | بوابات القبول المبسطة (Go/No-Go) |
-| **A–O** | `internal/kernal/KERNEL_COMPLETION_REPORT.md` | 15 | نظام تاريخي خاص بنتائج v12؛ بوابته A–O كلها PASS تاريخياً ولا تُقرأ كقرار ساري |
+| **A–O** | `internal/kernel/KERNEL_COMPLETION_REPORT.md` | 15 | نظام تاريخي خاص بنتائج v12؛ بوابته A–O كلها PASS تاريخياً ولا تُقرأ كقرار ساري |
 
 > [!NOTE]
 > ترقيم `G1–G15` التشغيلي ونظام `A–O` في تقرير v12 **تاريخيان**، مرتبطان بتقارير التحقق والإصدار السابقة، ولا يُعدّان بديلاً عن الترقيم الرسمي `G01–G11`. لا يُعاد ترقيم أي بوابة في هذا الجدول؛ الربط هنا تعريفي فقط. لا يوجد قرار اعتماد سارٍ حالياً ([وثيقة الاعتماد](../reports/KERNEL_RELEASE_SIGNOFF.md)).

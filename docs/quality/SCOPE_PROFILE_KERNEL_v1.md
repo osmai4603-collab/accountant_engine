@@ -1,4 +1,4 @@
-# ملف النطاق للنواة المحاسبية — Scope Profile (`internal/kernal`)
+# ملف النطاق للنواة المحاسبية — Scope Profile (`internal/kernel`)
 
 > **المرجع المعياري:** [ACCOUNTING_KERNEL_QUALITY_STANDARD.md](ACCOUNTING_KERNEL_QUALITY_STANDARD.md) — الإصدار `2.0.0`
 
@@ -6,7 +6,7 @@
 
 | الحقل | القيمة |
 | --- | --- |
-| اسم المنتج / المشروع | `Accountant Engine — Accounting Kernel (internal/kernal)` |
+| اسم المنتج / المشروع | `Accountant Engine — Accounting Kernel (internal/kernel)` |
 | إصدار المستودع | `v2.0.0` (معتمد للإصدار النهائي) |
 | Commit | `90c121e` |
 | تاريخ التقييم | `2026-11-28` |
@@ -34,7 +34,7 @@
 
 ## 3. نموذج الكيانات والعلاقات
 
-**النموذج الفعلي في النواة (`internal/kernal`):**
+**النموذج الفعلي في النواة (`internal/kernel`):**
 
 ```text
 Company (CompanyID)
@@ -51,7 +51,7 @@ Company (CompanyID)
 | الموضوع | الاختيار / الحدود / المرجع |
 | --- | --- |
 | Accounting Basis | `Accrual` |
-| Accounting Framework | النواة محايدة للأطر (قيد مزدوج، توازن، فترات، عملات)؛ `IAS 21` في `internal/kernal/valuation`؛ بقية معايير `IFRS 9/15/16` في `modules/*` |
+| Accounting Framework | النواة محايدة للأطر (قيد مزدوج، توازن، فترات، عملات)؛ `IAS 21` في `internal/kernel/valuation`؛ بقية معايير `IFRS 9/15/16` في `modules/*` |
 | Framework Version | `IFRS / IAS 21` (للعملات وإعادة التقييم) |
 | Effective Date | محكوم بنوافذ نفاذ `PolicyEngine` و`EffectiveAccountReader` |
 | نطاق الاعتراف والقياس | النواة مسؤولة عن صحة القيد والترحيل والعملة الوظيفية؛ سياسات الاعتراف المتخصصة في `modules/*` |
@@ -61,11 +61,11 @@ Company (CompanyID)
 
 | القدرة | التصنيف | معلنة كمدعومة؟ | مفعلة في النشر؟ | مالك القدرة | عقد التكامل / الدليل | سبب الاستبعاد إن وجد |
 | --- | --- | ---: | ---: | --- | --- | --- |
-| General Ledger Posting | `Core Supported` | نعم | نعم | `internal/kernal/posting` | `PostingPipeline.PostEntry` | — |
-| Chart of Accounts | `Core Supported` | نعم | نعم | `internal/kernal/masterdata` | `ResolvePostableAccountAsOf` | — |
-| Multi-Currency & FX Revaluation | `Core Supported` | نعم | نعم | `internal/kernal/types`, `valuation` | `Money`, `ConvertForDate`, `RevaluationEngine` | — |
-| Tax Posting | `Core Supported` | نعم | نعم | `internal/kernal/posting` | أسطر قيد متوازنة على حسابات الضرائب | — |
-| Multi-Ledger (`BookID`/`LedgerID`) | `Out of Scope` | لا | لا | مؤجل لـ ADR مستقبلي | [ledger/doc.go](../../internal/kernal/ledger/doc.go#L23-L25) | مصرح بعدم دعمه في هذه النسخة |
+| General Ledger Posting | `Core Supported` | نعم | نعم | `internal/kernel/posting` | `PostingPipeline.PostEntry` | — |
+| Chart of Accounts | `Core Supported` | نعم | نعم | `internal/kernel/masterdata` | `ResolvePostableAccountAsOf` | — |
+| Multi-Currency & FX Revaluation | `Core Supported` | نعم | نعم | `internal/kernel/types`, `valuation` | `Money`, `ConvertForDate`, `RevaluationEngine` | — |
+| Tax Posting | `Core Supported` | نعم | نعم | `internal/kernel/posting` | أسطر قيد متوازنة على حسابات الضرائب | — |
+| Multi-Ledger (`BookID`/`LedgerID`) | `Out of Scope` | لا | لا | مؤجل لـ ADR مستقبلي | [ledger/doc.go](../../internal/kernel/ledger/doc.go#L23-L25) | مصرح بعدم دعمه في هذه النسخة |
 | Consolidation | `Orbital Module` | لا | — | خارج النواة | `RebuildAccountBalances` | مسؤولية طبقة التجميع |
 | Intercompany Processing | `Orbital Module` | لا | — | خارج النواة | `PostingPipeline` | مسؤولية طبقة المضيف |
 | Budgeting & Forecasting | `Out of Scope` | لا | لا | خارج النواة | — | خارج مسؤولية النواة |
@@ -75,7 +75,7 @@ Company (CompanyID)
 
 ## 6. العملات والفترات
 
-- العملات المدعومة: سجل `ISO-4217` الكامل في `internal/kernal/types/currency.go` (مع رفض `XXX`).
+- العملات المدعومة: سجل `ISO-4217` الكامل في `internal/kernel/types/currency.go` (مع رفض `XXX`).
 - العملة الوظيفية: محددة لكل شركة (`Company.FunctionalCurrency` و`CurrencyPolicy.FunctionalCurrency`).
 - عملة المعاملة: محددة على مستوى القيد والسطر مع التحقق من `CurrencyPolicy.AllowsCurrency`.
 - FX rate source / date / type: `SPOT`, `CLOSING`, `AVERAGE`, `HISTORICAL` عبر `RateProvider` و`RateRegistry`.

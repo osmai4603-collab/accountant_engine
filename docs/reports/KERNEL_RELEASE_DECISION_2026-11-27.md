@@ -1,7 +1,7 @@
 # وثيقة قرار الإصدار — `2026-11-27` *(مسودة قرار: `NO-GO` — غير موقّعة)*
 
 - **القرار الساري:** **`NO-GO`**. لا يوجد إذن نشر أو إصدار مستقر، ولا توقيع اعتماد سارٍ.
-- **الغرض:** وثيقة قرار جديدة بديلة عن [وثيقة الاعتماد الملغاة رسمياً (`SUPERSEDED`)](KERNEL_RELEASE_SIGNOFF.md) بعد تصحيح تضاربات [`KERNAL_VS_DOCS_COMPARISON.md`](../analysis/KERNAL_VS_DOCS_COMPARISON.md). هذه الوثيقة **تسجّل الحالة** ولا تمنح اعتماداً. (`KERNEL_RELEASE_SIGNOFF.md` ملغاة رسمياً ولا تُعد إذن نشر).
+- **الغرض:** وثيقة قرار جديدة بديلة عن [وثيقة الاعتماد الملغاة رسمياً (`SUPERSEDED`)](KERNEL_RELEASE_SIGNOFF.md) بعد تصحيح تضاربات [`KERNEL_VS_DOCS_COMPARISON.md`](../analysis/KERNEL_VS_DOCS_COMPARISON.md). هذه الوثيقة **تسجّل الحالة** ولا تمنح اعتماداً. (`KERNEL_RELEASE_SIGNOFF.md` ملغاة رسمياً ولا تُعد إذن نشر).
 - **المرجع الحاكم للبوابات:** [مواصفة بوابات الجودة](../quality/QUALITY_GATES_SPECIFICATION.md) — `G01–G11`. أنظمة `G1–G15` و`A–O` تاريخية؛ راجع [جدول الربط](../quality/QUALITY_GATES_CROSSWALK.md).
 - **المرجع الحاكم للأدلة:** [دليل الأدلة والتقييم](../quality/EVIDENCE_AND_SCORING_GUIDE.md) و[فهرس اختبارات المطابقة](../quality/COMPLIANCE_TEST_SUITE_INDEX.md).
 
@@ -27,14 +27,14 @@
 | القياس | القيمة في اللقطة | ملاحظة |
 | --- | ---: | --- |
 | `go test ./... -count=1` | 32 حزمة `ok`، صفر `FAIL` | [`full_repo.log`](../evidence/2026-11-27/full_repo.log) |
-| `go test ./internal/kernal/... -count=1` | 10/10 حزم `ok` | [`kernel_unit.log`](../evidence/2026-11-27/kernel_unit.log) |
-| `go test -race ./internal/kernal/...` | كود خروج `0` | [`kernel_race.log`](../evidence/2026-11-27/kernel_race.log) |
-| `go test ./internal/kernal/... -shuffle=on -count=10` | كود خروج `0` | [`kernel_shuffle.log`](../evidence/2026-11-27/kernel_shuffle.log) |
+| `go test ./internal/kernel/... -count=1` | 10/10 حزم `ok` | [`kernel_unit.log`](../evidence/2026-11-27/kernel_unit.log) |
+| `go test -race ./internal/kernel/...` | كود خروج `0` | [`kernel_race.log`](../evidence/2026-11-27/kernel_race.log) |
+| `go test ./internal/kernel/... -shuffle=on -count=10` | كود خروج `0` | [`kernel_shuffle.log`](../evidence/2026-11-27/kernel_shuffle.log) |
 | تغطية جمل النواة | **92.2%** في هذه اللقطة | [`kernel_coverage.log`](../evidence/2026-11-27/kernel_coverage.log)؛ القيم في لقطات سابقة نفس اليوم تراوحت 90.7–92.2% بسبب التعديلات المتزامنة؛ الرقم وحده لا يمنح بوابة |
-| أهداف Fuzz فعلية | `16` (`grep '^func Fuzz' internal/kernal --include='*_test.go'`) | لا يُستبدل بـ 6 أو 9 الواردين في الوثائق القديمة |
+| أهداف Fuzz فعلية | `16` (`grep '^func Fuzz' internal/kernel --include='*_test.go'`) | لا يُستبدل بـ 6 أو 9 الواردين في الوثائق القديمة |
 | `./scripts/verify_architecture.sh` | `RESULT: PASS - clean architectural base` | [`architecture.log`](../evidence/2026-11-27/architecture.log) |
-| `gofmt -l internal/kernal/` | فارغ | [`gofmt.log`](../evidence/2026-11-27/gofmt.log) |
-| `go vet ./internal/kernal/...` | كود خروج `0` | [`go_vet.log`](../evidence/2026-11-27/go_vet.log) |
+| `gofmt -l internal/kernel/` | فارغ | [`gofmt.log`](../evidence/2026-11-27/gofmt.log) |
+| `go vet ./internal/kernel/...` | كود خروج `0` | [`go_vet.log`](../evidence/2026-11-27/go_vet.log) |
 | `go test ./test/contract_parity -count=1` | **كود خروج `1`** | [`contract_parity.log`](../evidence/2026-11-27/contract_parity.log) |
 
 الفشل المسجّل حرفياً:
@@ -59,7 +59,7 @@
 | **G05** | Lifecycle & Period Integrity | `Not Verified` | تغيّر آلي في `journal/entry.go` و`state_machine_test.go` أثناء جمع الأدلة؛ يلزم إعادة تشغيل بعد استقرار تعريف حالة القيد |
 | **G06** | Historical & Audit Integrity | `Pass (E3 لقطة)` | حزمة `governance` خضراء، وفحص `[OK] R6` في التقرير المعماري؛ `G-024` مغلق وفق ADR P11-01 |
 | **G07** | Persistence Integrity | `Fail (لقطة)` | فشل `TestPhase11_PublicLedgerBridgePreservesReferenceFieldContract`؛ شرط «100% من Persistence Contract Tests» غير محقق |
-| **G08** | Isolation Integrity | `Not Verified` | تعديلات متزامنة على `internal/kernal/masterdata/*` أثناء جمع الأدلة؛ نتيجة العزل تحتاج إعادة تشغيل بعد التجميد |
+| **G08** | Isolation Integrity | `Not Verified` | تعديلات متزامنة على `internal/kernel/masterdata/*` أثناء جمع الأدلة؛ نتيجة العزل تحتاج إعادة تشغيل بعد التجميد |
 | **G09** | Architectural Integrity | `Pass (E3)` | [`architecture.log`](../evidence/2026-11-27/architecture.log) PASS، [`gofmt.log`](../evidence/2026-11-27/gofmt.log) فارغ، [`go_vet.log`](../evidence/2026-11-27/go_vet.log) نظيف |
 | **G10** | Verification Integrity | `Fail` | سجل التشغيل فارغ، وفشل اختبار عقد واحد على الأقل، وبصمة الشجرة غير مستقرة — شرط «صفر متطلب حرج Not Verified» غير محقق |
 | **G11** | Operational Integrity | `Not Verified` | لا يوجد دليل E4 للاستعادة/الترحيل/SLO في بيئة الهدف؛ `TestDRDrill_FullRecovery` خارج النواة ولم يُسجَّل هنا |
@@ -73,7 +73,7 @@
 1. **فشل تكافؤ العقود:** حقل `IsMonetary` يُسقط في جسر `Account` → إخلال بعقد النقل المرجعي.
 2. **عدم قابلية الإعادة:** بصمتا الشجرة مختلفتان؛ `HEAD` لا يمثل الكود المُختبر. أي رقم تغطية أو نتيجة اختبار مرتبط بلقطة لا بـ Commit.
 3. **سجل أدلة فارغ:** [COMPLIANCE_TEST_SUITE_INDEX §5](../quality/COMPLIANCE_TEST_SUITE_INDEX.md) بلا Run ID أو Environment أو Evidence URI، رغم حالات `Pass` في القسم 4 (وسمناها مرشحة/تاريخية).
-4. ** بوابات E4 غير مغطاة:** الأداء والاستعادة والتوافق التشغيلي لم يُتحقق منها في بيئة الهدف.
+4. **بوابات E4 غير مغطاة:** الأداء والاستعادة والتوافق التشغيلي لم يُتحقق منها في بيئة الهدف.
 5. **تضاربات docs المتبقية:** راجع [تحليل التضاربات داخل docs](../analysis/DOCS_CONFLICT_ANALYSIS.md) و[قائمة الفجوات](KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md)؛ لم تُحسم كلها بحسب ما يقتضيه السطر 61 من وثيقة الاعتماد الملغاة.
 
 ---
@@ -99,7 +99,7 @@
 
 ## 6. دليل التنقّل
 
-- [`KERNAL_VS_DOCS_COMPARISON.md`](../analysis/KERNAL_VS_DOCS_COMPARISON.md) — تحليل التضاربات وسجل الإصلاحات.
+- [`KERNEL_VS_DOCS_COMPARISON.md`](../analysis/KERNEL_VS_DOCS_COMPARISON.md) — تحليل التضاربات وسجل الإصلاحات.
 - [`TEST_TRACEABILITY_INDEX.md`](../quality/TEST_TRACEABILITY_INDEX.md) — جدول الربط الموحّد `REF-*` ↔ `RULE-KERNEL` ↔ أسماء الاختبارات.
 - [`QUALITY_GATES_CROSSWALK.md`](../quality/QUALITY_GATES_CROSSWALK.md) — أنظمة الترقيم الأربعة.
 - [`KERNEL_RELEASE_SIGNOFF.md`](KERNEL_RELEASE_SIGNOFF.md) — الاعتماد القديم الملغى.

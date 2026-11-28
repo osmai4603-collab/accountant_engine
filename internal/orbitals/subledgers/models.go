@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
+	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
 	"github.com/shopspring/decimal"
 )
 

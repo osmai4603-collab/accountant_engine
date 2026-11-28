@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation"
+	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/valuation"
 	"github.com/shopspring/decimal"
 )
 

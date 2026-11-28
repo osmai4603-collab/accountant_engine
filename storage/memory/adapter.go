@@ -71,7 +71,10 @@ func (a *Adapter) Driver() *Driver {
 	return a.driver
 }
 
-// Close is a no-op for the memory adapter.
+// Close releases in-memory state held by the adapter's driver.
 func (a *Adapter) Close() error {
-	return nil
+	if a == nil || a.driver == nil {
+		return nil
+	}
+	return a.driver.Close()
 }

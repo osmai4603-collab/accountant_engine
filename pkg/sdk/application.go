@@ -9,14 +9,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/apperrors"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/governance"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/journal"
-	kernalmasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernal/masterdata"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/policy"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/posting"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
-	"github.com/osmai4603-collab/accounting_engine/internal/kernal/valuation"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/apperrors"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/governance"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/journal"
+	kernelmasterdata "github.com/osmai4603-collab/accounting_engine/internal/kernel/masterdata"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/policy"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/posting"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
+	"github.com/osmai4603-collab/accounting_engine/internal/kernel/valuation"
 	publictypes "github.com/osmai4603-collab/accounting_engine/pkg/api/v1/types"
 	publicapplication "github.com/osmai4603-collab/accounting_engine/pkg/spi/application"
 	publicmasterdata "github.com/osmai4603-collab/accounting_engine/pkg/spi/masterdata"
@@ -48,17 +48,41 @@ func NewApplicationServiceWithPostingConfig(
 	return app, nil
 }
 
+// NewApplicationServiceWithObserver builds an application service with an
+// optional operational Observer. A nil observer falls back to the no-op
+// implementation, so instrumentation never becomes a dependency.
+func NewApplicationServiceWithObserver(
+	ports storage.Ports,
+	config PostingConfig,
+	authorizer publicapplication.Authorizer,
+	observer publicapplication.Observer,
+) (publicapplication.Service, error) {
+	service, err := NewApplicationServiceWithPostingConfig(ports, config, authorizer)
+	if err != nil {
+		return nil, err
+	}
+	if observer == nil {
+		return service, nil
+	}
+	app, ok := service.(*applicationService)
+	if !ok {
+		return service, nil
+	}
+	app.observer = observer
+	return app, nil
+}
+
 type masterDataReaderAdapter struct {
 	reader                       storage.MasterDataReader
 	allowSyntheticDefaultJournal bool
 }
 
-func (a masterDataReaderAdapter) GetCompany(ctx context.Context, companyID types.CompanyID) (kernalmasterdata.Company, error) {
+func (a masterDataReaderAdapter) GetCompany(ctx context.Context, companyID types.CompanyID) (kernelmasterdata.Company, error) {
 	c, err := a.reader.GetCompany(ctx, companyID)
 	if err != nil {
-		return kernalmasterdata.Company{}, err
+		return kernelmasterdata.Company{}, err
 	}
-	return kernalmasterdata.Company{
+	return kernelmasterdata.Company{
 		ID:                   c.ID,
 		Code:                 c.Code,
 		LegalName:            c.LegalName,
@@ -68,37 +92,37 @@ func (a masterDataReaderAdapter) GetCompany(ctx context.Context, companyID types
 	}, nil
 }
 
-func (a masterDataReaderAdapter) GetAccount(ctx context.Context, companyID types.CompanyID, accountID types.AccountID) (kernalmasterdata.Account, error) {
+func (a masterDataReaderAdapter) GetAccount(ctx context.Context, companyID types.CompanyID, accountID types.AccountID) (kernelmasterdata.Account, error) {
 	return a.reader.GetAccount(ctx, companyID, accountID)
 }
 
-func (a masterDataReaderAdapter) GetAccountByCode(ctx context.Context, companyID types.CompanyID, code string) (kernalmasterdata.Account, error) {
+func (a masterDataReaderAdapter) GetAccountByCode(ctx context.Context, companyID types.CompanyID, code string) (kernelmasterdata.Account, error) {
 	return a.reader.GetAccountByCode(ctx, companyID, code)
 }
 
-func (a masterDataReaderAdapter) GetJournalByCode(ctx context.Context, companyID types.CompanyID, code string) (kernalmasterdata.Journal, error) {
+func (a masterDataReaderAdapter) GetJournalByCode(ctx context.Context, companyID types.CompanyID, code string) (kernelmasterdata.Journal, error) {
 	j, err := a.reader.GetJournalByCode(ctx, companyID, code)
 	if err != nil {
-		return kernalmasterdata.Journal{}, err
+		return kernelmasterdata.Journal{}, err
 	}
-	return toKernalJournal(j), nil
+	return toKernelJournal(j), nil
 }
 
 func (a masterDataReaderAdapter) HasAccountChildren(ctx context.Context, companyID types.CompanyID, accountID types.AccountID) (bool, error) {
 	return a.reader.HasAccountChildren(ctx, companyID, accountID)
 }
 
-func (a masterDataReaderAdapter) GetFiscalYear(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID) (kernalmasterdata.FiscalYear, error) {
+func (a masterDataReaderAdapter) GetFiscalYear(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID) (kernelmasterdata.FiscalYear, error) {
 	return a.reader.GetFiscalYear(ctx, companyID, fiscalYearID)
 }
 
-func (a masterDataReaderAdapter) GetPeriodForDate(ctx context.Context, companyID types.CompanyID, date time.Time) (kernalmasterdata.FiscalPeriod, error) {
+func (a masterDataReaderAdapter) GetPeriodForDate(ctx context.Context, companyID types.CompanyID, date time.Time) (kernelmasterdata.FiscalPeriod, error) {
 	return a.reader.GetPeriodForDate(ctx, companyID, date)
 }
 
-func (a masterDataReaderAdapter) GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID types.JournalID) (kernalmasterdata.Journal, error) {
+func (a masterDataReaderAdapter) GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID types.JournalID) (kernelmasterdata.Journal, error) {
 	if repo, ok := a.reader.(interface {
-		GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID types.JournalID) (kernalmasterdata.Journal, error)
+		GetJournalByID(ctx context.Context, companyID types.CompanyID, journalID types.JournalID) (kernelmasterdata.Journal, error)
 	}); ok {
 		return repo.GetJournalByID(ctx, companyID, journalID)
 	}
@@ -107,18 +131,18 @@ func (a masterDataReaderAdapter) GetJournalByID(ctx context.Context, companyID t
 	}); ok {
 		j, err := repo.GetJournalByID(ctx, companyID, journalID)
 		if err != nil {
-			return kernalmasterdata.Journal{}, err
+			return kernelmasterdata.Journal{}, err
 		}
-		return toKernalJournal(j), nil
+		return toKernelJournal(j), nil
 	}
 	if !a.allowSyntheticDefaultJournal {
-		return kernalmasterdata.Journal{}, kernalmasterdata.ErrJournalReaderRequired
+		return kernelmasterdata.Journal{}, kernelmasterdata.ErrJournalReaderRequired
 	}
 	j, err := a.reader.GetJournalByCode(ctx, companyID, "GENERAL")
 	if err == nil && j.ID == journalID {
-		return toKernalJournal(j), nil
+		return toKernelJournal(j), nil
 	}
-	return kernalmasterdata.Journal{
+	return kernelmasterdata.Journal{
 		ID:            journalID,
 		CompanyID:     companyID,
 		Code:          "GENERAL",
@@ -127,20 +151,20 @@ func (a masterDataReaderAdapter) GetJournalByID(ctx context.Context, companyID t
 	}, nil
 }
 
-func (a masterDataReaderAdapter) GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (kernalmasterdata.FiscalPeriod, error) {
+func (a masterDataReaderAdapter) GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (kernelmasterdata.FiscalPeriod, error) {
 	if repo, ok := a.reader.(publicmasterdata.FiscalPeriodNumberReader); ok {
 		return repo.GetPeriodByNumber(ctx, companyID, fiscalYearID, number)
 	}
 	if repo, ok := a.reader.(interface {
-		GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (kernalmasterdata.FiscalPeriod, error)
+		GetPeriodByNumber(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID, number int) (kernelmasterdata.FiscalPeriod, error)
 	}); ok {
 		return repo.GetPeriodByNumber(ctx, companyID, fiscalYearID, number)
 	}
-	return kernalmasterdata.FiscalPeriod{}, fmt.Errorf("%w: adjustment periods not supported", publictypes.ErrCapabilityNotImplemented)
+	return kernelmasterdata.FiscalPeriod{}, fmt.Errorf("%w: adjustment periods not supported", publictypes.ErrCapabilityNotImplemented)
 }
 
-func toKernalJournal(j publicmasterdata.Journal) kernalmasterdata.Journal {
-	return kernalmasterdata.Journal{
+func toKernelJournal(j publicmasterdata.Journal) kernelmasterdata.Journal {
+	return kernelmasterdata.Journal{
 		ID:                j.ID,
 		CompanyID:         j.CompanyID,
 		Code:              j.Code,
@@ -168,7 +192,7 @@ func (a capabilityMasterDataReader) GetAccountAsOf(
 	companyID types.CompanyID,
 	accountID types.AccountID,
 	asOf time.Time,
-) (kernalmasterdata.Account, error) {
+) (kernelmasterdata.Account, error) {
 	if a.effective == nil {
 		// Absence of the version reader is not an error: the kernel falls back
 		// to the ordinary current account read and still checks IsCurrent.
@@ -181,13 +205,13 @@ func (a capabilityMasterDataReader) GetCostCenterForCompany(
 	ctx context.Context,
 	companyID types.CompanyID,
 	costCenterID types.CostCenterID,
-) (kernalmasterdata.CostCenter, error) {
+) (kernelmasterdata.CostCenter, error) {
 	if a.costCenters == nil {
-		return kernalmasterdata.CostCenter{}, posting.ErrDimensionReaderRequired
+		return kernelmasterdata.CostCenter{}, posting.ErrDimensionReaderRequired
 	}
 	center, err := a.costCenters.GetCostCenterForCompany(ctx, companyID, costCenterID)
 	if errors.Is(err, publicmasterdata.ErrInvalidCostCenter) {
-		return kernalmasterdata.CostCenter{}, kernalmasterdata.ErrInvalidCostCenter
+		return kernelmasterdata.CostCenter{}, kernelmasterdata.ErrInvalidCostCenter
 	}
 	return center, err
 }
@@ -195,15 +219,15 @@ func (a capabilityMasterDataReader) GetCostCenterForCompany(
 func (a capabilityMasterDataReader) GetAnalyticalDimensionForCompany(
 	ctx context.Context,
 	companyID types.CompanyID,
-	kind kernalmasterdata.AnalyticalDimensionKind,
+	kind kernelmasterdata.AnalyticalDimensionKind,
 	id string,
-) (kernalmasterdata.AnalyticalDimensionValue, error) {
+) (kernelmasterdata.AnalyticalDimensionValue, error) {
 	if a.dimensions == nil {
-		return kernalmasterdata.AnalyticalDimensionValue{}, posting.ErrDimensionReaderRequired
+		return kernelmasterdata.AnalyticalDimensionValue{}, posting.ErrDimensionReaderRequired
 	}
 	value, err := a.dimensions.GetAnalyticalDimensionForCompany(ctx, companyID, publicmasterdata.AnalyticalDimensionKind(kind), id)
 	if errors.Is(err, publicmasterdata.ErrInvalidAnalyticalDimension) {
-		return kernalmasterdata.AnalyticalDimensionValue{}, kernalmasterdata.ErrInvalidAnalyticalDimension
+		return kernelmasterdata.AnalyticalDimensionValue{}, kernelmasterdata.ErrInvalidAnalyticalDimension
 	}
 	return value, err
 }
@@ -212,6 +236,7 @@ type applicationService struct {
 	ports          storage.Ports
 	config         PostingConfig
 	authorizer     publicapplication.Authorizer
+	observer       publicapplication.Observer
 	policyEngine   *policy.PolicyEngine
 	pipeline       *posting.PostingPipeline
 	policyStore    storage.PolicyStore
@@ -258,6 +283,7 @@ func newApplication(ports storage.Ports, config PostingConfig, authorizer public
 		ports:                ports,
 		config:               config,
 		authorizer:           authorizer,
+		observer:             publicapplication.NoopObserver{},
 		policyEngine:         policyEngine,
 		policyStore:          policyStoreFromPorts(ports),
 		policiesLoaded:       make(map[types.CompanyID]bool),
@@ -271,7 +297,7 @@ func newApplication(ports storage.Ports, config PostingConfig, authorizer public
 	// none of them keeps the baseline method set and the kernel fails closed
 	// for dimensioned lines; an effective-account capability is additive and
 	// otherwise falls back to GetAccount.
-	var reader kernalmasterdata.Reader = mdAdapter
+	var reader kernelmasterdata.Reader = mdAdapter
 	effective, hasEffective := ports.MasterData.(publicmasterdata.EffectiveAccountReader)
 	costCenters, hasCostCenters := ports.MasterData.(publicmasterdata.CostCenterReader)
 	dimensions, hasDimensions := ports.MasterData.(publicmasterdata.AnalyticalDimensionReader)
@@ -295,7 +321,12 @@ func newApplication(ports storage.Ports, config PostingConfig, authorizer public
 	return app
 }
 
-func (s *applicationService) executePosting(ctx context.Context, entry journal.JournalEntry, opts posting.PostOptions) (journal.JournalEntry, error) {
+func (s *applicationService) executePosting(ctx context.Context, entry journal.JournalEntry, opts posting.PostOptions) (result journal.JournalEntry, err error) {
+	started := time.Now()
+	defer func() {
+		s.observePosting(ctx, opts.CorrelationID, entry.CompanyID, false, started, err)
+	}()
+
 	seq, err := s.ports.Sequences.NextSequence(ctx, entry.CompanyID, entry.JournalID)
 	if err != nil {
 		return journal.JournalEntry{}, fmt.Errorf("allocate sequence: %w", err)
@@ -325,7 +356,12 @@ func (s *applicationService) executeReversalPosting(
 	originalEntryID types.JournalEntryID,
 	entry journal.JournalEntry,
 	opts posting.PostOptions,
-) (journal.JournalEntry, error) {
+) (result journal.JournalEntry, err error) {
+	started := time.Now()
+	defer func() {
+		s.observePosting(ctx, opts.CorrelationID, entry.CompanyID, true, started, err)
+	}()
+
 	seq, err := s.ports.Sequences.NextSequence(ctx, entry.CompanyID, entry.JournalID)
 	if err != nil {
 		return journal.JournalEntry{}, fmt.Errorf("allocate reversal sequence: %w", err)
@@ -346,6 +382,29 @@ func (s *applicationService) executeReversalPosting(
 	}
 
 	return s.ports.Posting.CommitPosting(ctx, commit)
+}
+
+// observePosting forwards the outcome of a posting or reversal to the optional
+// Observer, carrying the request correlation id with the signal.
+func (s *applicationService) observePosting(
+	ctx context.Context,
+	correlationID string,
+	companyID types.CompanyID,
+	reversal bool,
+	started time.Time,
+	err error,
+) {
+	observer := s.observer
+	if observer == nil {
+		return
+	}
+	observedCtx := publicapplication.WithObserverCorrelation(ctx, correlationID)
+	duration := time.Since(started)
+	if reversal {
+		observer.ObserveReversal(observedCtx, companyID.String(), duration, err)
+		return
+	}
+	observer.ObservePosting(observedCtx, companyID.String(), duration, err)
 }
 
 // commitIdempotency copies the kernel-stamped scope and stable payload digest
@@ -880,10 +939,10 @@ func classifyError(err error) error {
 	if errors.As(err, &pubErr) {
 		return err
 	}
-	if errors.Is(err, kernalmasterdata.ErrCompanyNotFound) ||
-		errors.Is(err, kernalmasterdata.ErrJournalNotFound) ||
-		errors.Is(err, kernalmasterdata.ErrAccountNotFound) ||
-		errors.Is(err, kernalmasterdata.ErrFiscalPeriodNotFound) ||
+	if errors.Is(err, kernelmasterdata.ErrCompanyNotFound) ||
+		errors.Is(err, kernelmasterdata.ErrJournalNotFound) ||
+		errors.Is(err, kernelmasterdata.ErrAccountNotFound) ||
+		errors.Is(err, kernelmasterdata.ErrFiscalPeriodNotFound) ||
 		errors.Is(err, valuation.ErrRateNotFound) ||
 		errors.Is(err, storage.ErrEntryNotFound) ||
 		errors.Is(err, storage.ErrPolicyVersionNotFound) ||
@@ -896,9 +955,9 @@ func classifyError(err error) error {
 		errors.Is(err, publicmasterdata.ErrPeriodNotFound) {
 		return publicapplication.NewError(publicapplication.ErrNotFound, err.Error(), err)
 	}
-	if errors.Is(err, kernalmasterdata.ErrFiscalPeriodClosed) ||
-		errors.Is(err, kernalmasterdata.ErrClosedFiscalYear) ||
-		errors.Is(err, kernalmasterdata.ErrClosedPeriod) {
+	if errors.Is(err, kernelmasterdata.ErrFiscalPeriodClosed) ||
+		errors.Is(err, kernelmasterdata.ErrClosedFiscalYear) ||
+		errors.Is(err, kernelmasterdata.ErrClosedPeriod) {
 		return publicapplication.NewError(publicapplication.ErrPeriodClosed, err.Error(), err)
 	}
 	if errors.Is(err, posting.ErrUnbalancedEntry) ||
@@ -940,38 +999,38 @@ func classifyError(err error) error {
 		errors.Is(err, posting.ErrUnbalancedMove) ||
 		errors.Is(err, types.ErrCurrencyMismatch) ||
 		errors.Is(err, types.ErrInvalidCurrency) ||
-		errors.Is(err, kernalmasterdata.ErrCannotPostToParentAccount) ||
+		errors.Is(err, kernelmasterdata.ErrCannotPostToParentAccount) ||
 		errors.Is(err, types.ErrZeroDenominator) ||
-		errors.Is(err, kernalmasterdata.ErrHeaderAccountPosting) ||
-		errors.Is(err, kernalmasterdata.ErrAccountCycle) ||
-		errors.Is(err, kernalmasterdata.ErrDuplicateAccountID) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidParent) ||
-		errors.Is(err, kernalmasterdata.ErrAccountNotCurrent) ||
-		errors.Is(err, kernalmasterdata.ErrAccountIdentityMismatch) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidCostCenter) ||
-		errors.Is(err, kernalmasterdata.ErrCostCenterCycle) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidAnalyticalDimension) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidJournal) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidJournalType) ||
-		errors.Is(err, kernalmasterdata.ErrJournalCurrency) ||
-		errors.Is(err, kernalmasterdata.ErrJournalAccount) ||
-		errors.Is(err, kernalmasterdata.ErrJournalNotCurrent) ||
-		errors.Is(err, kernalmasterdata.ErrJournalReaderRequired) ||
-		errors.Is(err, kernalmasterdata.ErrJournalIdentityMismatch) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidEffectiveRange) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidAdjustmentPeriod) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidFiscalPeriod) ||
-		errors.Is(err, kernalmasterdata.ErrPeriodOutsideFiscalYear) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidPeriodTransition) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidFiscalYearTransition) ||
-		errors.Is(err, kernalmasterdata.ErrPeriodTransitionNeedsAudit) ||
-		errors.Is(err, kernalmasterdata.ErrPeriodReopenRequiresAudit) ||
-		errors.Is(err, kernalmasterdata.ErrAccountCodeRequired) ||
-		errors.Is(err, kernalmasterdata.ErrAccountNameRequired) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidAccountType) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidNormalBalance) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidSubClassificationForType) ||
-		errors.Is(err, kernalmasterdata.ErrInvalidControlAccount) ||
+		errors.Is(err, kernelmasterdata.ErrHeaderAccountPosting) ||
+		errors.Is(err, kernelmasterdata.ErrAccountCycle) ||
+		errors.Is(err, kernelmasterdata.ErrDuplicateAccountID) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidParent) ||
+		errors.Is(err, kernelmasterdata.ErrAccountNotCurrent) ||
+		errors.Is(err, kernelmasterdata.ErrAccountIdentityMismatch) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidCostCenter) ||
+		errors.Is(err, kernelmasterdata.ErrCostCenterCycle) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidAnalyticalDimension) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidJournal) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidJournalType) ||
+		errors.Is(err, kernelmasterdata.ErrJournalCurrency) ||
+		errors.Is(err, kernelmasterdata.ErrJournalAccount) ||
+		errors.Is(err, kernelmasterdata.ErrJournalNotCurrent) ||
+		errors.Is(err, kernelmasterdata.ErrJournalReaderRequired) ||
+		errors.Is(err, kernelmasterdata.ErrJournalIdentityMismatch) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidEffectiveRange) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidAdjustmentPeriod) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidFiscalPeriod) ||
+		errors.Is(err, kernelmasterdata.ErrPeriodOutsideFiscalYear) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidPeriodTransition) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidFiscalYearTransition) ||
+		errors.Is(err, kernelmasterdata.ErrPeriodTransitionNeedsAudit) ||
+		errors.Is(err, kernelmasterdata.ErrPeriodReopenRequiresAudit) ||
+		errors.Is(err, kernelmasterdata.ErrAccountCodeRequired) ||
+		errors.Is(err, kernelmasterdata.ErrAccountNameRequired) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidAccountType) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidNormalBalance) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidSubClassificationForType) ||
+		errors.Is(err, kernelmasterdata.ErrInvalidControlAccount) ||
 		errors.Is(err, policy.ErrInvalidPolicy) ||
 		errors.Is(err, valuation.ErrInvalidRate) ||
 		errors.Is(err, valuation.ErrInvalidCurrency) ||
@@ -1003,7 +1062,7 @@ func classifyError(err error) error {
 		errors.Is(err, posting.ErrEntryNotPosted) ||
 		errors.Is(err, journal.ErrMoveAlreadyPosted) ||
 		errors.Is(err, journal.ErrCannotModifyPostedMove) ||
-		errors.Is(err, kernalmasterdata.ErrDuplicateAccountCode) ||
+		errors.Is(err, kernelmasterdata.ErrDuplicateAccountCode) ||
 		errors.Is(err, journal.ErrImmutableEntry) ||
 		errors.Is(err, valuation.ErrDuplicateRate) ||
 		errors.Is(err, publicmasterdata.ErrDuplicateCompanyCode) ||
@@ -1023,9 +1082,9 @@ func classifyError(err error) error {
 	// A company-scope violation is never a conflict to retry: the caller asked
 	// to act outside its own tenant boundary. Phase 8 classifies it as forbidden.
 	if errors.Is(err, storage.ErrScopeViolation) ||
-		errors.Is(err, kernalmasterdata.ErrCompanyScopeRequired) ||
-		errors.Is(err, kernalmasterdata.ErrCompanyIdentityMismatch) ||
-		errors.Is(err, kernalmasterdata.ErrCompanyInactive) ||
+		errors.Is(err, kernelmasterdata.ErrCompanyScopeRequired) ||
+		errors.Is(err, kernelmasterdata.ErrCompanyIdentityMismatch) ||
+		errors.Is(err, kernelmasterdata.ErrCompanyInactive) ||
 		errors.Is(err, publictypes.ErrMakerCheckerViolation) {
 		return publicapplication.NewError(publicapplication.ErrForbidden, err.Error(), err)
 	}

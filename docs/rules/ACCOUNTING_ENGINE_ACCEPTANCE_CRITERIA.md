@@ -23,7 +23,7 @@ technical_terms: "en"
 ## فهرس المحتويات
 
 1. [شروط القبول الحتمية غير القابلة للتفاوض (Non-Negotiable Acceptance Conditions)](#1-شروط-القبول-الحتمية-غير-القابلة-للتفاوض-non-negotiable-acceptance-conditions)
-2. [معايير قبول النواة المحاسبية والترحيل (Kernal Accounting & Posting Acceptance)](#2-معايير-قبول-النواة-المحاسبية-والترحيل-kernal-accounting--posting-acceptance)
+2. [معايير قبول النواة المحاسبية والترحيل (Kernel Accounting & Posting Acceptance)](#2-معايير-قبول-النواة-المحاسبية-والترحيل-kernel-accounting--posting-acceptance)
 3. [معايير قبول المعمارية والعقود العامة (Architecture & Public Contracts Acceptance)](#3-معايير-قبول-المعمارية-والعقود-العامة-architecture--public-contracts-acceptance)
 4. [معايير قبول تعدد الشركات والأمان (Multi-Tenancy & Security Acceptance)](#4-معايير-قبول-تعدد-الشركات-والأمان-multi-tenancy--security-acceptance)
 5. [معايير قبول التخزين والذرية والمطابقة (Persistence, Atomicity & Reconciliation)](#5-معايير-قبول-التخزين-والذرية-والمطابقة-persistence-atomicity--reconciliation)
@@ -54,11 +54,11 @@ technical_terms: "en"
 
 ---
 
-## 2. معايير قبول النواة المحاسبية والترحيل (Kernal Accounting & Posting Acceptance)
+## 2. معايير قبول النواة المحاسبية والترحيل (Kernel Accounting & Posting Acceptance)
 
 | المعرف | معيار القبول الدقيق | طريقة الإثبات والتحقق |
 | :--- | :--- | :--- |
-| **AC-POST-01** | رفض القيود غير المتوازنة قبل بدء أي معاملة تخزين مع إرجاع الخطأ الصريح `ErrUnbalancedEntry`. | اختبارات الوحدة الحدودية في `internal/kernal/posting`. |
+| **AC-POST-01** | رفض القيود غير المتوازنة قبل بدء أي معاملة تخزين مع إرجاع الخطأ الصريح `ErrUnbalancedEntry`. | اختبارات الوحدة الحدودية في `internal/kernel/posting`. |
 | **AC-POST-02** | رفض أي سطر يحتوي على مبالغ سالبة أو مبالغ مدينة ودائنة في آن واحد. | اختبارات التحقق من صحة الأسطر `entry_invariants_test.go`. |
 | **AC-POST-03** | رفض الترحيل إذا كان الحساب غير نشط أو معلقاً أو يتبع شركة أخرى. | اختبارات التحقق من الحسابات مع محاكي Master Data. |
 | **AC-POST-04** | إثبات ارتباط القيد العكسي بالقيد الأصلي وتعديل حالة القيد الأصلي إلى `REVERSED` وتحديث الأرصدة فوراً. | اختبار دورة حياة العكس `reversal_lifecycle_test.go`. |

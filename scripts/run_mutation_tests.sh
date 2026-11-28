@@ -2,7 +2,7 @@
 # Targeted Semantic Business Rule Mutation Testing Runner (AE-MUTATION-RUNNER)
 #
 # Reproducibly tests the 8 critical business rule mutations documented in
-# internal/kernal/KERNEL_MUTATION_REPORT.md:
+# internal/kernel/KERNEL_MUTATION_REPORT.md:
 #   MUT-01: INV-004 (Currency Uniformity in types/money.go)
 #   MUT-02: INV-002 (Precision Boundaries in types/money.go)
 #   MUT-03: INV-008 (Double-Entry Balance in posting/entry_validation.go)
@@ -29,7 +29,7 @@ echo "started_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" | tee -a "$logfile"
 
 # Clean up trap to ensure backups are always restored
 restore_all() {
-  for f in $(find internal/kernal -name "*.bak" 2>/dev/null); do
+  for f in $(find internal/kernel -name "*.bak" 2>/dev/null); do
     orig="${f%.bak}"
     if [[ -f "$f" ]]; then
       mv -f "$f" "$orig"
@@ -86,110 +86,110 @@ run_mutant() {
 run_mutant \
   "MUT-01" \
   "INV-004" \
-  "internal/kernal/types/money.go" \
+  "internal/kernel/types/money.go" \
   "Disable currency match check in ensureSameCurrency" \
-  "sed -i 's/if m.currency != other.currency {/if false \&\& m.currency != other.currency {/' internal/kernal/types/money.go" \
-  "./internal/kernal/types" \
+  "sed -i 's/if m.currency != other.currency {/if false \&\& m.currency != other.currency {/' internal/kernel/types/money.go" \
+  "./internal/kernel/types" \
   "TestMoneyOperationsPreserveCurrency"
 
 # MUT-02: INV-002 Precision Boundaries in types/money.go
 run_mutant \
   "MUT-02" \
   "INV-002" \
-  "internal/kernal/types/money.go" \
+  "internal/kernel/types/money.go" \
   "Allow more than 28 integer digits in Money precision limits" \
-  "sed -i 's/integerDigits(amount) > MaximumIntegerDigits/false/g' internal/kernal/types/money.go && sed -i 's/amount.Exponent() > MaximumIntegerDigits/false/g' internal/kernal/types/money.go" \
-  "./internal/kernal/types" \
+  "sed -i 's/integerDigits(amount) > MaximumIntegerDigits/false/g' internal/kernel/types/money.go && sed -i 's/amount.Exponent() > MaximumIntegerDigits/false/g' internal/kernel/types/money.go" \
+  "./internal/kernel/types" \
   "TestMoneyRejectsIntegerDigitOverflow"
 
 # MUT-03: INV-008 Double-Entry Balance in posting/entry_validation.go
 run_mutant \
   "MUT-03" \
   "INV-008" \
-  "internal/kernal/posting/entry_validation.go" \
+  "internal/kernel/posting/entry_validation.go" \
   "Disable double-entry net zero balance check" \
-  "sed -i 's/if !net.IsZero() {/if false \&\& !net.IsZero() {/' internal/kernal/posting/entry_validation.go" \
-  "./internal/kernal/posting" \
+  "sed -i 's/if !net.IsZero() {/if false \&\& !net.IsZero() {/' internal/kernel/posting/entry_validation.go" \
+  "./internal/kernel/posting" \
   "TestDoubleEntryMathematicalValidation"
 
 # MUT-04: INV-017 Calendar SoftClose in masterdata/fiscal_calendar.go
 run_mutant \
   "MUT-04" \
   "INV-017" \
-  "internal/kernal/masterdata/fiscal_calendar.go" \
+  "internal/kernel/masterdata/fiscal_calendar.go" \
   "Allow posting in SoftClosed period without explicit policy permission" \
-  "sed -i 's/year.State != FiscalYearOpen && !(allowSoftClosed && year.State == FiscalYearSoftClosed)/year.State == FiscalYearHardClosed/g' internal/kernal/masterdata/fiscal_calendar.go && sed -i 's/period.State != PeriodOpen && !(allowSoftClosed && period.State == PeriodSoftClosed)/period.State == PeriodHardClosed/g' internal/kernal/masterdata/fiscal_calendar.go" \
-  "./internal/kernal/masterdata" \
+  "sed -i 's/year.State != FiscalYearOpen && !(allowSoftClosed && year.State == FiscalYearSoftClosed)/year.State == FiscalYearHardClosed/g' internal/kernel/masterdata/fiscal_calendar.go && sed -i 's/period.State != PeriodOpen && !(allowSoftClosed && period.State == PeriodSoftClosed)/period.State == PeriodHardClosed/g' internal/kernel/masterdata/fiscal_calendar.go" \
+  "./internal/kernel/masterdata" \
   "TestPostingPeriodRequiresFiscalYearAndExplicitSoftClosePolicy"
 
 # MUT-05: INV-025 Audit Snapshot Sequence in governance/audit_chain.go
 run_mutant \
   "MUT-05" \
   "INV-025" \
-  "internal/kernal/governance/audit_chain.go" \
+  "internal/kernel/governance/audit_chain.go" \
   "Disable snapshot sequence matching against checkpoint" \
-  "sed -i 's/if snapshot.SnapshotSequence != checkpoint.SequenceNumber {/if false \&\& snapshot.SnapshotSequence != checkpoint.SequenceNumber {/' internal/kernal/governance/audit_chain.go" \
-  "./internal/kernal/governance" \
+  "sed -i 's/if snapshot.SnapshotSequence != checkpoint.SequenceNumber {/if false \&\& snapshot.SnapshotSequence != checkpoint.SequenceNumber {/' internal/kernel/governance/audit_chain.go" \
+  "./internal/kernel/governance" \
   "TestVerifyAuditSnapshotSequenceMismatchKillsMutant"
 
 # MUT-06: INV-012 Entry Reversal Identity in posting/entry_validation.go
 run_mutant \
   "MUT-06" \
   "INV-012" \
-  "internal/kernal/posting/entry_validation.go" \
+  "internal/kernel/posting/entry_validation.go" \
   "Allow reversal entry to reverse itself (Self-Reversal)" \
-  "sed -i 's/\*entry.ReversalOfID == entry.ID/false/' internal/kernal/posting/entry_validation.go" \
-  "./internal/kernal/posting" \
+  "sed -i 's/\*entry.ReversalOfID == entry.ID/false/' internal/kernel/posting/entry_validation.go" \
+  "./internal/kernel/posting" \
   "TestReversalClassificationAndReferenceMustMatch"
 
 # MUT-07: INV-024 Audit Tamper Detection in governance/audit_chain.go
 run_mutant \
   "MUT-07" \
   "INV-024" \
-  "internal/kernal/governance/audit_chain.go" \
+  "internal/kernel/governance/audit_chain.go" \
   "Disable hash recalculation during snapshot verification" \
-  "sed -i 's/if computedHash := CalculateHash(log); computedHash != log.CurrentLogHash {/if false {/' internal/kernal/governance/audit_chain.go" \
-  "./internal/kernal/governance" \
+  "sed -i 's/if computedHash := CalculateHash(log); computedHash != log.CurrentLogHash {/if false {/' internal/kernel/governance/audit_chain.go" \
+  "./internal/kernel/governance" \
   "TestAuditSnapshotVerificationDetectsTampering"
 
 # MUT-08: INV-016 Period Date Containment in masterdata/fiscal_calendar.go
 run_mutant \
   "MUT-08" \
   "INV-016" \
-  "internal/kernal/masterdata/fiscal_calendar.go" \
+  "internal/kernel/masterdata/fiscal_calendar.go" \
   "Disable transaction date containment check inside period" \
-  "python3 -c 'path = \"internal/kernal/masterdata/fiscal_calendar.go\"; c = open(path).read(); open(path, \"w\").write(c.replace(\"!date.Before(p.StartDate.UTC()) && !date.After(p.EndDate.UTC())\", \"true\"))'" \
-  "./internal/kernal/masterdata" \
+  "python3 -c 'path = \"internal/kernel/masterdata/fiscal_calendar.go\"; c = open(path).read(); open(path, \"w\").write(c.replace(\"!date.Before(p.StartDate.UTC()) && !date.After(p.EndDate.UTC())\", \"true\"))'" \
+  "./internal/kernel/masterdata" \
   "TestMasterDataEdgeCases"
 
 # MUT-09: PST-008 / RULE-ACC-026 Forbid reversing a reversing entry in posting/reversal.go
 run_mutant \
   "MUT-09" \
   "PST-008" \
-  "internal/kernal/posting/reversal.go" \
+  "internal/kernel/posting/reversal.go" \
   "Allow BuildReversalEntryAt to reverse a reversing entry" \
-  "sed -i 's/if original.Classification == journal.EntryClassReversing || original.ReversalOfID != nil {/if false \&\& (original.Classification == journal.EntryClassReversing || original.ReversalOfID != nil) {/' internal/kernal/posting/reversal.go" \
-  "./internal/kernal/posting" \
+  "sed -i 's/if original.Classification == journal.EntryClassReversing || original.ReversalOfID != nil {/if false \&\& (original.Classification == journal.EntryClassReversing || original.ReversalOfID != nil) {/' internal/kernel/posting/reversal.go" \
+  "./internal/kernel/posting" \
   "TestReversalLifecycle"
 
 # MUT-10: MONEY-025 Enforce 12-scale ceiling on exchange rates in types/money.go
 run_mutant \
   "MUT-10" \
   "MONEY-025" \
-  "internal/kernal/types/money.go" \
+  "internal/kernel/types/money.go" \
   "Bypass InternalScale 12 check on exchange rates" \
-  "sed -i 's/if !scaled.Equal(scaled.Truncate(0)) {/if false \&\& !scaled.Equal(scaled.Truncate(0)) {/' internal/kernal/types/money.go" \
-  "./internal/kernal/valuation" \
+  "sed -i 's/if !scaled.Equal(scaled.Truncate(0)) {/if false \&\& !scaled.Equal(scaled.Truncate(0)) {/' internal/kernel/types/money.go" \
+  "./internal/kernel/valuation" \
   "TestExchangeRateValidationEnforcesMoney025Money026AndSpecialCurrencies"
 
 # MUT-11: MD-010 Inactive ancestor cost center check in posting/pipeline.go
 run_mutant \
   "MUT-11" \
   "MD-010" \
-  "internal/kernal/posting/pipeline.go" \
+  "internal/kernel/posting/pipeline.go" \
   "Bypass active flag check on ancestor cost center nodes" \
-  "python3 -c 'path = \"internal/kernal/posting/pipeline.go\"; c = open(path).read(); target = \"\\t\\t\\tif !costCenter.Active {\\n\\t\\t\\t\\treturn ErrInactiveFinancialDimension\\n\\t\\t\\t}\"; assert target in c; open(path, \"w\").write(c.replace(target, \"\\t\\t\\tif false && !costCenter.Active {\\n\\t\\t\\t\\treturn ErrInactiveFinancialDimension\\n\\t\\t\\t}\", 1))'" \
-  "./internal/kernal/posting" \
+  "python3 -c 'path = \"internal/kernel/posting/pipeline.go\"; c = open(path).read(); target = \"\\t\\t\\tif !costCenter.Active {\\n\\t\\t\\t\\treturn ErrInactiveFinancialDimension\\n\\t\\t\\t}\"; assert target in c; open(path, \"w\").write(c.replace(target, \"\\t\\t\\tif false && !costCenter.Active {\\n\\t\\t\\t\\treturn ErrInactiveFinancialDimension\\n\\t\\t\\t}\", 1))'" \
+  "./internal/kernel/posting" \
   "TestPostingRejectsInactiveAncestorCostCenter"
 
 echo "" | tee -a "$logfile"

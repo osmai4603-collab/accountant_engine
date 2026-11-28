@@ -3,7 +3,7 @@
 // consolidation).
 //
 // The P2 kernel intentionally exposes a slimmer journal type (see
-// internal/kernal/journal) and a pipeline-oriented posting API. The orbital
+// internal/kernel/journal) and a pipeline-oriented posting API. The orbital
 // modules were designed against the richer entry shape used by the standalone
 // engine. This package bridges that gap without touching the locked kernel:
 // it keeps the orbital-facing data shape and delegates mathematical validation
@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernal/types"
+	financialtypes "github.com/osmai4603-collab/accounting_engine/internal/kernel/types"
 	"github.com/shopspring/decimal"
 )
 

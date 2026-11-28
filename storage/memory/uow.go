@@ -125,18 +125,25 @@ func (d *Driver) ExecuteWithOptions(ctx context.Context, opts storage.TxOptions,
 	defer func() {
 		if r := recover(); r != nil {
 			// On panic, snapshot is discarded (rollback)
+			multiLedgerEntryOwners.Delete(snapshot)
+			yearEndClosingsByDriver.Delete(snapshot)
 			panic(r)
 		}
 	}()
 
 	if err := fn(txCtx, uow); err != nil {
 		// Rollback: snapshot is discarded, d is untouched
+		multiLedgerEntryOwners.Delete(snapshot)
+		yearEndClosingsByDriver.Delete(snapshot)
 		return err
 	}
 
 	if !opts.ReadOnly {
 		// Commit: copy back mutated snapshot to root driver
 		d.copyFrom(snapshot)
+	} else {
+		multiLedgerEntryOwners.Delete(snapshot)
+		yearEndClosingsByDriver.Delete(snapshot)
 	}
 	return nil
 }

@@ -55,14 +55,14 @@ cat "${logs}/environment.txt"
 
 rc=0
 
-run "gofmt -l internal/kernal/" "${logs}/gofmt_kernel.log" \
-  bash -c 'gofmt -l internal/kernal/' || rc=1
+run "gofmt -l internal/kernel/" "${logs}/gofmt_kernel.log" \
+  bash -c 'gofmt -l internal/kernel/' || rc=1
 
 run "go test kernel" "${logs}/kernel_unit.log" \
-  go test ./internal/kernal/... -count=1 || rc=1
+  go test ./internal/kernel/... -count=1 || rc=1
 
 run "go test -race kernel" "${logs}/kernel_race.log" \
-  go test -race ./internal/kernal/... -count=1 || rc=1
+  go test -race ./internal/kernel/... -count=1 || rc=1
 
 # The contract-parity suite rewrites these tracked reports with fresh timings.
 # Snapshot and restore them verbatim so this baseline script never mutates the
@@ -109,7 +109,7 @@ for spec in "${targets[@]}"; do
   pkg="${spec%%:*}"
   fn="${spec##*:}"
   echo "### ${pkg}/${fn} $(date -u +%FT%TZ)" >>"${logs}/fuzz_smoke.log"
-  go test "./internal/kernal/${pkg}" -run='^$' -fuzz="^${fn}$" \
+  go test "./internal/kernel/${pkg}" -run='^$' -fuzz="^${fn}$" \
     -fuzztime="${fuzztime}" -count=1 >>"${logs}/fuzz_smoke.log" 2>&1
   echo "EXIT=$?" >>"${logs}/fuzz_smoke.log"
 done
@@ -117,7 +117,7 @@ echo "== fuzz smoke =="
 grep -E '^(###|EXIT=|ok  |FAIL|fuzz:)' "${logs}/fuzz_smoke.log"
 
 run "kernel coverage profile" "${logs}/coverage_run.log" \
-  go test ./internal/kernal/... -count=1 -coverprofile="${artifacts}/kernel.cover" || rc=1
+  go test ./internal/kernel/... -count=1 -coverprofile="${artifacts}/kernel.cover" || rc=1
 go tool cover -func="${artifacts}/kernel.cover" >"${logs}/coverage_func.txt" 2>&1
 echo "== coverage total =="
 tail -1 "${logs}/coverage_func.txt"

@@ -55,10 +55,14 @@ func claimIdempotencyTx(ctx context.Context, tx pgx.Tx, record storage.Idempoten
 	// The kernel-stamped scope is the database lock identity. Legacy callers
 	// that do not supply a scope fall back to company+key, which was the
 	// historical uniqueness key.
-	lockIdentity := record.Scope
-	if lockIdentity == "" {
-		lockIdentity = fmt.Sprintf("company=%s|key=%s", record.CompanyID.String(), record.Key)
+	// Kernel-stamped scopes have a unique (company_id, scope) key. An
+	// INSERT ... ON CONFLICT claim is atomic on that key and removes two
+	// round-trips (advisory lock pre-check) from the posting path. Legacy
+	// callers without a scope keep the historical advisory-lock path.
+	if record.Scope != "" {
+		return claimScopedIdempotencyTx(ctx, tx, record)
 	}
+	lockIdentity := fmt.Sprintf("company=%s|key=%s", record.CompanyID.String(), record.Key)
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, lockIdentity); err != nil {
 		return storage.IdempotencyRecord{}, false, err
 	}
@@ -114,6 +118,56 @@ func claimIdempotencyTx(ctx context.Context, tx pgx.Tx, record storage.Idempoten
 		return storage.IdempotencyRecord{}, false, err
 	}
 	return record, true, nil
+}
+
+// claimScopedIdempotencyTx claims a kernel-scoped key with one atomic
+// INSERT ... ON CONFLICT round-trip. A conflict means another caller owns the
+// scope; the existing row is then read and validated exactly as in the legacy
+// path. The (company_id, scope) primary key is the authoritative lock, so no
+// additional advisory lock is needed.
+func claimScopedIdempotencyTx(ctx context.Context, tx pgx.Tx, record storage.IdempotencyRecord) (storage.IdempotencyRecord, bool, error) {
+	now := time.Now().UTC()
+	record.Status = storage.IdempotencyStarted
+	record.CreatedAt = now
+	record.UpdatedAt = now
+
+	var claimedScope string
+	err := tx.QueryRow(ctx, `INSERT INTO posting_idempotency(
+		company_id, idempotency_key, operation, scope, payload_hash, status, created_at, updated_at
+	) VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+	ON CONFLICT (company_id, scope) DO NOTHING
+	RETURNING scope`,
+		uuid.UUID(record.CompanyID), record.Key, record.Operation, record.Scope, record.PayloadHash,
+		record.Status, now, now).Scan(&claimedScope)
+	if err == nil {
+		return record, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return storage.IdempotencyRecord{}, false, err
+	}
+
+	var existing storage.IdempotencyRecord
+	var entryID *uuid.UUID
+	scanErr := tx.QueryRow(ctx, `SELECT company_id, idempotency_key, operation, COALESCE(scope, ''), payload_hash,
+		status, entry_id, response, created_at, updated_at
+		FROM posting_idempotency WHERE company_id=$1 AND scope=$2`,
+		uuid.UUID(record.CompanyID), record.Scope).Scan(
+		&existing.CompanyID, &existing.Key, &existing.Operation, &existing.Scope, &existing.PayloadHash,
+		&existing.Status, &entryID, &existing.Response, &existing.CreatedAt, &existing.UpdatedAt)
+	if errors.Is(scanErr, pgx.ErrNoRows) {
+		return storage.IdempotencyRecord{}, false, fmt.Errorf("%w: scoped idempotency claim conflicted without a visible record", storage.ErrConcurrentModification)
+	}
+	if scanErr != nil {
+		return storage.IdempotencyRecord{}, false, scanErr
+	}
+	if entryID != nil {
+		eid := types.JournalEntryID(*entryID)
+		existing.EntryID = &eid
+	}
+	if existing.PayloadHash != "" && record.PayloadHash != "" && existing.PayloadHash != record.PayloadHash {
+		return storage.IdempotencyRecord{}, false, storage.ErrIdempotencyPayloadConflict
+	}
+	return existing, false, nil
 }
 
 // lookupIdempotencyTx is side-effect free: it never claims a key. It is used

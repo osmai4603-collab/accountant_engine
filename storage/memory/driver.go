@@ -221,6 +221,7 @@ func (d *Driver) clone() *Driver {
 	for k, v := range d.eventMappings {
 		cp.eventMappings[k] = v
 	}
+	cloneMultiLedgerOwners(d, cp)
 	cloneYearEndClosings(d, cp)
 	return cp
 }
@@ -248,7 +249,44 @@ func (d *Driver) copyFrom(src *Driver) {
 	d.idempotency = src.idempotency
 	d.eventIngestions = src.eventIngestions
 	d.eventMappings = src.eventMappings
+	copyMultiLedgerOwners(src, d)
 	copyYearEndClosings(src, d)
+}
+
+// Close releases in-memory state held by the driver, including global sync.Map
+// entries keyed by this driver pointer.
+func (d *Driver) Close() error {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.companies = nil
+	d.accounts = nil
+	d.accountCodes = nil
+	d.journals = nil
+	d.years = nil
+	d.periods = nil
+	d.accountVersions = nil
+	d.costCenters = nil
+	d.dimensionValues = nil
+	d.policyVersions = nil
+	d.journalSequences = nil
+	d.entries = nil
+	d.balances = nil
+	d.auditRecords = nil
+	d.governanceAuditLogs = nil
+	d.governanceCheckpoints = nil
+	d.idempotency = nil
+	d.eventIngestions = nil
+	d.eventMappings = nil
+	multiLedgerEntryOwners.Delete(d)
+	yearEndClosingsByDriver.Delete(d)
+	d.postingLocks.Range(func(key, _ any) bool {
+		d.postingLocks.Delete(key)
+		return true
+	})
+	return nil
 }
 
 func cloneEntry(entry journal.JournalEntry) journal.JournalEntry {

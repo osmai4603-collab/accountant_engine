@@ -21,7 +21,7 @@ const (
 
 // PolicyVersion is the immutable, durable record of one policy version. The
 // payload is a canonical JSON document using only public fields; the kernel
-// policy types are private to internal/kernal/policy and never appear in SPI.
+// policy types are private to internal/kernel/policy and never appear in SPI.
 type PolicyVersion struct {
 	CompanyID     types.CompanyID
 	PolicyID      uuid.UUID

@@ -5,7 +5,7 @@
 > **تاريخ الإنشاء:** `2026-11-28`
 > **الحالة:** `Draft — مسودة تنفيذية`
 > **المرجع الحاكم:** [`QUALITY_GATES_SPECIFICATION.md`](quality/QUALITY_GATES_SPECIFICATION.md) (`G01–G11`)، [`ACCOUNTING_ENGINE_ACCEPTANCE_CRITERIA.md`](rules/ACCOUNTING_ENGINE_ACCEPTANCE_CRITERIA.md)
-> **نطاق التقييم:** النواة المحاسبية (`internal/kernal`)، العقود العامة (`pkg/api`, `pkg/spi`, `pkg/sdk`)، محولا التخزين (`storage/memory`, `storage/postgres`)
+> **نطاق التقييم:** النواة المحاسبية (`internal/kernel`)، العقود العامة (`pkg/api`, `pkg/spi`, `pkg/sdk`)، محولا التخزين (`storage/memory`, `storage/postgres`)
 
 ---
 
@@ -98,22 +98,22 @@
 
 ## 3. نتائج التحقق المحاسبي من الكود
 
-> **المنهج:** فحص الكود المصدري مباشرة (`internal/kernal/`) لكل قاعدة محاسبية — وليس الاعتماد على التوثيق فقط.
+> **المنهج:** فحص الكود المصدري مباشرة (`internal/kernel/`) لكل قاعدة محاسبية — وليس الاعتماد على التوثيق فقط.
 
 ### 3.1 ملخص نتائج الفحص المحاسبي
 
 | # | القاعدة المحاسبية | موقع التنفيذ | الحكم | الملاحظات |
 | :---: | --- | --- | :---: | --- |
-| 1 | **القيد المزدوج المتوازن** | [`posting/entry_validation.go`](../internal/kernal/posting/entry_validation.go) — `ValidateEntryDoubleEntry` | ✅ | يفحص `∑FunctionalDebit == ∑FunctionalCredit` بدقة `shopspring/decimal` مع معالجة التقريب |
+| 1 | **القيد المزدوج المتوازن** | [`posting/entry_validation.go`](../internal/kernel/posting/entry_validation.go) — `ValidateEntryDoubleEntry` | ✅ | يفحص `∑FunctionalDebit == ∑FunctionalCredit` بدقة `shopspring/decimal` مع معالجة التقريب |
 | 2 | **حظر Float** | فحص AST آلي + `shopspring/decimal` حصرياً | ✅ | صفر استخدام لـ `float32`/`float64` في أي مسار مالي |
-| 3 | **تسوية بواقي التقريب** | [`posting/rounding.go`](../internal/kernal/posting/rounding.go) — `RoundEntryWithRoundingPolicy` | ✅ | يحسب `RoundingDifference`، يرفض بـ `ErrRoundingAccountRequired` عند غياب حساب التقريب، أو يولّد سطر تسوية صريح |
-| 4 | **حصانة القيد المرحّل** | [`posting/entry_validation.go`](../internal/kernal/posting/entry_validation.go) — `EnsureImmutable` | ✅ | يرفض تعديل أي قيد بحالة `Posted`/`Reversed`/`Cancelled` |
-| 5 | **صحة العكس** | [`posting/reversal.go`](../internal/kernal/posting/reversal.go) — `BuildReversalEntryAt` | ✅ | يعكس Debit↔Credit، يحفظ الأبعاد والعملات، يمنع العكس المزدوج والعكس الذاتي |
-| 6 | **إعادة تقييم العملات** | [`valuation/revaluation.go`](../internal/kernal/valuation/revaluation.go) — `RevaluationEngine` | ✅ | يقصر التقييم على `IsMonetary=true` + Asset/Liability، يستخدم سعر `CLOSING`، ينتج قيود `Adjusting` متوازنة |
-| 7 | **سلسلة التدقيق** | [`governance/audit_chain.go`](../internal/kernal/governance/audit_chain.go) — `CalculateHash` v2 | ✅ | SHA-256 مسبوق بالطول، 12 حقل دلالي، دقة ميكروثانية، تحقق من نقاط الفحص |
-| 8 | **آلة حالة القيد** | [`journal/entry.go`](../internal/kernal/journal/entry.go) — `ValidateTransition`, `AllowedTransitions` | ✅ | `Draft→Posted→Reversed`، `Draft→Cancelled`، لا انتقال آخر |
+| 3 | **تسوية بواقي التقريب** | [`posting/rounding.go`](../internal/kernel/posting/rounding.go) — `RoundEntryWithRoundingPolicy` | ✅ | يحسب `RoundingDifference`، يرفض بـ `ErrRoundingAccountRequired` عند غياب حساب التقريب، أو يولّد سطر تسوية صريح |
+| 4 | **حصانة القيد المرحّل** | [`posting/entry_validation.go`](../internal/kernel/posting/entry_validation.go) — `EnsureImmutable` | ✅ | يرفض تعديل أي قيد بحالة `Posted`/`Reversed`/`Cancelled` |
+| 5 | **صحة العكس** | [`posting/reversal.go`](../internal/kernel/posting/reversal.go) — `BuildReversalEntryAt` | ✅ | يعكس Debit↔Credit، يحفظ الأبعاد والعملات، يمنع العكس المزدوج والعكس الذاتي |
+| 6 | **إعادة تقييم العملات** | [`valuation/revaluation.go`](../internal/kernel/valuation/revaluation.go) — `RevaluationEngine` | ✅ | يقصر التقييم على `IsMonetary=true` + Asset/Liability، يستخدم سعر `CLOSING`، ينتج قيود `Adjusting` متوازنة |
+| 7 | **سلسلة التدقيق** | [`governance/audit_chain.go`](../internal/kernel/governance/audit_chain.go) — `CalculateHash` v2 | ✅ | SHA-256 مسبوق بالطول، 12 حقل دلالي، دقة ميكروثانية، تحقق من نقاط الفحص |
+| 8 | **آلة حالة القيد** | [`journal/entry.go`](../internal/kernel/journal/entry.go) — `ValidateTransition`, `AllowedTransitions` | ✅ | `Draft→Posted→Reversed`، `Draft→Cancelled`، لا انتقال آخر |
 | 9 | **عزل الشركات** | كل دالة قراءة في `masterdata` + `posting` | ✅ | `CompanyID` مطلوب في كل استعلام ومفتاح قفل |
-| 10 | **اتساق العملات** | [`posting/pipeline.go`](../internal/kernal/posting/pipeline.go) — الخطوات 3-5 | ✅ | يفرض تطابق `FunctionalCurrency` مع الشركة، و`TransactionCurrency` مع السطر |
+| 10 | **اتساق العملات** | [`posting/pipeline.go`](../internal/kernel/posting/pipeline.go) — الخطوات 3-5 | ✅ | يفرض تطابق `FunctionalCurrency` مع الشركة، و`TransactionCurrency` مع السطر |
 
 ### 3.2 الحكم المحاسبي الشامل
 
@@ -223,7 +223,7 @@
 | # | المرجع المفقود | المحال منه | الإجراء |
 | --- | --- | --- | --- |
 | 1.2.1 | `DOCS_CONFLICT_ANALYSIS.md` | [`KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md`](reports/KERNEL_SPECIFICATIONS_GAP_AND_DEFECT_ANALYSIS.md) سطر 3، [`KERNEL_RELEASE_DECISION`](reports/KERNEL_RELEASE_DECISION_2026-11-27.md) سطر 77 | **إنشاء** `docs/analysis/DOCS_CONFLICT_ANALYSIS.md` بملخص التضاربات المُكتشفة والمُغلقة |
-| 1.2.2 | `KERNAL_VS_DOCS_COMPARISON.md` | [`KERNEL_RELEASE_DECISION`](reports/KERNEL_RELEASE_DECISION_2026-11-27.md) سطر 102 | التحقق من وجوده في `docs/analysis/`؛ إن كان مفقوداً: إنشاؤه أو تحديث الرابط |
+| 1.2.2 | `KERNEL_VS_DOCS_COMPARISON.md` | [`KERNEL_RELEASE_DECISION`](reports/KERNEL_RELEASE_DECISION_2026-11-27.md) سطر 102 | التحقق من وجوده في `docs/analysis/`؛ إن كان مفقوداً: إنشاؤه أو تحديث الرابط |
 
 #### 1.3 تحديث MANIFEST.sha256
 
@@ -392,15 +392,15 @@ mkdir -p "$EVIDENCE_DIR"
 | # | القياس | الأمر | ملف الخرج |
 | --- | --- | --- | --- |
 | 3.2.1 | جميع اختبارات المستودع | `go test ./... -count=1 2>&1 \| tee $EVIDENCE_DIR/full_repo.log` | `full_repo.log` |
-| 3.2.2 | اختبارات النواة | `go test ./internal/kernal/... -count=1 2>&1 \| tee $EVIDENCE_DIR/kernel_unit.log` | `kernel_unit.log` |
-| 3.2.3 | كشف السباق | `go test -race ./internal/kernal/... 2>&1 \| tee $EVIDENCE_DIR/kernel_race.log` | `kernel_race.log` |
-| 3.2.4 | الترتيب العشوائي | `go test ./internal/kernal/... -shuffle=on -count=10 2>&1 \| tee $EVIDENCE_DIR/kernel_shuffle.log` | `kernel_shuffle.log` |
-| 3.2.5 | التغطية | `go test ./internal/kernal/... -coverprofile=$EVIDENCE_DIR/coverage.out 2>&1 \| tee $EVIDENCE_DIR/kernel_coverage.log` | `kernel_coverage.log` |
+| 3.2.2 | اختبارات النواة | `go test ./internal/kernel/... -count=1 2>&1 \| tee $EVIDENCE_DIR/kernel_unit.log` | `kernel_unit.log` |
+| 3.2.3 | كشف السباق | `go test -race ./internal/kernel/... 2>&1 \| tee $EVIDENCE_DIR/kernel_race.log` | `kernel_race.log` |
+| 3.2.4 | الترتيب العشوائي | `go test ./internal/kernel/... -shuffle=on -count=10 2>&1 \| tee $EVIDENCE_DIR/kernel_shuffle.log` | `kernel_shuffle.log` |
+| 3.2.5 | التغطية | `go test ./internal/kernel/... -coverprofile=$EVIDENCE_DIR/coverage.out 2>&1 \| tee $EVIDENCE_DIR/kernel_coverage.log` | `kernel_coverage.log` |
 | 3.2.6 | التوافق المعماري | `./scripts/verify_architecture.sh 2>&1 \| tee $EVIDENCE_DIR/architecture.log` | `architecture.log` |
 | 3.2.7 | التوافق العكسي | `./scripts/check_api_compat.sh 2>&1 \| tee $EVIDENCE_DIR/api_compat.log` | `api_compat.log` |
 | 3.2.8 | تكافؤ العقود | `go test ./test/contract_parity/... -count=1 2>&1 \| tee $EVIDENCE_DIR/contract_parity.log` | `contract_parity.log` |
 | 3.2.9 | التعافي من الكوارث | `go test -v ./test/dr/... 2>&1 \| tee $EVIDENCE_DIR/dr_drill.log` | `dr_drill.log` |
-| 3.2.10 | التحليل الثابت | `go vet ./... 2>&1 \| tee $EVIDENCE_DIR/go_vet.log; gofmt -l internal/kernal/ 2>&1 \| tee $EVIDENCE_DIR/gofmt.log` | `go_vet.log`, `gofmt.log` |
+| 3.2.10 | التحليل الثابت | `go vet ./... 2>&1 \| tee $EVIDENCE_DIR/go_vet.log; gofmt -l internal/kernel/ 2>&1 \| tee $EVIDENCE_DIR/gofmt.log` | `go_vet.log`, `gofmt.log` |
 
 #### 3.3 ملء سجل التشغيل في COMPLIANCE_TEST_SUITE_INDEX §5
 
@@ -409,8 +409,8 @@ mkdir -p "$EVIDENCE_DIR"
 ```markdown
 | Run ID | Commit | Environment | Test ID / Group | Command | Result | Evidence URI / Path | Date | Reviewer |
 |---|---|---|---|---|---|---|---|---|
-| `$RUN_ID` | `[COMMIT_HASH]` | `linux/amd64, go1.26.3, PostgreSQL 16` | `Accounting Invariants (ACC-001..013)` | `go test ./internal/kernal/posting/... ./internal/kernal/journal/...` | `[RESULT]` | `$EVIDENCE_DIR/kernel_unit.log` | `[DATE]` | `[REVIEWER]` |
-| `$RUN_ID` | `[COMMIT_HASH]` | `linux/amd64, go1.26.3, PostgreSQL 16` | `Domain Invariants (DOM-001)` | `go test ./internal/kernal/journal/...` | `[RESULT]` | `$EVIDENCE_DIR/kernel_unit.log` | `[DATE]` | `[REVIEWER]` |
+| `$RUN_ID` | `[COMMIT_HASH]` | `linux/amd64, go1.26.3, PostgreSQL 16` | `Accounting Invariants (ACC-001..013)` | `go test ./internal/kernel/posting/... ./internal/kernel/journal/...` | `[RESULT]` | `$EVIDENCE_DIR/kernel_unit.log` | `[DATE]` | `[REVIEWER]` |
+| `$RUN_ID` | `[COMMIT_HASH]` | `linux/amd64, go1.26.3, PostgreSQL 16` | `Domain Invariants (DOM-001)` | `go test ./internal/kernel/journal/...` | `[RESULT]` | `$EVIDENCE_DIR/kernel_unit.log` | `[DATE]` | `[REVIEWER]` |
 | ... (إكمال لجميع مجموعات الاختبار) |
 ```
 

@@ -41,4 +41,3 @@ type YearEndClosingStore interface {
 	SaveYearEndCloseRecord(ctx context.Context, record YearEndCloseRecord) error
 	GetYearEndCloseRecord(ctx context.Context, companyID types.CompanyID, fiscalYearID types.FiscalYearID) (YearEndCloseRecord, bool, error)
 }
-

@@ -18,7 +18,7 @@
 Caller / SDK
    │  يمرّر company scope و actor و correlation
    ▼
-PostingPipeline (internal/kernal/posting)
+PostingPipeline (internal/kernel/posting)
    │  يتحقق مرة واحدة، يجمّد القيد، يختم الفترة والسياسة والتواريخ والبصمات
    ▼
 PostingExecutor (host)
@@ -111,7 +111,7 @@ RetryPolicy.Validate() rejects negative/oversized values
 ExecuteWithRetry(ctx, runner, opts, policy, fn) respects cancellation
 ```
 
-بعد خطأ «نتيجة غير معروفة» (فقدان الاستجابة بعد Commit) يُجرى `IdempotencyLookup` آمن أولاً؛ لا يُعاد تنفيذ القيد إلا إذا ثبت أنه لم يُكمل. لا يوجد retry داخل `internal/kernal` ولا داخل المحول.
+بعد خطأ «نتيجة غير معروفة» (فقدان الاستجابة بعد Commit) يُجرى `IdempotencyLookup` آمن أولاً؛ لا يُعاد تنفيذ القيد إلا إذا ثبت أنه لم يُكمل. لا يوجد retry داخل `internal/kernel` ولا داخل المحول.
 
 ## 9. أدلة التشغيل
 
@@ -126,7 +126,7 @@ ExecuteWithRetry(ctx, runner, opts, policy, fn) respects cancellation
 | Race | `go test -race ./... -count=1` |
 | معمارية | `./scripts/verify_architecture.sh` → 11/11 PASS |
 
-> ملاحظة: أسماء الاختبارات في الجدول أعلاه هي أسماء خارج `internal/kernal`؛ المرجع المُلزم لها هو [مجموعة اختبارات العقد](./KERNEL_CONTRACT_TEST_SUITE.md) وتقرير [المرحلة 8](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
+> ملاحظة: أسماء الاختبارات في الجدول أعلاه هي أسماء خارج `internal/kernel`؛ المرجع المُلزم لها هو [مجموعة اختبارات العقد](./KERNEL_CONTRACT_TEST_SUITE.md) وتقرير [المرحلة 8](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md).
 
 ## 10. الحدود المتبقية
 

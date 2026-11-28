@@ -2,7 +2,7 @@
 
 - **رمز الوثيقة:** `AE-REMED-P9-MATRIX`
 - **المرحلة:** 9 — التقييم والعملات الأجنبية
-- **النطاق:** `internal/kernal/valuation`، والتكامل مع `types` و`journal` و`posting`
+- **النطاق:** `internal/kernel/valuation`، والتكامل مع `types` و`journal` و`posting`
 - **القرار المرجعي:** [ADR P9-01](../architecture/KERNEL_ARCHITECTURE_DECISION_RECORDS.md#adr-p9-01)
 - **تقرير المرحلة:** [KERNEL_REMEDIATION_PHASE9_REPORT.md](../reports/KERNEL_FINAL_VERIFICATION_REPORT.md)
 

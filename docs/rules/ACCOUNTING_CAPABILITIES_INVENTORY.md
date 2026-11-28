@@ -14,13 +14,13 @@ technical_terms: "en"
 # القدرات المحاسبية الشاملة (Accounting Capabilities Inventory)
 
 > **بيان الإلزام والهدف:**  
-> تُحدد هذه الوثيقة وتحصر بدقة **كافة القدرات المحاسبية (Accounting Capabilities)** التي يمتلكها ويوفرها مشروع `accounting_engine`، مع تصنيفها المنهجي إلى **قدرات أساسية حتمية (Kernal Capabilities)** لا يستقيم المحرك بدونها، و**قدرات مدارية وتكميلية (Orbital Capabilities)**، و**قدرات المعايير الدولية المتخصصة (IFRS/IAS Modules)**، و**قدرات التهيئة والإقلاع (Bootstrap Capabilities)**.
+> تُحدد هذه الوثيقة وتحصر بدقة **كافة القدرات المحاسبية (Accounting Capabilities)** التي يمتلكها ويوفرها مشروع `accounting_engine`، مع تصنيفها المنهجي إلى **قدرات أساسية حتمية (Kernel Capabilities)** لا يستقيم المحرك بدونها، و**قدرات مدارية وتكميلية (Orbital Capabilities)**، و**قدرات المعايير الدولية المتخصصة (IFRS/IAS Modules)**، و**قدرات التهيئة والإقلاع (Bootstrap Capabilities)**.
 
 ---
 
 ## فهرس المحتويات
 
-1. [القدرات المحاسبية الأساسية للنواة (Kernal Accounting Capabilities)](#1-القدرات-المحاسبية-الأساسية-للنواة-kernal-accounting-capabilities)
+1. [القدرات المحاسبية الأساسية للنواة (Kernel Accounting Capabilities)](#1-القدرات-المحاسبية-الأساسية-للنواة-kernel-accounting-capabilities)
 2. [قدرات الدفاتر المساعدة (Subledger Capabilities)](#2-قدرات-الدفاتر-المساعدة-subledger-capabilities)
 3. [قدرات التقارير والقوائم المالية (Financial Reporting Capabilities)](#3-قدرات-التقارير-والقوائم-المالية-financial-reporting-capabilities)
 4. [قدرات استيعاب الأحداث الاقتصادية (Economic Event Ingestion Capabilities)](#4-قدرات-استيعاب-الأحداث-الاقتصادية-economic-event-ingestion-capabilities)
@@ -32,62 +32,62 @@ technical_terms: "en"
 
 ---
 
-## 1. القدرات المحاسبية الأساسية للنواة (Kernal Accounting Capabilities)
+## 1. القدرات المحاسبية الأساسية للنواة (Kernel Accounting Capabilities)
 
 تمثل هذه القدرات صلب النواة المحاسبية وتتوفر دائماً وإلزامياً:
 
-* **[CAP-KERNAL-01] القيد المزدوج والتحقق الهيكلي الحتمي والعملة الوظيفية (Double-Entry & Currency Validation):**
+* **[CAP-KERNEL-01] القيد المزدوج والتحقق الهيكلي الحتمي والعملة الوظيفية (Double-Entry & Currency Validation):**
   * التحقق الصارم من توازن المدين والدائن ($\sum D = \sum C$) بالعملة الوظيفية للشركة.
   * فرض تطابق العملة الوظيفية لكافة أسطر القيد مع العملة الوظيفية المعتمدة للشركة (`Company.FunctionalCurrency`) المسترجعة من بيانات الماستر داتا.
   * فرض تطابق عملة مبلغ المعاملة مع عملة المعاملة المسجلة في السطر (`line.TransactionAmount.Currency() == line.TransactionCurrency`).
   * التحقق من سلامة بنية القيد (وجود سطرين على الأقل، طرف مدين وطرف دائن، وانعدام المبالغ السالبة).
   * رفض أي قيد غير متوازن أو مخالف للعملة الوظيفية في مرحلة التحقق الأولي وقبل فتح أي معاملة تخزين.
 
-* **[CAP-KERNAL-02] خط أنابيب الترحيل الذري (17 خطوة تنفيذية في `KERNEL_POSTING_FLOW_SPECIFICATION.md` / 8 مراحل منطقية) وحجز الأقفال التصاعدي:**
+* **[CAP-KERNEL-02] خط أنابيب الترحيل الذري (17 خطوة تنفيذية في `KERNEL_POSTING_FLOW_SPECIFICATION.md` / 8 مراحل منطقية) وحجز الأقفال التصاعدي:**
   * ترحيل القيود ذرياً إلى دفتر الأستاذ العام وتحديث أرصدة الحسابات المتأثرة وسجلات التدقيق ضمن معاملة واحدة شاملة (`Unit of Work`).
   * حجز أقفال الصفوف للحسابات المتأثرة بترتيب تصاعدي لمعرفاتها (`Ordered Locking by AccountID ASC`) للقضاء التام على التجمد والتعارض (Deadlock-Free).
   * ربط الترحيل بالتحقق الصارم من حالة المسودة (`Draft`) وهوية المنفذ (`ActorID != empty`) وبوابات الاعتماد المزدوج ومطابقة بصمة المحتوى (`ContentHash`).
   * تراجع كامل وشامل للمعاملة في حال حدوث أي خطأ في أي خطوة من خطوات الأنبوب.
 
-* **[CAP-KERNAL-03] الحرمة المطلقة للقيود المرحلة (Strict Immutability):**
+* **[CAP-KERNEL-03] الحرمة المطلقة للقيود المرحلة (Strict Immutability):**
   * منع أي تعديل (`UPDATE`) أو حذف (`DELETE`) على القيود المرحلة وأسطرها وحركاتها عبر فرض دالة `EnsureImmutable`.
   * تثبيت القيد المرحل كسجل تاريخي قانوني أبدي.
 
-* **[CAP-KERNAL-04] العكس المحاسبي والتصحيح الدلالي (Semantic Reversals):**
+* **[CAP-KERNEL-04] العكس المحاسبي والتصحيح الدلالي (Semantic Reversals):**
   * إنشاء قيد عكسي مطابق وموازٍ للقيد الأصلي مع ربطه به توثيقياً عبر المعرف.
   * عكس إشارات أطراف القيد وتعديل الأرصدة تلقائياً مع منع تكرار عكس القيد الواحد أكثر من مرة.
 
-* **[CAP-KERNAL-05] إدارة شجرة الحسابات المتدرجة والتصنيفات (Chart of Accounts & Classification):**
+* **[CAP-KERNEL-05] إدارة شجرة الحسابات المتدرجة والتصنيفات (Chart of Accounts & Classification):**
   * بناء هيكل شجري متعدد المستويات للأصول والالتزامات وحقوق الملكية والإيرادات والمصروفات، مع التصنيفات الفرعية المعيارية.
   * حظر الترحيل على الحسابات التجميعية (Header Accounts) وقصره على الحسابات الطرفية (Leaf Accounts).
   * كشف ومنع العلاقات الدائرية في الهرمية، والتتبع التاريخي لتغيرات الحسابات (`Account Versions / Effective-Dating`).
 
-* **[CAP-KERNAL-06] إدارة تقويم الفترات والسنوات المالية وفترات التسوية (Fiscal Calendar & Adjustment Periods):**
+* **[CAP-KERNEL-06] إدارة تقويم الفترات والسنوات المالية وفترات التسوية (Fiscal Calendar & Adjustment Periods):**
   * تعريف الفترات والسنوات المالية وضبط حالاتها (`OPEN`, `SOFT_CLOSED`, `HARD_CLOSED`).
   * فرض التحقق الثنائي المتزامن من انفتاح الفترة والسنة المالية معاً (`ValidatePeriodForPosting`)، ورفض الترحيل في فترة وسنة مقفلة.
   * فصل فترات التسوية 13 و 14 كأوعية إجرائية لا تخضع للتاريخ واستبعادها من البحث الزمني (`Contains(date) == false`)، وتوجيه الترحيل إليها حصراً برقم الفترة.
   * إعادة فتح الفترات المقفلة داخل النواة تستلزم تسجيل هوية المنفذ (`ActorID`) والسبب (`Reason`) للتدقيق فقط؛ ولا يوجد رقم اعتماد أو موافقة داخل النواة، لأن أي سياسة موافقة تقع خارجها وفق `RULE-ACC-020`.
 
-* **[CAP-KERNAL-07] إقفال نهاية السنة المالية وتدوير الأرصدة (Year-End Closing):**
+* **[CAP-KERNEL-07] إقفال نهاية السنة المالية وتدوير الأرصدة (Year-End Closing):**
   * تصفير حسابات قائمة الدخل (الإيرادات والمصروفات) وترحيل صافي الربح أو الخسارة إلى الأرباح المبقاة (`Retained Earnings`).
   * تدوير أرصدة الميزانية كأرصدة افتتاحية للسنة المالية التالية ذرياً.
 
-* **[CAP-KERNAL-08] دقة الحسابات العشرية والتسوية الصريحة للتقريب (Precision & Rounding Settlement):**
+* **[CAP-KERNEL-08] دقة الحسابات العشرية والتسوية الصريحة للتقريب (Precision & Rounding Settlement):**
   * تمثيل العمليات الحسابية بدقة متناهية عبر `Int64` للوحدات النقدية الصغرى ومكتبات Decimal الدقيقة مع حظر `float32 / float64`.
   * تطبيق التقريب المصرفي المعتمد (`Banker's Rounding`).
   * فصل التحقق الرياضي عن التقريب، واحتساب متبقي التقريب الصريح لأسطر القيد، وإلزام تسويته بحساب تسوية معتمد (`ErrRoundingAccountRequired`) وحظر الإسقاط الصامت للكسور.
 
-* **[CAP-KERNAL-09] إدارة العملات المتعددة ومحرك التحويل (Multi-Currency & Conversion Engine):**
+* **[CAP-KERNEL-09] إدارة العملات المتعددة ومحرك التحويل (Multi-Currency & Conversion Engine):**
   * دعم العملات المعتمدة وفق معيار ISO 4217.
   * محرك تحويل مالي صريح (`ConversionEngine`) بين عملات المعاملات والعملة الوظيفية بالاعتماد على أسعار الصرف التاريخية المعتمدة ومزودات الأسعار (`RateProviderSPI`).
   * سياسات إعادة التقييم الدوري واحتساب فروق أسعار الصرف المحققة وغير المحققة (IAS 21).
 
-* **[CAP-KERNAL-10] مسار التدقيق الجنائي والترميز البنيوي المشفر (Tamper-Proof Audit Trail):**
+* **[CAP-KERNEL-10] مسار التدقيق الجنائي والترميز البنيوي المشفر (Tamper-Proof Audit Trail):**
   * تسجيل هوية المنفذ الموثقة (`ActorID`)، الطابع الزمني بدقة الميكروثانية بتوقيت UTC (`Truncate(1µs).UnixNano()` وفق `RULE-ACC-042`)، ورقم تسلسلي تراكمي صاعد (`SequenceNumber`) لكشف أي حذف خلفي للسجلات (Tail-Truncation).
   * بناء سلسلة التجزئة الرياضية بترميز بنيوي مسبوق بالطول (`<byte_length>:<utf8_bytes>`) وفق `RULE-ACC-041` (Canonical Length-Prefixed Framing v2) لمنع تصادم الهاشات.
   * محرك فحص جنائي مستقل ومستمر (`VerifyAuditIntegrity`) لكشف أي تلاعب أو بتر في السلسلة فوراً.
 
-* **[CAP-KERNAL-11] عزل الشركات وتعدد المستأجرين (Multi-Tenancy Isolation):**
+* **[CAP-KERNEL-11] عزل الشركات وتعدد المستأجرين (Multi-Tenancy Isolation):**
   * عزل الحسابات والقيود والعمليات بشكل كامل على مستوى الشركة (`CompanyID / TenantID`).
   * التكامل مع سياسات أمان مستوى الصفوف (PostgreSQL RLS). **ملاحظة:** تطبيق RLS هو مسؤولية المضيف/المحوّل؛ النواة تجري التحقق المنطقي من `CompanyID` فقط وفق `RULE-ACC-022B`.
 
@@ -226,17 +226,17 @@ technical_terms: "en"
 
 | رمز القدرة | اسم القدرة المحاسبية | التصنيف | النطاق البرمجي | حالة التفعيل |
 | :--- | :--- | :--- | :--- | :--- |
-| `CAP-KERNAL-01` | القيد المزدوج والتحقق | الأساسية (Kernal) | `internal/posting` | إلزامي دائماً |
-| `CAP-KERNAL-02` | الترحيل الذري | الأساسية (Kernal) | `internal/posting` | إلزامي دائماً |
-| `CAP-KERNAL-03` | الحرمة المحاسبية | الأساسية (Kernal) | `internal/posting` | إلزامي دائماً |
-| `CAP-KERNAL-04` | القيود العكسية | الأساسية (Kernal) | `internal/posting` | إلزامي دائماً |
-| `CAP-KERNAL-05` | شجرة الحسابات (COA) | الأساسية (Kernal) | `internal/masterdata` | إلزامي دائماً |
-| `CAP-KERNAL-06` | الفترات المالية | الأساسية (Kernal) | `internal/masterdata` | إلزامي دائماً |
-| `CAP-KERNAL-07` | إقفال نهاية السنة | الأساسية (Kernal) | `internal/sdkapplication` | متاح بالنواة |
-| `CAP-KERNAL-08` | الدقة العشرية | الأساسية (Kernal) | `internal/types` | إلزامي دائماً |
-| `CAP-KERNAL-09` | العملات المتعددة | الأساسية (Kernal) | `internal/valuation` | إلزامي دائماً |
-| `CAP-KERNAL-10` | مسار التدقيق الجنائي | الأساسية (Kernal) | `internal/governance` | إلزامي دائماً |
-| `CAP-KERNAL-11` | عزل الشركات (التحقق المنطقي من CompanyID + RLS في المحوّل) | الأساسية (Kernal) + المحوّل | `internal/kernal` (منطقي) + `storage/postgres` (RLS) | إلزامي دائماً |
+| `CAP-KERNEL-01` | القيد المزدوج والتحقق | الأساسية (Kernel) | `internal/posting` | إلزامي دائماً |
+| `CAP-KERNEL-02` | الترحيل الذري | الأساسية (Kernel) | `internal/posting` | إلزامي دائماً |
+| `CAP-KERNEL-03` | الحرمة المحاسبية | الأساسية (Kernel) | `internal/posting` | إلزامي دائماً |
+| `CAP-KERNEL-04` | القيود العكسية | الأساسية (Kernel) | `internal/posting` | إلزامي دائماً |
+| `CAP-KERNEL-05` | شجرة الحسابات (COA) | الأساسية (Kernel) | `internal/masterdata` | إلزامي دائماً |
+| `CAP-KERNEL-06` | الفترات المالية | الأساسية (Kernel) | `internal/masterdata` | إلزامي دائماً |
+| `CAP-KERNEL-07` | إقفال نهاية السنة | الأساسية (Kernel) | `internal/sdkapplication` | متاح بالنواة |
+| `CAP-KERNEL-08` | الدقة العشرية | الأساسية (Kernel) | `internal/types` | إلزامي دائماً |
+| `CAP-KERNEL-09` | العملات المتعددة | الأساسية (Kernel) | `internal/valuation` | إلزامي دائماً |
+| `CAP-KERNEL-10` | مسار التدقيق الجنائي | الأساسية (Kernel) | `internal/governance` | إلزامي دائماً |
+| `CAP-KERNEL-11` | عزل الشركات (التحقق المنطقي من CompanyID + RLS في المحوّل) | الأساسية (Kernel) + المحوّل | `internal/kernel` (منطقي) + `storage/postgres` (RLS) | إلزامي دائماً |
 | `CAP-SUB-01..04` | الدفاتر المساعدة (AR/AP/Cash/Assets) | مدارية (Orbital) | `internal/subledgers` | اختياري (Opt-in) |
 | `CAP-REP-01..06` | التقارير والقوائم المالية | مدارية (Orbital) | `internal/reporting` | اختياري (Opt-in) |
 | `CAP-EVT-01..02` | استيعاب الأحداث ومنع التكرار | مدارية (Orbital) | `internal/events` | اختياري (Opt-in) |
