@@ -39,7 +39,7 @@ func TestKernelIdentifierConstructorsAndConversions(t *testing.T) {
 	segment := NewSegmentID()
 	unit := NewBusinessUnitID()
 
-	if company.UUID() != company.UUID() || company.String() == "" ||
+	if company.UUID() == (CompanyID{}).UUID() || company.String() == "" ||
 		account.UUID().String() == "" || fiscalYear.UUID().String() == "" ||
 		fiscalPeriod.UUID().String() == "" || journal.UUID().String() == "" ||
 		entry.UUID().String() == "" || line.UUID().String() == "" ||

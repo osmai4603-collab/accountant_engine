@@ -201,7 +201,7 @@ func TestKernelTraceabilityMatrixCoversAllRulesAndNamedTests(t *testing.T) {
 	}
 
 	testRef := regexp.MustCompile("`(Test[A-Za-z0-9_]+|Fuzz[A-Za-z0-9_]+)`")
-	for _, row := range strings.Split(matrixText, "\n") {
+	for row := range strings.SplitSeq(matrixText, "\n") {
 		if !strings.HasPrefix(strings.TrimSpace(row), "| `RULE-KERNEL-") {
 			continue
 		}
